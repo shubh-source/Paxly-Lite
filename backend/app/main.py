@@ -5,10 +5,8 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, place_partner, calls, website
 import os
-import time
 
 from app.core.database import connect_db, engine, Base
-# Import BannedIP specifically for middleware check
 from app.models.orm import BannedIP
 from app.websocket.handler import router as ws_router
 from sqlalchemy.future import select
@@ -25,40 +23,54 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Paxly Fortress API", version="1.1.0", lifespan=lifespan)
 
-# --- THE FORTRESS MIDDLEWARE ---
-@app.middleware("http")
-async def fortress_middleware(request: Request, call_next):
-    # Safe IP retrieval
-    client_ip = request.client.host if request.client else "proxy"
-    origin = request.headers.get("origin")
-    
-    # 1. SECURITY: ADD HEADERS
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    
-    # Debug log for CORS issues
-    if "/api" in request.url.path:
-        print(f"📡 API CALL: {request.method} {request.url.path} | Origin: {origin}")
-        
-    return response
+# ── CORS MUST BE FIRST ─────────────────────────────────────────────────────
+# In FastAPI, add_middleware runs in LIFO order.
+# Adding CORS first means it executes LAST in the middleware chain,
+# but it correctly wraps all other middleware and handles OPTIONS preflights.
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://paxly-lite.vercel.app",
+]
+
+# Also include FRONTEND_URL env var if set (for custom domains)
+_frontend_url = os.getenv("FRONTEND_URL", "")
+if _frontend_url and _frontend_url not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(_frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://paxly-lite.vercel.app",
-        "https://paxly-lite.vercel.app/",
-        os.getenv("FRONTEND_URL", "https://paxly-lite.vercel.app")
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
-# ALL ROUTES RESTORED
+# ── SECURITY MIDDLEWARE ──────────────────────────────────────────────────────
+# This runs BEFORE CORS in Starlette's chain (decorator = added last = runs first on request)
+# But we check for OPTIONS and pass through immediately to let CORS handle it.
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    # Let OPTIONS (preflight) pass through immediately — CORS middleware handles it
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    
+    response = await call_next(request)
+    
+    # Add security headers to non-preflight responses
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    
+    # Debug log
+    origin = request.headers.get("origin", "none")
+    if "/api" in str(request.url.path):
+        print(f"📡 {request.method} {request.url.path} | Origin: {origin} | Status: {response.status_code}")
+    
+    return response
+
+# ── ROUTES ──────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
 app.include_router(couple.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
@@ -87,3 +99,4 @@ app.mount("/media", StaticFiles(directory="./media"), name="media")
 @app.get("/")
 async def root():
     return {"status": "Fortress Active", "integrity": "Verified"}
+
