@@ -19,9 +19,9 @@ COPY . .
 # Create media directory if it doesn't exist
 RUN mkdir -p media
 
-# Expose the API port
-EXPOSE 8000
+# Expose the API port (Render default is 10000)
+EXPOSE 10000
 
 # Run the application with Gunicorn using Uvicorn workers for production
-# Increased timeout to 120s to allow for database initialization (metadata.create_all)
-CMD ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "app.main:app", "--bind", "0.0.0.0:8000", "--timeout", "120"]
+# Updated bind port to 10000 for Render compatibility
+CMD ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "app.main:app", "--bind", "0.0.0.0:10000", "--timeout", "120"]
