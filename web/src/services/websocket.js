@@ -8,7 +8,11 @@ class WSService {
 
   connect(token) {
     this.token = token;
-    const wsUrl = `ws://localhost:8000/ws?token=${token}`;
+    let wsBase = import.meta.env.VITE_API_URL 
+      ? import.meta.env.VITE_API_URL.replace('http', 'ws') 
+      : 'ws://localhost:8000';
+    
+    const wsUrl = `${wsBase}/ws?token=${token}`;
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
