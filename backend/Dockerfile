@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Force fresh layer build - Cache Bust
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
