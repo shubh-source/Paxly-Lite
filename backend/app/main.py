@@ -28,7 +28,9 @@ app = FastAPI(title="Paxly Fortress API", version="1.1.0", lifespan=lifespan)
 # --- THE FORTRESS MIDDLEWARE ---
 @app.middleware("http")
 async def fortress_middleware(request: Request, call_next):
-    client_ip = request.client.host
+    # Safe IP retrieval
+    client_ip = request.client.host if request.client else "proxy"
+    origin = request.headers.get("origin")
     
     # 1. SECURITY: ADD HEADERS
     response = await call_next(request)
@@ -36,22 +38,20 @@ async def fortress_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    
+    # Debug log for CORS issues
+    if "/api" in request.url.path:
+        print(f"📡 API CALL: {request.method} {request.url.path} | Origin: {origin}")
+        
     return response
-
-# --- GLOBAL STEALTH ERROR HANDLER ---
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    print(f"🔥 SECURITY LOG: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"message": "A security-controlled error occurred. Integrity verified."},
-    )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        os.getenv("FRONTEND_URL", "http://localhost:3000"),
-        "https://paxly-lite.vercel.app"
+        "http://localhost:3000",
+        "https://paxly-lite.vercel.app",
+        "https://paxly-lite.vercel.app/",
+        os.getenv("FRONTEND_URL", "https://paxly-lite.vercel.app")
     ],
     allow_credentials=True,
     allow_methods=["*"],
