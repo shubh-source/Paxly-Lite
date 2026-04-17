@@ -108,7 +108,7 @@ async def partner_add_theatre(data: TheatreCreate, cu: User = Depends(partner_on
         id=str(uuid.uuid4())[:12],
         owner_id=cu.id,
         is_approved=False, # Wait for admin
-        **data.dict()
+        **data.model_dump()
     )
     db.add(new_t)
     await db.commit()

@@ -56,7 +56,7 @@ async def get_product(product_id: str, db: AsyncSession = Depends(get_db)):
 async def add_product(data: ProductCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     new_product = Product(
         id=str(uuid.uuid4()),
-        **data.dict(),
+        **data.model_dump(),
         created_by=cu.id
     )
     db.add(new_product)
