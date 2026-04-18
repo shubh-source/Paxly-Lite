@@ -11,31 +11,40 @@ class User(Base):
     name = Column(String)
     email = Column(String, unique=True, index=True)
     password = Column(String)
-    
+
+    # Role & Premium
+    role = Column(String, default="user")          # user | partner | admin
+    is_premium = Column(Boolean, default=False)
+    business_category = Column(String, nullable=True)  # theatre | restaurant | cafe
+
     # Device Binding
     device_id = Column(String, nullable=True)
     device_bound_at = Column(DateTime, nullable=True)
     avatar_url = Column(String, nullable=True)
-    
+
     # Couple logic
     couple_space_id = Column(String, nullable=True)
     partner_id = Column(String, nullable=True)
     pending_link = Column(JSONB, nullable=True)
-    
+
     # App Lock
     app_pin = Column(String, nullable=True)
     pin_set_at = Column(DateTime, nullable=True)
     pin_failed_attempts = Column(Integer, default=0)
     intruder_trigger = Column(Boolean, default=False)
     auto_lock_seconds = Column(Integer, default=30)
-    
+
+    # Payouts (encrypted)
+    payout_method = Column(String, nullable=True)
+    payout_upi_id = Column(String, nullable=True)
+    payout_bank_acc = Column(String, nullable=True)
     payout_bank_ifsc = Column(String, nullable=True)
 
     # Premium Preferences
     stealth_mode = Column(Boolean, default=False)
     blur_sensitive = Column(Boolean, default=False)
     hide_activity = Column(Boolean, default=False)
-    ai_personality = Column(String, default="compassionate") # professional | friend | compassionate
+    ai_personality = Column(String, default="compassionate")
     milestone_alerts = Column(Boolean, default=True)
 
     # Compassionate Archive
@@ -70,15 +79,17 @@ class Message(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     couple_space_id = Column(String, index=True)
     sender_id = Column(String)
+    sender_name = Column(String, nullable=True)
     message_type = Column(String, default="text")
     text = Column(Text, nullable=True)
     media_url = Column(String, nullable=True)
     reactions = Column(JSONB, default={})
     is_once_view = Column(Boolean, default=False)
-    view_limit = Column(Integer, default=1) # 1 or 2
+    view_limit = Column(Integer, default=1)
     views_used = Column(Integer, default=0)
-    is_compromised = Column(Boolean, default=False) # True if camera saw another phone
+    is_compromised = Column(Boolean, default=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
 
 class Mood(Base):
     __tablename__ = "moods"
