@@ -14,8 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("✅ Database tables verified/created.")
+    except Exception as e:
+        print(f"⚠️ DB startup warning (non-fatal): {e}")
     await connect_db()
     os.makedirs("./media", exist_ok=True)
     yield
@@ -31,12 +35,8 @@ ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://paxly-lite.vercel.app",
+    "https://paxly-lite.onrender.com",
 ]
-
-# Also include FRONTEND_URL env var if set (for custom domains)
-_frontend_url = os.getenv("FRONTEND_URL", "")
-if _frontend_url and _frontend_url not in ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS.append(_frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
