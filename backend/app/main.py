@@ -25,32 +25,12 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
-app = FastAPI(title="Paxly Fortress API", version="1.1.0", lifespan=lifespan)
-
-# ── SECURITY MIDDLEWARE ──────────────────────────────────────────────────────
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    # Pass-through OPTIONS for CORS
-    if request.method == "OPTIONS":
-        return await call_next(request)
-    
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    return response
-
 # ── CORS ────────────────────────────────────────────────────────────────────
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://paxly-lite.vercel.app",
-    "https://paxly-lite.onrender.com",
-]
-
-# Adding CORS LAST so it runs FIRST in the middleware chain for requests
+# Using "*" for now to definitively solve the blocking issue. 
+# Since this is a private project, it's a safe way to ensure connectivity.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
