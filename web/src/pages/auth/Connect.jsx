@@ -2,14 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { generateInvite } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import axios from 'axios';
-
-const api = axios.create({ baseURL: '/api' });
-api.interceptors.request.use(cfg => {
-  const token = localStorage.getItem('ros_token');
-  if (token) cfg.headers.Authorization = `Bearer ${token}`;
-  return cfg;
-});
+import api from '../../services/api';
 
 export default function Connect() {
   const { refreshUser } = useAuth();

@@ -27,10 +27,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Paxly Fortress API", version="1.1.0", lifespan=lifespan)
 
-# ── CORS MUST BE FIRST ─────────────────────────────────────────────────────
-# In FastAPI, add_middleware runs in LIFO order.
-# Adding CORS first means it executes LAST in the middleware chain,
-# but it correctly wraps all other middleware and handles OPTIONS preflights.
+# ── SECURITY MIDDLEWARE ──────────────────────────────────────────────────────
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    # Pass-through OPTIONS for CORS
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
+
+# ── CORS ────────────────────────────────────────────────────────────────────
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -38,37 +47,14 @@ ALLOWED_ORIGINS = [
     "https://paxly-lite.onrender.com",
 ]
 
+# Adding CORS LAST so it runs FIRST in the middleware chain for requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
-
-# ── SECURITY MIDDLEWARE ──────────────────────────────────────────────────────
-# This runs BEFORE CORS in Starlette's chain (decorator = added last = runs first on request)
-# But we check for OPTIONS and pass through immediately to let CORS handle it.
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    # Let OPTIONS (preflight) pass through immediately — CORS middleware handles it
-    if request.method == "OPTIONS":
-        return await call_next(request)
-    
-    response = await call_next(request)
-    
-    # Add security headers to non-preflight responses
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    
-    # Debug log
-    origin = request.headers.get("origin", "none")
-    if "/api" in str(request.url.path):
-        print(f"📡 {request.method} {request.url.path} | Origin: {origin} | Status: {response.status_code}")
-    
-    return response
 
 # ── ROUTES ──────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
