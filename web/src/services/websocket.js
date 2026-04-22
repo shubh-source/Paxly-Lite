@@ -4,9 +4,16 @@ class WSService {
     this.listeners = {};
     this.reconnectTimer = null;
     this.token = null;
+    this._intentionalClose = false;
   }
 
-  connect(token) {
+  connect(token, coupleSpaceId = null) {
+    // Only connect if user has a couple space (otherwise backend returns 4001)
+    if (!coupleSpaceId) {
+      console.log('⏸️ WebSocket: no couple space, skipping connection');
+      return;
+    }
+    this._intentionalClose = false;
     this.token = token;
     let wsBase = import.meta.env.VITE_API_URL 
       ? import.meta.env.VITE_API_URL.replace('http', 'ws') 
@@ -27,17 +34,23 @@ class WSService {
       } catch {}
     };
 
-    this.ws.onclose = () => {
-      console.log('🔌 WebSocket disconnected');
+    this.ws.onclose = (e) => {
+      console.log('🔌 WebSocket disconnected', e.code);
       this.emit('disconnected', {});
-      // Auto reconnect after 3s
-      this.reconnectTimer = setTimeout(() => this.connect(this.token), 3000);
+      // Do NOT reconnect if:
+      // - intentionally closed
+      // - 4001 = no couple space yet (user not linked with partner)
+      // - 4003 = forbidden
+      if (!this._intentionalClose && e.code !== 4001 && e.code !== 4003 && e.code !== 1008) {
+        this.reconnectTimer = setTimeout(() => this.connect(this.token), 5000);
+      }
     };
 
     this.ws.onerror = (e) => console.error('WS Error:', e);
   }
 
   disconnect() {
+    this._intentionalClose = true;
     clearTimeout(this.reconnectTimer);
     if (this.ws) { this.ws.close(); this.ws = null; }
   }
