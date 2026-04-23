@@ -25,6 +25,8 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
+app = FastAPI(title="Paxly Fortress API", version="1.1.1", lifespan=lifespan)
+
 # ── CORS ────────────────────────────────────────────────────────────────────
 # Using "*" for now to definitively solve the blocking issue. 
 # Since this is a private project, it's a safe way to ensure connectivity.
