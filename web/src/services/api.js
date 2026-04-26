@@ -30,8 +30,15 @@ export const updateMe = (data) =>
 export const generateInvite = () =>
   api.post('/couple/invite/generate').then(r => r.data);
 
-export const acceptInvite = (code) =>
-  api.post('/couple/invite/accept', { code }).then(r => r.data);
+export const sendInvite = (code) =>
+  api.post('/couple/invite/send', { code }).then(r => r.data);
+
+// Website / Vibe
+export const getMySite = () =>
+  api.get('/website/my-site').then(r => r.data);
+
+export const openSite = (id) =>
+  api.post(`/website/${id}/open`).then(r => r.data);
 
 export const getSpace = () =>
   api.get('/couple/space').then(r => r.data);

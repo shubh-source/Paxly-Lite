@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import { getMySite, openSite } from '../../services/api';
 import GiftReveal from '../../components/ui/GiftReveal';
 export default function VibeViewer({ previewPage }) {
   const { id } = useParams();
@@ -8,14 +8,14 @@ export default function VibeViewer({ previewPage }) {
   const [loading, setLoading] = useState(!previewPage);
   useEffect(() => {
     if (!previewPage && id) {
-      axios.get(`/api/website/my-site`).then(res => setPage(res.data)).finally(() => setLoading(false));
+      getMySite().then(data => setPage(data)).finally(() => setLoading(false));
     }
   }, [id, previewPage]);
   if (loading) return <div className="page center"><div className="loader" /></div>;
   if (!page) return <div className="page center">Website not found.</div>;
   const onOpen = async () => {
     try {
-      await axios.post(`/api/website/${page.id}/open`);
+      await openSite(page.id);
       setPage({ ...page, is_opened: true });
     } catch { }
   };

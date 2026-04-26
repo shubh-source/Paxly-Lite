@@ -61,7 +61,7 @@ export default function Connect() {
         setTargetName(data.target_name);
         setStatus('waiting');
       }
-    } catch (ex) { setErr(ex.response?.data?.detail || 'Error.'); }
+    } catch (ex) { setErr(ex.response?.data?.message || ex.response?.data?.detail || 'Error linking.'); }
     finally { setLoading(false); }
   };
 

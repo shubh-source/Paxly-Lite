@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.orm import User, Message, CallLog, Note
 from app.websocket.manager import manager
-from app.core.security_ext import encrypt_data, decrypt_data
+from app.core.encryption import encrypt_data, decrypt_data
 import json, uuid
 
 router = APIRouter(tags=["WebSocket"])

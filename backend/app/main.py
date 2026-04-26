@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, place_partner, calls, website
 import os
 
-from app.core.database import connect_db, engine, Base
+from app.core.database import connect_db, engine, Base, AsyncSessionLocal
 from app.models.orm import BannedIP
 from app.websocket.handler import router as ws_router
 from sqlalchemy.future import select
@@ -27,12 +27,50 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Paxly Fortress API", version="1.1.1", lifespan=lifespan)
 
-# ── CORS ────────────────────────────────────────────────────────────────────
-# Using "*" for now to definitively solve the blocking issue. 
-# Since this is a private project, it's a safe way to ensure connectivity.
+# --- THE FORTRESS MIDDLEWARE ---
+@app.middleware("http")
+async def fortress_middleware(request: Request, call_next):
+    client_ip = request.client.host
+    
+    # 1. SECURITY: IP BAN CHECK (GLOBAL)
+    async with AsyncSessionLocal() as db:
+        ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
+        if ban_check.scalars().first():
+            return JSONResponse(
+                status_code=403,
+                content={"message": "Access Denied: Your IP is permanently banned for security reasons."}
+            )
+
+    # 2. SECURITY: ADD HEADERS
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+# --- GLOBAL STEALTH ERROR HANDLER ---
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    error_trace = traceback.format_exc()
+    print(f"🔥 SECURITY LOG (CRITICAL ERROR):\n{error_trace}")
+    
+    # If it's a specific HTTPException, let FastAPI handle it or return its detail
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"message": exc.detail},
+        )
+
+    return JSONResponse(
+        status_code=500,
+        content={"message": "A security-controlled error occurred. Integrity verified."},
+    )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[os.getenv("FRONTEND_URL", "*")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

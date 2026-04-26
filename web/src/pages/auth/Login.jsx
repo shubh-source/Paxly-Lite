@@ -18,8 +18,8 @@ export default function Login() {
       const data = await login(form.email, form.password);
       loginUser(data.access_token, data.user);
       nav(data.user.couple_space_id ? '/dashboard' : '/connect');
-    } catch {
-      setErr('Invalid email or password.');
+    } catch (ex) {
+      setErr(ex.response?.data?.message || ex.response?.data?.detail || 'Invalid email or password.');
     } finally { setLoading(false); }
   };
 

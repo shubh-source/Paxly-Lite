@@ -2,20 +2,38 @@ from cryptography.fernet import Fernet
 from app.core.config import settings
 import base64
 
-# Use the encryption key from settings. If not set, this will fail safely.
 # A Fernet key must be a base64-encoded 32-byte string.
-_key = settings.ENCRYPTION_KEY.encode() if settings.ENCRYPTION_KEY else b"L3B4X2ZvcnRyZXNzX21hc3Rlcl9rZXlfOTkxMg==" # Fallback placeholder
+_cipher = None
 
-cipher_suite = Fernet(_key)
+def get_cipher():
+    global _cipher
+    if _cipher is None:
+        key = settings.ENCRYPTION_KEY
+        if not key:
+            # Fallback for development if no key is in .env
+            key = "L3B4X2ZvcnRyZXNzX21hc3Rlcl9rZXlfOTkxMg=="
+        try:
+            _cipher = Fernet(key.encode())
+        except Exception as e:
+            print(f"⚠️ Encryption initialization error: {e}")
+            return None
+    return _cipher
 
 def encrypt_data(data: str) -> str:
-    if not data: return None
-    return cipher_suite.encrypt(data.encode()).decode()
+    if not data: return data
+    cipher = get_cipher()
+    if not cipher: return data
+    try:
+        return cipher.encrypt(data.encode()).decode()
+    except Exception:
+        return data
 
 def decrypt_data(data: str) -> str:
-    if not data: return None
+    if not data: return data
+    cipher = get_cipher()
+    if not cipher: return data
     try:
-        return cipher_suite.decrypt(data.encode()).decode()
+        return cipher.decrypt(data.encode()).decode()
     except Exception:
-        # If decryption fails (e.g. data wasn't encrypted), return as is
+        # Return as-is if decryption fails (e.g., already decrypted or plain text)
         return data

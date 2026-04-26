@@ -15,11 +15,12 @@ class WSService {
     }
     this._intentionalClose = false;
     this.token = token;
-    let wsBase = import.meta.env.VITE_API_URL 
-      ? import.meta.env.VITE_API_URL.replace('http', 'ws') 
-      : 'ws://localhost:8000';
     
-    const wsUrl = `${wsBase}/ws?token=${token}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                 ? 'localhost:8000' 
+                 : window.location.host;
+    const wsUrl = `${protocol}//${host}/ws?token=${token}`;
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {

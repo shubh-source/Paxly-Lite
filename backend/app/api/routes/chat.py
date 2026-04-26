@@ -8,7 +8,7 @@ from app.models.orm import User, Message, CoupleSpace
 from app.core.security import get_current_user
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.security_ext import encrypt_data, decrypt_data
+from app.core.encryption import encrypt_data, decrypt_data
 import os, uuid, shutil
 from app.core.storage import storage
 

@@ -25,8 +25,9 @@ async def generate_invite(cu: User = Depends(get_current_user), db: AsyncSession
     await db.commit()
     return {"code": code}
 
-@router.post("/invite/accept")
+@router.post("/invite/send")
 async def send_invite(data: InviteAccept, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.orm import Notification
     code = data.code.strip().upper()
     if cu.couple_space_id:
         raise HTTPException(400, "You are already connected with a partner.")
@@ -47,8 +48,11 @@ async def send_invite(data: InviteAccept, cu: User = Depends(get_current_user), 
     if target_user.couple_space_id:
         raise HTTPException(400, "This user is already connected with someone.")
 
+    # MUTUAL HANDSHAKE CHECK
     target_pending = target_user.pending_link
     if target_pending and target_pending.get("target_id") == cu.id:
+        # User A (target_user) already entered User B's (cu) code.
+        # Now User B has entered User A's code. SUCCESS!
         space_id = str(uuid.uuid4())
         new_space = CoupleSpace(id=space_id, user1_id=invite.created_by, user2_id=cu.id, created_at=datetime.utcnow())
         db.add(new_space)
@@ -57,9 +61,21 @@ async def send_invite(data: InviteAccept, cu: User = Depends(get_current_user), 
             await db.execute(update(User).filter(User.id == uid).values(couple_space_id=space_id, partner_id=pid, pending_link=None))
         
         await db.execute(update(Invite).filter(Invite.id == code).values(used=True))
+        
+        # NOTIFICATION for User A (who was waiting)
+        new_notif = Notification(
+            user_id=invite.created_by,
+            type="link_success",
+            title="Partners Linked! 🎉",
+            body=f"You and {cu.name} are now successfully connected in your private space.",
+            data={"couple_space_id": space_id}
+        )
+        db.add(new_notif)
+        
         await db.commit()
         return {"status": "connected", "couple_space_id": space_id, "message": "Connected successfully!"}
     else:
+        # First one to enter the code. Go to waiting.
         await db.execute(update(User).filter(User.id == cu.id).values(pending_link={
             "code": code,
             "target_id": invite.created_by,
