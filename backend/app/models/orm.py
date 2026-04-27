@@ -334,7 +334,7 @@ class PlaceBooking(Base):
     total_amount = Column(Float)
     platform_fee = Column(Float, default=5.0)
     commission_amount = Column(Float)
-    paxly_gross_revenue = Column(Float)
+    vlynxly_gross_revenue = Column(Float)
     razorpay_order_id = Column(String, nullable=True)
     razorpay_payment_id = Column(String, nullable=True)
     status = Column(String, default="pending") # pending, paid, cancelled
@@ -387,7 +387,7 @@ class TheatreBooking(Base):
     total_amount = Column(Float)
     platform_fee = Column(Float, default=5.0)
     commission_amount = Column(Float)
-    paxly_gross_revenue = Column(Float)
+    vlynxly_gross_revenue = Column(Float)
     razorpay_order_id = Column(String, nullable=True)
     razorpay_payment_id = Column(String, nullable=True)
     status = Column(String, default="pending") # pending, paid, cancelled

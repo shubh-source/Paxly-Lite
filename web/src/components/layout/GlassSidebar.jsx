@@ -18,7 +18,7 @@ export default function GlassSidebar() {
     <aside className="glass-sidebar">
       <div className="sidebar-logo">
         <span className="logo-spark">✨</span>
-        <span className="logo-text">Paxly Premium</span>
+        <span className="logo-text">Vlynxly Premium</span>
       </div>
 
       <nav className="sidebar-nav">

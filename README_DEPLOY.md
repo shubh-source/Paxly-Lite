@@ -1,4 +1,4 @@
-# 🚀 Paxly Premium — Deployment Guide
+# 🚀 Vlynxly Premium — Deployment Guide
 
 I have modernized your app to be cloud-ready. To launch it for actual users, follow these steps:
 
@@ -7,11 +7,11 @@ I have modernized your app to be cloud-ready. To launch it for actual users, fol
 2. **Database**: Copy your `Project URL` and `API Key` (service_role) and the `Database Connection String`.
 3. **Storage**:
    - Go to "Storage" in Supabase.
-   - Create a **Public** bucket named `paxly-media`.
+   - Create a **Public** bucket named `vlynxly-media`.
    - Add three folders inside: `chat`, `memories`, `avatars`, and `voice`.
 
 ## 2. Initialize Online Database
-1. Update your local [.env](file:///c:/projects/ros2/paxly-premium/backend/.env) briefly with your Supabase Connection String.
+1. Update your local [.env](file:///c:/projects/ros2/vlynxly-premium/backend/.env) briefly with your Supabase Connection String.
 2. Run the initialization script:
    ```bash
    python .\scripts\production_setup.py
@@ -20,11 +20,11 @@ I have modernized your app to be cloud-ready. To launch it for actual users, fol
 
 ## 3. Upload to GitHub
 1. Create a **Private** repository on GitHub.
-2. Push your `paxly-premium` folder to it:
+2. Push your `vlynxly-premium` folder to it:
    ```bash
    git init
    git add .
-   git commit -m "Launch Paxly Premium"
+   git commit -m "Launch Vlynxly Premium"
    git remote add origin YOUR_REPO_URL
    git push -u origin main
    ```

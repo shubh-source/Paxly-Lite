@@ -188,7 +188,7 @@ export default function Connect() {
                 <div style={{ fontSize: '2.8rem', letterSpacing: '0.3em', color: 'var(--accent)', textAlign: 'center', fontWeight: '300', marginBottom: 16 }}>{generated}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-s" style={{ flex: 1 }} onClick={() => { navigator.clipboard.writeText(generated); }}>📋 Copy Code</button>
-                  <button className="btn btn-p" style={{ flex: 1 }} onClick={() => navigator.share?.({ title: 'Connect on Relationship OS', text: `My code: ${generated}` }) || navigator.clipboard.writeText(generated)}>Share</button>
+                  <button className="btn btn-p" style={{ flex: 1 }} onClick={() => navigator.share?.({ title: 'Connect on Vlynxly', text: `My code: ${generated}` }) || navigator.clipboard.writeText(generated)}>Share</button>
                 </div>
                 <div style={{ marginTop: 14, padding: '10px 12px', background: 'rgba(201,169,110,0.08)', borderRadius: 8, border: '1px solid rgba(201,169,110,0.15)' }}>
                   <p style={{ fontSize: '0.78rem', color: 'var(--accent)' }}>👆 Now go to "Enter Partner's Code" tab and enter their code too!</p>

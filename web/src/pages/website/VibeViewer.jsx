@@ -85,7 +85,7 @@ export default function VibeViewer({ previewPage }) {
           {blocks.map((block, i) => renderBlock(block, i))}
         </div>
         <footer style={{ padding: '60px 20px', textAlign: 'center', opacity: 0.5, fontSize: '0.8rem' }}>
-          Built with ❤️ on Paxly · {theme_name} Theme
+          Built with ❤️ on Vlynxly · {theme_name} Theme
         </footer>
         {music_url && (
           <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 100 }}>

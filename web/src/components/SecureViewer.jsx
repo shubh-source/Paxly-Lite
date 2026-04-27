@@ -126,7 +126,7 @@ export default function SecureViewer({ mediaUrl, messageId, onClosed, onCompromi
 
       {/* Security Footer */}
       <div style={{ padding: '20px 40px', textAlign: 'center', color: 'white', opacity: 0.5, fontSize: '0.7rem' }}>
-        DO NOT take screenshots or record with another device. Paxly AI is monitoring the environment to protect your privacy.
+        DO NOT take screenshots or record with another device. Vlynxly AI is monitoring the environment to protect your privacy.
       </div>
 
       <style>{`

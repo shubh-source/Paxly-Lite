@@ -86,7 +86,7 @@ async def razorpay_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     status="paid",
                     razorpay_payment_id=payload.get('id'),
                     commission_amount=commission,
-                    paxly_gross_revenue=booking.platform_fee + commission,
+                    vlynxly_gross_revenue=booking.platform_fee + commission,
                     payout_eligible_at=datetime.utcnow() + timedelta(hours=72)
                 ))
             
@@ -101,7 +101,7 @@ async def razorpay_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     status="paid",
                     razorpay_payment_id=payload.get('id'),
                     commission_amount=commission,
-                    paxly_gross_revenue=p_booking.platform_fee + commission,
+                    vlynxly_gross_revenue=p_booking.platform_fee + commission,
                     payout_eligible_at=datetime.utcnow() + timedelta(hours=72)
                 ))
             

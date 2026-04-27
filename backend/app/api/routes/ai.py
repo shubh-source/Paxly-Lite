@@ -13,7 +13,7 @@ import json
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
-SYSTEM_PROMPT = """You are a compassionate and EXTREMELY FRIENDLY relationship assistant built into Paxly — a private app for couples.
+SYSTEM_PROMPT = """You are a compassionate and EXTREMELY FRIENDLY relationship assistant built into Vlynxly — a private app for couples.
 
 Your role:
 - Help couples communicate better and understand each other

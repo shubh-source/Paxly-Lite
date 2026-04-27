@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
-app = FastAPI(title="Paxly Fortress API", version="1.1.1", lifespan=lifespan)
+app = FastAPI(title="Vlynxly Fortress API", version="1.1.1", lifespan=lifespan)
 
 # --- THE FORTRESS MIDDLEWARE ---
 @app.middleware("http")

@@ -5,15 +5,15 @@ import axios from 'axios';
 
 // --- LEGAL CONTENT ---
 const TERMS = [
-  { heading: '1. Acceptance of Terms', body: 'By using Relationship OS, you agree to these Terms and Conditions. If you do not agree, please do not use the app.' },
+  { heading: '1. Acceptance of Terms', body: 'By using Vlynxly, you agree to these Terms and Conditions. If you do not agree, please do not use the app.' },
   { heading: '2. Account Responsibility', body: 'You are responsible for maintaining the security of your account. You must not share your credentials with anyone other than your connected partner.' },
-  { heading: '3. Acceptable Use', body: 'Relationship OS is intended for use by consenting adults in a romantic relationship. You agree not to use the app for any illegal, harmful, or abusive purposes.' },
-  { heading: '4. Memory Preservation (Eternity Clause)', body: 'Paxly is built to preserve memories. We do not automatically delete data. Even if an account is closed, shared history remains eternally stored to protect your joint history in case of reconciliation.' },
-  { heading: '5. Non-Purge Policy', body: 'Unlike ephemeral apps, Paxly records are permanent. We do not support the deletion of memories, as we believe today\'s conflict should not erase yesterday\'s joy.' }
+  { heading: '3. Acceptable Use', body: 'Vlynxly is intended for use by consenting adults in a romantic relationship. You agree not to use the app for any illegal, harmful, or abusive purposes.' },
+  { heading: '4. Memory Preservation (Eternity Clause)', body: 'Vlynxly is built to preserve memories. We do not automatically delete data. Even if an account is closed, shared history remains eternally stored to protect your joint history in case of reconciliation.' },
+  { heading: '5. Non-Purge Policy', body: 'Unlike ephemeral apps, Vlynxly records are permanent. We do not support the deletion of memories, as we believe today\'s conflict should not erase yesterday\'s joy.' }
 ];
 
 const PRIVACY = [
-  { heading: 'Our Commitment', body: 'Relationship OS is built privacy-first. We collect the minimum data necessary to provide our service and never sell your data.' },
+  { heading: 'Our Commitment', body: 'Vlynxly is built privacy-first. We collect the minimum data necessary to provide our service and never sell your data.' },
   { heading: 'Memory Archiving', body: 'Unlike other apps, we never purge your chat or media history. We believe relationship memories are precious and should be preserved forever, even after breakups, in case you reconcile later.' },
   { heading: 'Data Security', body: 'All data is encrypted in transit using TLS/HTTPS. Sensitive media is stored with encryption at rest.' },
   { heading: 'Your Rights', body: 'You can export your data at any time. You can request account closure, which frees your email for a new account while safeguarding your old memories in our vault.' },
@@ -77,7 +77,7 @@ export default function Settings() {
              const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
              const url = window.URL.createObjectURL(blob);
              const a = document.createElement('a');
-             a.href = url; a.download = 'paxly_history.json'; a.click();
+             a.href = url; a.download = 'vlynxly_history.json'; a.click();
           }} />
         </Category>
 
@@ -86,7 +86,7 @@ export default function Settings() {
           <Divider />
           <SettingRow icon="🔐" title="Privacy Policy" onClick={() => setSub('privacy-policy')} />
           <Divider />
-          <SettingRow icon="ℹ️" title="About Paxly" onClick={() => setSub('about')} />
+          <SettingRow icon="ℹ️" title="About Vlynxly" onClick={() => setSub('about')} />
         </Category>
 
         <Category title="App Closure">
@@ -96,7 +96,7 @@ export default function Settings() {
         </Category>
 
         <p style={{ textAlign: 'center', fontSize: '0.72rem', opacity: 0.35, marginTop: 16 }}>
-          Paxly v1.5.0 Premium · Memories Protected Forever
+          Vlynxly v1.5.0 Premium · Memories Protected Forever
         </p>
       </div>
     </div>
@@ -263,7 +263,7 @@ function PrivacySub({ user, setUser, onBack }) {
       document.title = "Notes";
       document.querySelector("link[rel~='icon']").href = "https://www.google.com/favicon.ico"; // Generic icon
     } else {
-      document.title = "Paxly";
+      document.title = "Vlynxly";
       document.querySelector("link[rel~='icon']").href = "/favicon.ico";
     }
   }, [user?.stealth_mode]);
@@ -351,7 +351,7 @@ function ClosureSub({ onBack, onRequested }) {
     <div className="page center" style={{ padding: 40 }}>
       <div style={{ fontSize: '3rem', marginBottom: 20 }}>🕊️</div>
       <h2>Request Submitted</h2>
-      <p style={{ lineHeight: 1.8, marginBottom: 40 }}>A Paxly Relationship Executive will contact both you and your partner shortly to confirm the closure. Your shared memories and history are now protected in our vault and will **never** be deleted.</p>
+      <p style={{ lineHeight: 1.8, marginBottom: 40 }}>A Vlynxly Relationship Executive will contact both you and your partner shortly to confirm the closure. Your shared memories and history are now protected in our vault and will **never** be deleted.</p>
       <button className="btn btn-p btn-full" onClick={onRequested}>Log Out Pending Review</button>
     </div>
   );
@@ -369,7 +369,7 @@ function ClosureSub({ onBack, onRequested }) {
         <p style={{ marginBottom: 32, lineHeight: 1.8 }}>We understand this may be a difficult time. Requesting closure allows you to free your account ID for a new start, while **preserving all your joint history forever** in our secure vault.</p>
 
         <div className="card" style={{ marginBottom: 32, textAlign: 'left', borderColor: 'rgba(201,169,110,0.3)' }}>
-          <h3 style={{ fontSize: '1rem', marginBottom: 10 }}>Paxly's Guarantee:</h3>
+          <h3 style={{ fontSize: '1rem', marginBottom: 10 }}>Vlynxly's Guarantee:</h3>
           {['Your shared history will NEVER be deleted', 'Every message and photo is preserved', 'Your ID will be freed after executive review', 'Memories are safe if you ever reconcile'].map((g, i) => (
             <p key={i} style={{ fontSize: '0.82rem', marginBottom: 6, color: 'var(--accent)' }}>✓ {g}</p>
           ))}
@@ -493,16 +493,16 @@ function AboutSub({ onBack }) {
     <div className="page">
       <header className="header">
         <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">About Paxly</span>
+        <span className="header-title">About Vlynxly</span>
         <div style={{ width: 60 }} />
       </header>
       <div className="content center" style={{ maxWidth: 480 }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', border: '1px solid rgba(201,169,110,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', margin: '0 auto 20px' }}>🔒</div>
-        <h1 style={{ marginBottom: 6 }}>Paxly</h1>
+        <h1 style={{ marginBottom: 6 }}>Vlynxly</h1>
         <p style={{ color: 'var(--accent)', marginBottom: 32 }}>Version 1.5.0</p>
 
         <div className="card" style={{ marginBottom: 12, textAlign: 'left', width: '100%' }}>
-          <h3 style={{ fontFamily: 'var(--font-b)', fontWeight: 600, fontSize: '0.9rem', marginBottom: 10 }}>What is Paxly?</h3>
+          <h3 style={{ fontFamily: 'var(--font-b)', fontWeight: 600, fontSize: '0.9rem', marginBottom: 10 }}>What is Vlynxly?</h3>
           <p style={{ lineHeight: 1.8, fontSize: '0.88rem' }}>A private, encrypted space designed exclusively for couples. No ads, no feeds, no distractions — just you and your person.</p>
         </div>
 
@@ -511,7 +511,7 @@ function AboutSub({ onBack }) {
           <p style={{ lineHeight: 1.8, fontSize: '0.88rem' }}>React · FastAPI · MongoDB<br />Design & Security focused.</p>
         </div>
 
-        <p style={{ marginTop: 28, fontSize: '0.72rem', opacity: 0.35 }}>© 2026 Paxly · Memories Protected Forever</p>
+        <p style={{ marginTop: 28, fontSize: '0.72rem', opacity: 0.35 }}>© 2026 Vlynxly · Memories Protected Forever</p>
       </div>
     </div>
   );

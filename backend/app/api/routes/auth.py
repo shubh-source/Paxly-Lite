@@ -141,7 +141,7 @@ async def change_password(data: PasswordChange, cu: User = Depends(get_current_u
 async def request_closure(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await db.execute(update(User).where(User.id == cu.id).values(closure_requested=True))
     await db.commit()
-    return {"message": "Account closure requested. A Paxly executive will contact you shortly."}
+    return {"message": "Account closure requested. A Vlynxly executive will contact you shortly."}
 
 @router.get("/export")
 async def export_data(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -186,7 +186,7 @@ async def upload_avatar(file: UploadFile = File(...), cu: User = Depends(get_cur
 @router.post("/avatar/generate")
 async def generate_ai_avatar(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not cu.is_premium:
-        raise HTTPException(402, "AI Avatar generation requires Paxly Premium.")
+        raise HTTPException(402, "AI Avatar generation requires Vlynxly Premium.")
     
     # In a real app, we would send cu.avatar_url to DALL-E/Midjourney
     # For now, we simulate a 'stylized' transformation by marking it AI-generated

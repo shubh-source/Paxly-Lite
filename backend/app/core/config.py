@@ -3,7 +3,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/paxly"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/vlynxly"
 
     # Security
     SECRET_KEY: str = "change-this-secret-key"
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     SMTP_PASS: str = ""
 
     # App
-    APP_NAME: str = "Paxly"
+    APP_NAME: str = "Vlynxly"
     FRONTEND_URL: str = "http://localhost:3000"
     BACKEND_URL: str = "http://localhost:8000"
 
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     STORAGE_MODE: str = "local" # 'local' or 'supabase'
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
-    SUPABASE_BUCKET: str = "paxly-media"
+    SUPABASE_BUCKET: str = "vlynxly-media"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 

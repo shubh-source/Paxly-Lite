@@ -8,7 +8,7 @@ import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
 import DynamicPresence from '../../components/chat/DynamicPresence';
 import ReactionPicker from '../../components/chat/ReactionPicker';
-import PaxlyStudio from '../../components/chat/PaxlyStudio';
+import VlynxlyStudio from '../../components/chat/VlynxlyStudio';
 import { CHAT_THEMES } from '../../data/chatThemes';
 import axios from 'axios';
 
@@ -200,7 +200,7 @@ export default function Chat() {
       )}
       
       {showingStudio && (
-        <PaxlyStudio 
+        <VlynxlyStudio 
           onCapture={(file) => { setPendingFile(file); setShowingStudio(false); setShowSecurityOptions(true); }}
           onClose={() => setShowingStudio(false)}
         />

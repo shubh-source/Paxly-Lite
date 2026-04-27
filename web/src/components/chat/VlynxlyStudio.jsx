@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { CAMERA_FILTERS, FONTS } from '../../data/filterStyles';
 
-export default function PaxlyStudio({ onCapture, onClose }) {
+export default function VlynxlyStudio({ onCapture, onClose }) {
   const [stream, setStream] = useState(null);
   const [activeFilter, setActiveFilter] = useState(0);
   const [zoom, setZoom] = useState(1);

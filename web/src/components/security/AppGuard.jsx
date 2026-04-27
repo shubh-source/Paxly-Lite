@@ -76,7 +76,7 @@ export default function AppGuard({ children }) {
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#0D0D0F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔒</div>
-          <h2 style={{ color: '#fff', fontSize: '1.5rem' }}>Paxly Locked</h2>
+          <h2 style={{ color: '#fff', fontSize: '1.5rem' }}>Vlynxly Locked</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Enter your App PIN to continue</p>
         </div>
 

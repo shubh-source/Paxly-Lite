@@ -23,7 +23,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <div className="avatar" style={{ width: 32, height: 32, fontSize: '0.8rem', overflow: 'hidden' }}>
               {user?.avatar_url ? <img src={user.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : user?.name?.[0]?.toUpperCase()}
             </div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, background: 'var(--grad-p)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Paxly</h2>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, background: 'var(--grad-p)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Vlynxly</h2>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: 'var(--muted)', cursor: 'pointer' }}>✕</button>
         </div>

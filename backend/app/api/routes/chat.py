@@ -163,7 +163,7 @@ async def update_theme(data: dict, cu: User = Depends(get_current_user), db: Asy
 @router.post("/space/wallpaper")
 async def update_wallpaper(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not cu.is_premium:
-        raise HTTPException(402, "Custom backgrounds require a Paxly Premium subscription.")
+        raise HTTPException(402, "Custom backgrounds require a Vlynxly Premium subscription.")
     
     space_id = ensure_space(cu)
     ext = file.filename.split(".")[-1].lower()
