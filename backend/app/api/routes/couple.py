@@ -16,10 +16,17 @@ def gen_code():
 
 @router.post("/invite/generate")
 async def generate_invite(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    await db.execute(delete(Invite).filter(Invite.created_by == cu.id, Invite.used == False))
+    # Check if user already has an active (unused) invite
+    result = await db.execute(select(Invite).filter(Invite.created_by == cu.id, Invite.used == False))
+    existing = result.scalars().first()
+    if existing:
+        return {"code": existing.id}
+    
+    # Otherwise generate new
     code = gen_code()
     while (await db.execute(select(Invite).filter(Invite.id == code))).scalars().first():
         code = gen_code()
+    
     new_invite = Invite(id=code, created_by=cu.id, used=False, created_at=datetime.utcnow())
     db.add(new_invite)
     await db.commit()

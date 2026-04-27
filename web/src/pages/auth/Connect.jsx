@@ -17,25 +17,49 @@ export default function Connect() {
   const [loading, setLoading] = useState(false);
   const pollRef = useRef(null);
 
-  // Poll for link status when waiting
+  // Poll for link status and fetch initial state
   useEffect(() => {
-    if (status === 'waiting') {
-      pollRef.current = setInterval(async () => {
-        try {
-          const { data } = await api.get('/couple/link-status');
-          if (data.status === 'connected') {
-            clearInterval(pollRef.current);
-            setStatus('connected');
-            setTimeout(async () => {
-              await refreshUser();
-              nav('/dashboard');
-            }, 1500);
-          }
-        } catch {}
-      }, 2000);
-    }
+    const checkStatus = async () => {
+      try {
+        const { data } = await api.get('/couple/link-status');
+        if (data.status === 'connected') {
+          setStatus('connected');
+          setTimeout(async () => {
+            await refreshUser();
+            nav('/dashboard');
+          }, 1500);
+        } else if (data.status === 'waiting') {
+          setStatus('waiting');
+          setTargetName(data.target_name);
+          // Also fetch my code if it exists
+          const inv = await api.post('/couple/invite/generate').catch(() => null);
+          if (inv) setGenerated(inv.code);
+        } else {
+          // Idle, but check if I already have a code generated
+          const inv = await api.post('/couple/invite/generate').catch(() => null);
+          if (inv) setGenerated(inv.code);
+        }
+      } catch {}
+    };
+
+    checkStatus();
+    
+    pollRef.current = setInterval(async () => {
+      try {
+        const { data } = await api.get('/couple/link-status');
+        if (data.status === 'connected') {
+          clearInterval(pollRef.current);
+          setStatus('connected');
+          setTimeout(async () => {
+            await refreshUser();
+            nav('/dashboard');
+          }, 1500);
+        }
+      } catch {}
+    }, 3000);
+
     return () => clearInterval(pollRef.current);
-  }, [status]);
+  }, []);
 
   const doGenerate = async () => {
     setLoading(true); setErr('');
@@ -70,23 +94,6 @@ export default function Connect() {
     setStatus('idle');
     clearInterval(pollRef.current);
   };
-
-  // Poll also when on generate tab (partner might enter my code)
-  useEffect(() => {
-    if (status === 'waiting_for_partner_on_generate') {
-      pollRef.current = setInterval(async () => {
-        try {
-          const { data } = await api.get('/couple/link-status');
-          if (data.status === 'connected') {
-            clearInterval(pollRef.current);
-            setStatus('connected');
-            setTimeout(async () => { await refreshUser(); nav('/dashboard'); }, 1500);
-          }
-        } catch {}
-      }, 2000);
-    }
-    return () => clearInterval(pollRef.current);
-  }, [status]);
 
   const link = generated ? `${window.location.origin}/invite/${generated}` : '';
 
