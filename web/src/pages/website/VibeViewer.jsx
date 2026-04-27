@@ -84,8 +84,9 @@ export default function VibeViewer({ previewPage }) {
         <div style={{ position: 'relative', zIndex: 1 }}>
           {blocks.map((block, i) => renderBlock(block, i))}
         </div>
-        <footer style={{ padding: '60px 20px', textAlign: 'center', opacity: 0.5, fontSize: '0.8rem' }}>
-          Built with ❤️ on Vlynxly · {theme_name} Theme
+        <footer style={{ padding: '60px 20px', textAlign: 'center', opacity: 0.5, fontSize: '0.8rem', display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+          <img src="/logo.png" style={{ width:24, height:24, opacity:0.6 }} alt="Vlynxly" />
+          <span>Built with ❤️ on Vlynxly · {theme_name} Theme</span>
         </footer>
         {music_url && (
           <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 100 }}>

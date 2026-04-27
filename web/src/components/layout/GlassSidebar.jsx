@@ -17,7 +17,7 @@ export default function GlassSidebar() {
   return (
     <aside className="glass-sidebar">
       <div className="sidebar-logo">
-        <span className="logo-spark">✨</span>
+        <img src="/logo.png" style={{ width:32, height:32, objectFit:'contain' }} alt="Logo" />
         <span className="logo-text">Vlynxly Premium</span>
       </div>
 
