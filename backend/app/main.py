@@ -60,12 +60,21 @@ async def global_exception_handler(request: Request, exc: Exception):
     if isinstance(exc, HTTPException):
         return JSONResponse(
             status_code=exc.status_code,
-            content={"message": exc.detail},
+            content={"detail": exc.detail},
         )
 
     return JSONResponse(
         status_code=500,
-        content={"message": "A security-controlled error occurred. Integrity verified."},
+        content={"detail": "A security-controlled error occurred. Integrity verified."},
+    )
+
+from fastapi.exceptions import RequestValidationError
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = [f"{e['loc'][-1]}: {e['msg']}" for e in exc.errors()]
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "Validation error: " + ", ".join(errors)}
     )
 
 app.add_middleware(
