@@ -3,8 +3,8 @@ from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 import ssl
 
-# PostgreSQL connection string from settings
-DATABASE_URL = settings.DATABASE_URL
+# PostgreSQL connection string from settings. Replace 6543 (transaction pooler) with 5432 (session pooler/direct) to fully support asyncpg prepared statements.
+DATABASE_URL = settings.DATABASE_URL.replace(":6543/", ":5432/")
 
 # Build SSL context for Supabase (required for pooler connections)
 _ssl_ctx = ssl.create_default_context()
