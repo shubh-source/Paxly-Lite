@@ -15,9 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        print("✅ Database tables verified/created.")
+        # async with engine.begin() as conn:
+        #     await conn.run_sync(Base.metadata.create_all)
+        print("✅ Database connection initialized.")
     except Exception as e:
         print(f"⚠️ DB startup warning (non-fatal): {e}")
     await connect_db()
