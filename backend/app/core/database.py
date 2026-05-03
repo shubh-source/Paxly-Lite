@@ -22,7 +22,8 @@ engine = create_async_engine(
     pool_recycle=300,
     connect_args={
         "ssl": _ssl_ctx,
-        "statement_cache_size": 0,  # Required for Supabase pgbouncer transaction mode
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
     },
 )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
