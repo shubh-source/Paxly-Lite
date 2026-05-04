@@ -3,23 +3,23 @@ from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 import ssl
 
-# PostgreSQL connection string from settings. Replace 6543 (transaction pooler) with 5432 (session pooler/direct) to fully support asyncpg prepared statements.
-DATABASE_URL = settings.DATABASE_URL.replace(":6543/", ":5432/")
+# PostgreSQL connection string from settings (Must use 6543 for Render IPv4 compatibility)
+DATABASE_URL = settings.DATABASE_URL
 
 # Build SSL context for Supabase (required for pooler connections)
 _ssl_ctx = ssl.create_default_context()
 _ssl_ctx.check_hostname = False
 _ssl_ctx.verify_mode = ssl.CERT_NONE
 
+from sqlalchemy.pool import NullPool
+
 # create_async_engine with Supabase-compatible settings:
-# - prepared_statement_cache_size=0 → required for Supabase transaction-mode pooler
-# - pool_pre_ping → detect dead connections
-# - connect_args ssl → force SSL for Supabase
+# - statement_cache_size=0 required for Supabase transaction-mode pooler
+# - NullPool prevents SQLAlchemy from pooling connections that PgBouncer is already pooling
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    pool_pre_ping=True,
-    pool_recycle=300,
+    poolclass=NullPool,
     connect_args={
         "ssl": _ssl_ctx,
         "statement_cache_size": 0,
