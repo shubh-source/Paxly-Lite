@@ -24,6 +24,7 @@ engine = create_async_engine(
         "ssl": _ssl_ctx,
         "statement_cache_size": 0,
         "prepared_statement_cache_size": 0,
+        "command_timeout": 60,
     },
 )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
