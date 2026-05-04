@@ -20,7 +20,7 @@ export default function Signup() {
       loginUser(data.access_token, data.user);
       nav('/connect');
     } catch (ex) {
-      setErr(ex.response?.data?.detail || 'Something went wrong.');
+      setErr(ex.response?.data?.detail || ex.message || 'Unknown Error');
     } finally { setLoading(false); }
   };
 

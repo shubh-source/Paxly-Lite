@@ -19,7 +19,7 @@ export default function Login() {
       loginUser(data.access_token, data.user);
       nav(data.user.couple_space_id ? '/dashboard' : '/connect');
     } catch (ex) {
-      setErr(ex.response?.data?.message || ex.response?.data?.detail || 'Invalid email or password.');
+      setErr(ex.response?.data?.message || ex.response?.data?.detail || ex.message || 'Unknown Error');
     } finally { setLoading(false); }
   };
 

@@ -57,7 +57,7 @@ async def send_invite(data: InviteAccept, cu: User = Depends(get_current_user), 
 
     # MUTUAL HANDSHAKE CHECK
     target_pending = target_user.pending_link
-    if target_pending and target_pending.get("target_id") == cu.id:
+    if target_pending and str(target_pending.get("target_id")) == str(cu.id):
         # User A (target_user) already entered User B's (cu) code.
         # Now User B has entered User A's code. SUCCESS!
         space_id = str(uuid.uuid4())
@@ -85,7 +85,7 @@ async def send_invite(data: InviteAccept, cu: User = Depends(get_current_user), 
         # First one to enter the code. Go to waiting.
         await db.execute(update(User).filter(User.id == cu.id).values(pending_link={
             "code": code,
-            "target_id": invite.created_by,
+            "target_id": str(invite.created_by),
             "target_name": target_user.name,
             "sent_at": datetime.utcnow().isoformat(),
         }))
