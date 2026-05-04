@@ -27,6 +27,7 @@ class UserOut(BaseModel):
     is_premium: bool = False
     business_category: Optional[str] = None
     created_at: datetime
+    has_pin: bool = False
 
 # ── Auth ──────────────────────────────────────────────────────
 class Token(BaseModel):

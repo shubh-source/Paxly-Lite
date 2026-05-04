@@ -4,12 +4,15 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppGuard from './components/security/AppGuard';
 import Layout from './components/layout/Layout';
+import { AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import './index.css';
 
 import Welcome        from './pages/auth/Welcome';
 import Signup         from './pages/auth/Signup';
 import Login          from './pages/auth/Login';
 import Connect        from './pages/auth/Connect';
+import SetupLock      from './pages/auth/SetupLock';
 import Dashboard      from './pages/Dashboard';
 import Chat           from './pages/chat/Chat';
 import CallScreen     from './pages/calls/CallScreen';
@@ -44,8 +47,57 @@ function Guard({ children, needsPartner = false }) {
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="page center"><div className="spinner" /></div>;
-  if (user) return <Navigate to={user.couple_space_id ? '/dashboard' : '/connect'} replace />;
+  if (user) {
+    if (!user.couple_space_id) return <Navigate to="/connect" replace />;
+    if (!user.has_pin) return <Navigate to="/setup-lock" replace />;
+    return <Navigate to="/dashboard" replace />;
+  }
   return children;
+}
+
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/"         element={<Navigate to="/welcome" replace />} />
+        <Route path="/welcome"  element={<PublicRoute><Welcome /></PublicRoute>} />
+        <Route path="/signup"   element={<PublicRoute><Signup /></PublicRoute>} />
+        <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/connect"  element={<Guard><Connect /></Guard>} />
+        <Route path="/invite/:code" element={<Guard><Connect /></Guard>} />
+        <Route path="/setup-lock" element={<Guard needsPartner><SetupLock /></Guard>} />
+
+        <Route path="/dashboard"  element={<Guard needsPartner><Layout><Dashboard /></Layout></Guard>} />
+        <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />
+        <Route path="/call"       element={<Guard needsPartner><Layout><CallScreen /></Layout></Guard>} />
+        <Route path="/mood"       element={<Guard needsPartner><Layout><MoodSync /></Layout></Guard>} />
+        <Route path="/mood/history" element={<Guard needsPartner><Layout><MoodHistory /></Layout></Guard>} />
+        <Route path="/memories"   element={<Guard needsPartner><Layout><MemoryVault /></Layout></Guard>} />
+        <Route path="/memories/add" element={<Guard needsPartner><Layout><AddMemory /></Layout></Guard>} />
+        <Route path="/explore"    element={<Guard needsPartner><Layout><Explore /></Layout></Guard>} />
+        <Route path="/explore/:id" element={<Guard needsPartner><Layout><PlaceDetail /></Layout></Guard>} />
+        <Route path="/ai"         element={<Guard needsPartner><Layout><AIAssistant /></Layout></Guard>} />
+        <Route path="/ai/lab"     element={<Guard needsPartner><Layout><AILab /></Layout></Guard>} />
+        <Route path="/profile"    element={<Guard needsPartner><Layout><Profile /></Layout></Guard>} />
+        <Route path="/settings"   element={<Guard needsPartner><Layout><Settings /></Layout></Guard>} />
+
+        {/* New features */}
+        <Route path="/notes"      element={<Guard needsPartner><Layout><LoveNotes /></Layout></Guard>} />
+        <Route path="/dates"      element={<Guard needsPartner><Layout><AnniversaryTracker /></Layout></Guard>} />
+        <Route path="/bucket"     element={<Guard needsPartner><Layout><BucketList /></Layout></Guard>} />
+        <Route path="/shop"       element={<Guard needsPartner><Layout><LoveShop /></Layout></Guard>} />
+        <Route path="/shop/checkout" element={<Guard needsPartner><Layout><Checkout /></Layout></Guard>} />
+        <Route path="/voice"         element={<Guard needsPartner><Layout><VoiceNotes /></Layout></Guard>} />
+        <Route path="/shop/success"  element={<Guard needsPartner><Layout><OrderSuccess /></Layout></Guard>} />
+        
+        <Route path="/website/vibe" element={<Guard needsPartner><Layout><VibeEditor /></Layout></Guard>} />
+        <Route path="/website/:id"   element={<Guard needsPartner><Layout><VibeViewer /></Layout></Guard>} />
+
+        <Route path="*" element={<Navigate to="/welcome" replace />} />
+      </Routes>
+    </AnimatePresence>
+  );
 }
 
 createRoot(document.getElementById('root')).render(
@@ -53,42 +105,7 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthProvider>
         <AppGuard>
-          <Routes>
-            <Route path="/"         element={<Navigate to="/welcome" replace />} />
-          <Route path="/welcome"  element={<PublicRoute><Welcome /></PublicRoute>} />
-          <Route path="/signup"   element={<PublicRoute><Signup /></PublicRoute>} />
-          <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
-          <Route path="/connect"  element={<Guard><Connect /></Guard>} />
-          <Route path="/invite/:code" element={<Guard><Connect /></Guard>} />
-
-          <Route path="/dashboard"  element={<Guard needsPartner><Layout><Dashboard /></Layout></Guard>} />
-          <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />
-          <Route path="/call"       element={<Guard needsPartner><Layout><CallScreen /></Layout></Guard>} />
-          <Route path="/mood"       element={<Guard needsPartner><Layout><MoodSync /></Layout></Guard>} />
-          <Route path="/mood/history" element={<Guard needsPartner><Layout><MoodHistory /></Layout></Guard>} />
-          <Route path="/memories"   element={<Guard needsPartner><Layout><MemoryVault /></Layout></Guard>} />
-          <Route path="/memories/add" element={<Guard needsPartner><Layout><AddMemory /></Layout></Guard>} />
-          <Route path="/explore"    element={<Guard needsPartner><Layout><Explore /></Layout></Guard>} />
-          <Route path="/explore/:id" element={<Guard needsPartner><Layout><PlaceDetail /></Layout></Guard>} />
-          <Route path="/ai"         element={<Guard needsPartner><Layout><AIAssistant /></Layout></Guard>} />
-          <Route path="/ai/lab"     element={<Guard needsPartner><Layout><AILab /></Layout></Guard>} />
-          <Route path="/profile"    element={<Guard needsPartner><Layout><Profile /></Layout></Guard>} />
-          <Route path="/settings"   element={<Guard needsPartner><Layout><Settings /></Layout></Guard>} />
-
-          {/* New features */}
-          <Route path="/notes"      element={<Guard needsPartner><Layout><LoveNotes /></Layout></Guard>} />
-          <Route path="/dates"      element={<Guard needsPartner><Layout><AnniversaryTracker /></Layout></Guard>} />
-          <Route path="/bucket"     element={<Guard needsPartner><Layout><BucketList /></Layout></Guard>} />
-          <Route path="/shop"       element={<Guard needsPartner><Layout><LoveShop /></Layout></Guard>} />
-          <Route path="/shop/checkout" element={<Guard needsPartner><Layout><Checkout /></Layout></Guard>} />
-          <Route path="/voice"         element={<Guard needsPartner><Layout><VoiceNotes /></Layout></Guard>} />
-          <Route path="/shop/success"  element={<Guard needsPartner><Layout><OrderSuccess /></Layout></Guard>} />
-          
-          <Route path="/website/vibe" element={<Guard needsPartner><Layout><VibeEditor /></Layout></Guard>} />
-          <Route path="/website/:id"   element={<Guard needsPartner><Layout><VibeViewer /></Layout></Guard>} />
-
-          <Route path="*" element={<Navigate to="/welcome" replace />} />
-          </Routes>
+          <AnimatedRoutes />
         </AppGuard>
       </AuthProvider>
     </BrowserRouter>

@@ -32,7 +32,8 @@ def user_to_out(u: User) -> UserOut:
         hide_activity=u.hide_activity,
         ai_personality=u.ai_personality,
         milestone_alerts=u.milestone_alerts,
-        avatar_url=u.avatar_url
+        avatar_url=u.avatar_url,
+        has_pin=bool(u.app_pin)
     )
 
 @router.post("/register", response_model=Token, status_code=201)

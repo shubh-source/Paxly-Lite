@@ -26,7 +26,7 @@ export default function Connect() {
           setStatus('connected');
           setTimeout(async () => {
             await refreshUser();
-            nav('/dashboard');
+            nav('/setup-lock');
           }, 1500);
         } else if (data.status === 'waiting') {
           setStatus('waiting');
@@ -52,7 +52,7 @@ export default function Connect() {
           setStatus('connected');
           setTimeout(async () => {
             await refreshUser();
-            nav('/dashboard');
+            nav('/setup-lock');
           }, 1500);
         }
       } catch {}
@@ -79,7 +79,7 @@ export default function Connect() {
       const { data } = await api.post('/couple/invite/send', { code: enterCode.trim().toUpperCase() });
       if (data.status === 'connected') {
         setStatus('connected');
-        setTimeout(async () => { await refreshUser(); nav('/dashboard'); }, 1500);
+        setTimeout(async () => { await refreshUser(); nav('/setup-lock'); }, 1500);
       } else {
         // waiting
         setTargetName(data.target_name);

@@ -26,12 +26,15 @@ export default function Dashboard() {
     getSpace().then(d => setPartner(d.partner)).catch(() => {});
     
     // Fetch shared note alerts
-    axios.get('/api/notes/dashboard-alerts')
-      .then(res => setSharedNotes(res.data))
+    api.get('/notes/dashboard-alerts')
+      .then(res => {
+        if (Array.isArray(res.data)) setSharedNotes(res.data);
+      })
       .catch(() => {});
 
     // Fetch AI Suggestions (dates, apologies, etc)
-    axios.get('/api/dates/').then(res => {
+    api.get('/dates/').then(res => {
+      if (!Array.isArray(res.data)) return;
       const today = new Date();
       const upcoming = res.data.find(d => {
         const annDate = new Date(d.date);
@@ -48,11 +51,11 @@ export default function Dashboard() {
         });
       }
     }).catch(() => {});
-  }, []);
+  }, [partner?.name]);
 
   const dismissNote = async (id) => {
     try {
-      await axios.post(`/api/notes/${id}/dismiss-alert`);
+      await api.post(`/notes/${id}/dismiss-alert`);
       setSharedNotes(prev => prev.filter(n => n.id !== id));
     } catch {}
   };
