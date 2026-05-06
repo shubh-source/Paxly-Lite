@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { Icons } from '../../components/ui/Icons';
 
 const api = axios.create({ baseURL: '/api' });
 api.interceptors.request.use(cfg => {
@@ -54,13 +55,15 @@ export default function BucketList() {
     <div className="page" style={{ padding: '0 0 80px' }}>
       <div style={{ padding: '20px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => nav(-1)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1.2rem' }}>←</button>
+          <button onClick={() => nav(-1)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></button>
           <div>
             <h2 style={{ margin: 0 }}>Bucket List</h2>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>{done}/{filtered.length} completed</p>
           </div>
         </div>
-        <button className="btn btn-p" onClick={() => setShowForm(true)} style={{ padding: '8px 16px' }}>+ Add</button>
+        <button className="btn btn-p" onClick={() => setShowForm(true)} style={{ padding: '8px 16px', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icons.Plus size={18} color="#000" /> Add
+        </button>
       </div>
 
       {/* Progress bar */}
@@ -97,8 +100,10 @@ export default function BucketList() {
               </select>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-              <button className="btn btn-g" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="btn btn-p" style={{ flex: 2 }} onClick={save}>Add Dream ✨</button>
+              <button className="btn btn-g" style={{ flex: 1, borderRadius: 14 }} onClick={() => setShowForm(false)}>Cancel</button>
+              <button className="btn btn-p" style={{ flex: 2, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={save}>
+                Add Dream <Icons.Aura size={18} color="#000" />
+              </button>
             </div>
           </div>
         </div>
@@ -107,7 +112,7 @@ export default function BucketList() {
       <div style={{ padding: '0 20px' }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 12 }}>🎯</div>
+            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Target size={64} color="var(--accent)" stroke={1} /></div>
             <p>No dreams here yet.</p>
             <p style={{ fontSize: '0.85rem' }}>Add something you want to do together!</p>
           </div>
@@ -116,7 +121,7 @@ export default function BucketList() {
             {filtered.map(item => (
               <div key={item.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, opacity: item.completed ? 0.6 : 1, cursor: 'pointer' }} onClick={() => toggle(item)}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', border: `2px solid ${item.completed ? 'var(--success)' : 'var(--border)'}`, background: item.completed ? 'var(--success)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {item.completed && <span style={{ color: '#0D0D0F', fontSize: '0.85rem' }}>✓</span>}
+                  {item.completed && <Icons.Check size={16} color="#000" />}
                 </div>
                 <span style={{ fontSize: '1.6rem' }}>{item.emoji}</span>
                 <div style={{ flex: 1 }}>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { Icons } from '../../components/ui/Icons';
 
 const api = axios.create({ baseURL: '/api' });
 api.interceptors.request.use(cfg => {
@@ -59,15 +60,15 @@ export default function LoveShop() {
     <div className="page" style={{ padding: '0 0 80px' }}>
       <div style={{ padding: '20px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => nav(-1)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1.2rem' }}>←</button>
+          <button onClick={() => nav(-1)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></button>
           <div>
             <h2 style={{ margin: 0 }}>Love Shop</h2>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>Gift your person something special</p>
           </div>
         </div>
         {cartCount > 0 && (
-          <button className="btn btn-p" onClick={() => nav('/shop/cart')} style={{ padding: '8px 16px', position: 'relative' }}>
-            🛒 {cartCount}
+          <button className="btn btn-p" onClick={() => nav('/shop/cart')} style={{ padding: '8px 16px', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icons.Cart size={18} color="#000" /> {cartCount}
           </button>
         )}
       </div>
@@ -85,8 +86,8 @@ export default function LoveShop() {
           <div key={product.id} className="card" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer' }} onClick={() => setSelected(product)}>
             <div style={{ background: 'var(--s1)', height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', position: 'relative' }}>
               {product.emoji}
-              <button onClick={e => { e.stopPropagation(); toggleWishlist(product.id); }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', fontSize: '0.9rem' }}>
-                {wishlist.includes(product.id) ? '❤️' : '🤍'}
+              <button onClick={e => { e.stopPropagation(); toggleWishlist(product.id); }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icons.Heart size={14} color={wishlist.includes(product.id) ? 'var(--accent)' : '#fff'} fill={wishlist.includes(product.id) ? 'var(--accent)' : 'none'} />
               </button>
             </div>
             <div style={{ padding: 12 }}>
@@ -108,8 +109,10 @@ export default function LoveShop() {
               <p style={{ margin: 0, fontSize: '1.4rem', color: 'var(--accent)', fontWeight: 600 }}>₹{selected.price}</p>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button className="btn btn-g" style={{ flex: 1 }} onClick={() => setSelected(null)}>Close</button>
-              <button className="btn btn-p" style={{ flex: 2 }} onClick={() => addToCart(selected)}>Add to Cart 🛒</button>
+              <button className="btn btn-g" style={{ flex: 1, borderRadius: 14 }} onClick={() => setSelected(null)}>Close</button>
+              <button className="btn btn-p" style={{ flex: 2, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => addToCart(selected)}>
+                Add to Cart <Icons.Cart size={18} color="#000" />
+              </button>
             </div>
           </div>
         </div>
@@ -118,9 +121,11 @@ export default function LoveShop() {
       {/* Cart summary bar */}
       {cartCount > 0 && (
         <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', borderRadius: 99, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 4px 20px rgba(201,169,110,0.3)', cursor: 'pointer', zIndex: 50 }} onClick={() => nav('/shop/checkout', { state: { cart, total: cartTotal } })}>
-          <span style={{ color: '#0D0D0F', fontWeight: 600 }}>🛒 {cartCount} items</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0D0D0F', fontWeight: 600 }}>
+            <Icons.Cart size={18} color="#000" /> {cartCount} items
+          </div>
           <span style={{ color: '#0D0D0F', fontWeight: 700 }}>₹{cartTotal}</span>
-          <span style={{ color: '#0D0D0F', fontWeight: 600 }}>Checkout →</span>
+          <span style={{ color: '#0D0D0F', fontWeight: 600, display: 'flex', alignItems: 'center' }}>Checkout <Icons.Back size={18} color="#000" style={{ transform: 'rotate(180deg)' }} /></span>
         </div>
       )}
     </div>

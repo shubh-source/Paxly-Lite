@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { updateMe } from '../../services/api';
-import BottomNav from '../../components/layout/BottomNav';
+import { Icons } from '../../components/ui/Icons';
+
 
 export function Profile() {
   const { user, logoutUser, setUser } = useAuth();
@@ -25,10 +26,10 @@ export function Profile() {
 
   return (
     <div className="page" style={{ paddingBottom:80 }}>
-      <header className="header">
-        <Link to="/dashboard" style={{ color:'var(--muted)' }}>←</Link>
-        <span className="header-title">Profile</span>
-        <Link to="/settings" style={{ color:'var(--muted)', fontSize:'0.82rem' }}>Settings</Link>
+      <header className="header" style={{ background:'rgba(22,22,24,0.4)', borderBottom:'1px solid rgba(255,255,255,0.05)', margin:'20px 20px 12px', borderRadius:'24px', padding:'16px 20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center' }}>
+        <Link to="/dashboard" style={{ color:'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></Link>
+        <span className="header-title" style={{ color:'var(--text)', marginLeft: 10 }}>Profile</span>
+        <Link to="/settings" style={{ color:'var(--accent)', fontSize:'0.82rem', fontWeight:600, textDecoration:'none' }}>Settings</Link>
       </header>
       <div className="content">
         <div style={{ textAlign:'center', marginBottom:28 }}>
@@ -45,9 +46,17 @@ export function Profile() {
         <div className="card" style={{ marginBottom:16 }}>
           <p style={{ fontSize:'0.82rem', marginBottom:4 }}>Space ID: <code style={{ color:'var(--accent)' }}>{user?.couple_space_id?.slice(0,10)}...</code></p>
         </div>
+        
+        <Link to="/legal" className="card card-hover" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', textDecoration:'none', color:'var(--text)', marginBottom:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <Icons.Shield size={20} color="var(--accent)" />
+            <span style={{ fontWeight:600, fontSize:'0.9rem' }}>Legal Center</span>
+          </div>
+          <span style={{ color:'var(--muted)', fontSize:'0.8rem' }}>View Policies</span>
+        </Link>
+
         <button className="btn btn-d btn-full" onClick={logout}>Log Out</button>
       </div>
-      <BottomNav />
     </div>
   );
 }

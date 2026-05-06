@@ -1,13 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const api = axios.create({ baseURL: '/api' });
-api.interceptors.request.use(cfg => {
-  const t = localStorage.getItem('ros_token');
-  if (t) cfg.headers.Authorization = `Bearer ${t}`;
-  return cfg;
-});
+import { useNavigate, Link } from 'react-router-dom';
+import api from '../../services/api';
+import { Icons } from '../../components/ui/Icons';
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
@@ -35,12 +29,14 @@ function VoicePlayer({ id, url, customName, fromName, createdAt, size, onDelete,
   };
 
   return (
-    <div className="card" style={{ 
+    <div className="card card-hover" style={{ 
       marginBottom: 16, 
-      borderLeft: `3px solid ${isMe ? 'var(--accent)' : 'var(--purple)'}`,
+      borderLeft: `4px solid ${isMe ? 'var(--accent)' : 'var(--purple)'}`,
       background: 'rgba(255,255,255,0.03)',
-      border: '1px solid rgba(255,255,255,0.08)',
-      padding: '16px 20px'
+      border: '1px solid rgba(255,255,255,0.06)',
+      padding: '20px',
+      borderRadius: 24,
+      animation: 'fadeInUp 0.4s ease-out'
     }}>
       <audio
         ref={audioRef}
@@ -49,32 +45,33 @@ function VoicePlayer({ id, url, customName, fromName, createdAt, size, onDelete,
         onLoadedMetadata={e => setDuration(e.target.duration)}
         onEnded={() => { setPlaying(false); setProgress(0); setCurrent(0); }}
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
         {/* Play button */}
         <button onClick={toggle} style={{ 
-          width: 48, height: 48, borderRadius: '50%', 
-          background: playing ? 'var(--accent)' : 'rgba(255,255,255,0.05)', 
-          color: playing ? '#000' : 'var(--text)',
-          border: 'none', cursor: 'pointer', fontSize: '1.2rem', 
+          width: 52, height: 52, borderRadius: '50%', 
+          background: playing ? 'var(--accent)' : 'rgba(255,255,255,0.06)', 
+          color: playing ? '#000' : '#fff',
+          border: 'none', cursor: 'pointer',
           flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: playing ? '0 0 15px rgba(201,169,110,0.4)' : 'none',
-          transition: 'var(--t)'
+          boxShadow: playing ? '0 8px 20px rgba(201,169,110,0.3)' : 'none',
+          transition: 'all 0.3s ease'
         }}>
-          {playing ? '⏸' : '▶️'}
+          {playing ? <Icons.Pause size={20} /> : <Icons.Play size={20} />}
         </button>
 
         {/* Waveform progress */}
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '0.9rem', color: isMe ? 'var(--accent)' : 'var(--purple)', fontWeight: 600 }}>{customName || fromName}</span>
-              {isMe && <button onClick={() => onRename(id, customName)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', padding: 0, opacity: 0.6 }}>✏️</button>}
+              <span style={{ fontSize: '0.95rem', color: isMe ? 'var(--accent)' : 'var(--purple)', fontWeight: 700 }}>{customName || fromName}</span>
+              {isMe && <button onClick={() => onRename(id, customName)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: 8, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Edit size={14} /></button>}
+              {url.includes('chat_media') && <span style={{ fontSize: '0.6rem', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4, color: 'var(--muted)', letterSpacing: 0.5 }}>CHAT</span>}
             </div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{new Date(createdAt).toLocaleDateString()}</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 500 }}>{new Date(createdAt).toLocaleDateString()}</span>
           </div>
           {/* Progress bar */}
           <div
-            style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 99, height: 6, cursor: 'pointer', position: 'relative' }}
+            style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 99, height: 8, cursor: 'pointer', position: 'relative' }}
             onClick={e => {
               if (!audioRef.current || !audioRef.current.duration) return;
               const rect = e.currentTarget.getBoundingClientRect();
@@ -84,16 +81,13 @@ function VoicePlayer({ id, url, customName, fromName, createdAt, size, onDelete,
           >
             <div style={{ height: '100%', width: `${progress}%`, background: isMe ? 'var(--accent)' : 'var(--purple)', borderRadius: 99, transition: 'width 0.1s' }} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{formatTime(current)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+            <span style={{ fontSize: '0.72rem', color: playing ? 'var(--accent)' : 'var(--muted)', fontWeight: 600 }}>{formatTime(current)}</span>
             <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{duration ? formatTime(duration) : formatSize(size)}</span>
           </div>
         </div>
 
-        {/* Delete */}
-        {isMe && (
-          <button onClick={onDelete} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1rem', padding: 4 }}>🗑️</button>
-        )}
+        {/* Delete functionality removed as per user's request: Memories are precious */}
       </div>
     </div>
   );
@@ -125,7 +119,7 @@ export default function VoiceNotes() {
       });
       setNotes(data);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch voice notes", err);
     }
   };
 
@@ -152,24 +146,28 @@ export default function VoiceNotes() {
 
   const stopRecording = () => {
     if (mediaRef.current) mediaRef.current.stop();
-    clearInterval(timerRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
     setRecording(false);
   };
 
   const uploadVoice = async (blob, mimeType) => {
     setUploading(true);
-    const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
-    const form = new FormData();
-    form.append('file', blob, `voice_note.${ext}`);
-    await api.post('/voice-notes/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-    await fetchNotes();
-    setUploading(false);
+    try {
+      const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+      const form = new FormData();
+      form.append('file', blob, `voice_note.${ext}`);
+      await api.post('/voice-notes/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await fetchNotes();
+    } catch (err) {
+      console.error("Upload failed", err);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const deleteNote = async (id) => {
-    if (!confirm('Delete this recording?')) return;
-    await api.delete(`/voice-notes/${id}`);
-    setNotes(n => n.filter(x => x.id !== id));
+    // Disabled: Memories are permanent
+    console.log("Delete disabled for precious memories");
   };
 
   const renameNote = async (id, current) => {
@@ -184,11 +182,24 @@ export default function VoiceNotes() {
   };
 
   return (
-    <div className="page" style={{ padding: '0 0 80px' }}>
-      {/* Header */}
-      <header className="header" style={{ margin: '12px 20px', borderRadius: '16px' }}>
-        <button onClick={() => nav(-1)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1.2rem' }}>←</button>
-        <span className="header-title">Voice Whispers</span>
+    <div className="page" style={{ paddingBottom: 80 }}>
+      {/* Premium Header */}
+      <header className="header" style={{ 
+        background: 'rgba(22, 22, 24, 0.4)', 
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        margin: '20px 20px 12px',
+        borderRadius: '24px',
+        padding: '16px 20px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Link to="/dashboard" style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></Link>
+          <span className="header-title" style={{ color: 'var(--text)' }}>Voice Whispers</span>
+        </div>
+        <div style={{ width: 32 }} />
       </header>
 
       {/* Search & Filter */}
@@ -198,57 +209,62 @@ export default function VoiceNotes() {
           placeholder="Find a memory..." 
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          style={{ width: '100%', padding: '12px 18px', borderRadius: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', fontSize: '0.95rem', backdropFilter: 'blur(10px)' }}
+          style={{ width: '100%', padding: '14px 20px', borderRadius: 18, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '1rem', outline: 'none' }}
         />
         <div style={{ display: 'flex', gap: 10 }}>
           <input 
             type="date" 
             value={fromDate}
             onChange={e => setFromDate(e.target.value)}
-            style={{ flex: 1, padding: '10px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', fontSize: '0.85rem' }}
+            style={{ flex: 1, padding: '10px 14px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.85rem', colorScheme: 'dark' }}
           />
           <input 
             type="date" 
             value={toDate}
             onChange={e => setToDate(e.target.value)}
-            style={{ flex: 1, padding: '10px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', fontSize: '0.85rem' }}
+            style={{ flex: 1, padding: '10px 14px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.85rem', colorScheme: 'dark' }}
           />
         </div>
       </div>
 
-      {/* Record button */}
-      <div style={{ padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+      {/* Record button Area */}
+      <div style={{ padding: '0 20px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ position: 'relative', marginBottom: 20 }}>
           {recording && (
-            <>
-              <div style={{ position: 'absolute', inset: -15, borderRadius: '50%', border: '2px solid var(--accent)', animation: 'pulse 1.5s infinite', opacity: 0.4 }} />
-              <div style={{ position: 'absolute', inset: -30, borderRadius: '50%', border: '1px solid var(--accent)', animation: 'pulse 1.5s infinite 0.5s', opacity: 0.2 }} />
-            </>
+            <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', border: '2px solid var(--accent)', animation: 'pulseWave 2s infinite' }} />
           )}
           <button
             onClick={recording ? stopRecording : startRecording}
             disabled={uploading}
             style={{
-              width: 88, height: 88, borderRadius: '50%',
-              background: recording ? 'var(--danger)' : 'var(--accent)',
-              border: 'none', cursor: 'pointer', fontSize: '2rem',
-              boxShadow: recording ? '0 0 30px rgba(224,112,112,0.4)' : '0 10px 30px rgba(201,169,110,0.3)',
-              transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-              transform: recording ? 'scale(1.1)' : 'scale(1)'
+              width: 100, height: 100, borderRadius: '50%',
+              background: recording ? '#FF3B30' : 'var(--accent)',
+              border: 'none', cursor: 'pointer',
+              boxShadow: recording ? '0 0 40px rgba(255,59,48,0.4)' : '0 15px 40px rgba(201,169,110,0.3)',
+              transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 10, position: 'relative'
             }}
           >
-            {uploading ? '⏳' : recording ? '⏹' : '🎙️'}
+            {uploading ? <div className="spinner-small" /> : recording ? <div style={{width: 30, height: 30, background: '#fff', borderRadius: 6}} /> : <Icons.Mic size={44} color="#000" />}
           </button>
         </div>
-        {recording && <p style={{ color: 'var(--accent)', fontWeight: 600, fontSize: '1.1rem', letterSpacing: '1px' }}>{formatTime(recordTime)}</p>}
+        <p style={{ 
+          color: recording ? 'var(--accent)' : 'var(--muted)', 
+          fontWeight: 700, 
+          fontSize: '1.2rem', 
+          letterSpacing: 1,
+          fontFamily: 'monospace' 
+        }}>{recording ? formatTime(recordTime) : 'TAP TO RECORD'}</p>
       </div>
 
       {/* Voice notes list */}
       <div style={{ padding: '0 20px' }}>
         {notes.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 12 }}>🎵</div>
-            <p>No voice notes found.</p>
+          <div style={{ textAlign: 'center', padding: '60px 0', opacity: 0.7 }}>
+            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.Mic size={64} color="var(--accent)" stroke={1} /></div>
+            <h3 style={{ marginBottom: 8 }}>Silent space</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Record a whisper that lasts forever.</p>
           </div>
         ) : notes.map(note => (
           <VoicePlayer
@@ -260,17 +276,14 @@ export default function VoiceNotes() {
             createdAt={note.created_at}
             size={note.size}
             isMe={note.sender_id === myId}
-            onDelete={() => deleteNote(note.id)}
             onRename={renameNote}
           />
         ))}
       </div>
 
       <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 0.5; }
-          50% { transform: scale(1.1); opacity: 0.8; }
-        }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseWave { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.6); opacity: 0; } }
       `}</style>
     </div>
   );

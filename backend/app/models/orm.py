@@ -449,3 +449,11 @@ class FailedLoginAttempt(Base):
     ip_address = Column(String, index=True)
     email_attempted = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    token = Column(String, index=True)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)

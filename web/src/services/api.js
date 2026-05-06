@@ -23,6 +23,12 @@ export const login = (email, password) =>
 export const getMe = () =>
   api.get('/auth/me').then(r => r.data);
 
+export const requestPasswordReset = (email) =>
+  api.post('/auth/forgot-password', { email }).then(r => r.data);
+
+export const resetPassword = (token, new_password) =>
+  api.post('/auth/reset-password', { token, new_password }).then(r => r.data);
+
 export const updateMe = (data) =>
   api.put('/auth/me', data).then(r => r.data);
 
@@ -58,7 +64,7 @@ export const addReaction = (messageId, emoji) =>
 
 // Mood
 export const submitMood = (mood_type, note = '') =>
-  api.post('/mood/', { mood_type, note }).then(r => r.data);
+  api.post('/mood/set', { mood_type, note }).then(r => r.data);
 
 export const getTodayMoods = () =>
   api.get('/mood/today').then(r => r.data);

@@ -1,71 +1,133 @@
-// Welcome.jsx
-import { Link, Navigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { motion } from 'framer-motion';
-import PageTransition from '../../components/layout/PageTransition';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
+import WeavingHeart from '../../components/ui/WeavingHeart';
 
 export default function Welcome() {
-  const { user } = useAuth();
-  if (user?.couple_space_id) return <Navigate to="/dashboard" />;
-  if (user) return <Navigate to="/connect" />;
-
-  const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.1 } }
-  };
-
-  const itemTop = { hidden: { opacity: 0, y: -50 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 80 } } };
-  const itemBottom = { hidden: { opacity: 0, y: 50 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 80 } } };
-  const itemLeft = { hidden: { opacity: 0, x: -50 }, show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 80 } } };
-  const itemRight = { hidden: { opacity: 0, x: 50 }, show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 80 } } };
-  
-  // Title letters combining effect
-  const titleText = "Vlynxly".split('');
+  const [showActions, setShowActions] = useState(false);
 
   return (
-    <PageTransition layoutId="welcome">
-      <div className="page center" style={{ padding: '40px 24px', minHeight: '100vh', overflow: 'hidden' }}>
-        <div style={{ position:'fixed', top:'-20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle, rgba(201,169,110,0.05) 0%, transparent 70%)', pointerEvents:'none' }} />
-        
-        <motion.div variants={container} initial="hidden" animate="show" style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
+    <div style={{ 
+      minHeight: '100vh', 
+      backgroundColor: '#050505', 
+      color: '#fff', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      padding: '40px 24px', 
+      position: 'relative', 
+      overflow: 'hidden',
+      textAlign: 'center'
+    }}>
+      {/* BACKGROUND ELEMENTS - They will blur when actions show */}
+      <motion.div 
+        animate={{ filter: showActions ? 'blur(15px) grayscale(0.5)' : 'blur(0px) grayscale(0)' }}
+        transition={{ duration: 1, ease: "easeInOut" }}
+        style={{ width: '100%', height: '100%', position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {/* Moving Ambient Glows */}
+        <motion.div
+          animate={{ x: [0, 100, 0], y: [0, -50, 0], opacity: [0.05, 0.1, 0.05] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+          style={{ position: 'fixed', top: '20%', left: '10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)', pointerEvents: 'none', filter: 'blur(80px)' }} 
+        />
+        <motion.div
+          animate={{ x: [0, -100, 0], y: [0, 50, 0], opacity: [0.05, 0.1, 0.05] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          style={{ position: 'fixed', bottom: '10%', right: '10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)', pointerEvents: 'none', filter: 'blur(80px)' }} 
+        />
+
+        <div style={{ maxWidth: '400px', width: '100%', zIndex: 5 }}>
+          <WeavingHeart />
           
-          <motion.div variants={itemTop} style={{ margin:'0 auto 28px' }}>
-            <img src="/logo.png" style={{ width:120, height:120, objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(201,169,110,0.2))' }} alt="Vlynxly Logo" />
-          </motion.div>
-          
-          <h1 style={{ marginBottom:6, display: 'flex', justifyContent: 'center' }}>
-            {titleText.map((char, index) => (
-              <motion.span 
-                key={index} 
-                variants={{
-                  hidden: { opacity: 0, x: Math.random() * 100 - 50, y: Math.random() * 100 - 50, rotate: Math.random() * 90 - 45 },
-                  show: { opacity: 1, x: 0, y: 0, rotate: 0, transition: { type: 'spring', damping: 12, stiffness: 100 } }
-                }}
+          <AnimatePresence>
+            {!showActions && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.8, delay: 3 }}
+                style={{ marginTop: '56px' }}
               >
-                {char}
-              </motion.span>
-            ))}
-          </h1>
-          
-          <motion.p variants={itemRight} style={{ fontSize:'0.75rem', letterSpacing:2, color:'var(--accent)', marginBottom:32, textTransform:'uppercase', fontWeight:600 }}>
-            Private • Just You Two
-          </motion.p>
-          
-          <motion.p variants={itemLeft} style={{ fontSize:'1.05rem', marginBottom:44, lineHeight:1.8 }}>
-            Your private space for two.<br/>No distractions. No feeds.<br/>Just you and your person.
-          </motion.p>
-          
-          <motion.div variants={itemBottom} style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            <Link to="/signup" className="btn btn-p btn-full" style={{ padding:'13px', fontSize:'1rem' }}>Get Started</Link>
-            <Link to="/login"  className="btn btn-s btn-full" style={{ padding:'13px', fontSize:'1rem' }}>Log In</Link>
+                <h1 style={{ fontSize: '3.5rem', fontWeight: 200, marginBottom: '4px', fontFamily: 'serif', letterSpacing: '-0.03em' }}>Vlynxly</h1>
+                <p style={{ color: 'var(--accent)', fontSize: '0.85rem', letterSpacing: '6px', fontWeight: 500, textTransform: 'uppercase', marginBottom: '48px' }}>Together We Better</p>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.95rem', lineHeight: 2, marginBottom: '60px', fontWeight: 300 }}>Your private space for two.<br/>Encrypted intimacy for modern couples.</p>
+
+                <motion.button
+                  whileHover={{ scale: 1.02, boxShadow: '0 0 40px rgba(201,169,110,0.5)' }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowActions(true)}
+                  style={{ 
+                    position: 'relative', overflow: 'hidden',
+                    width: '100%', padding: '20px', borderRadius: '18px', backgroundColor: 'var(--accent)', color: '#000', border: 'none', fontWeight: 800, fontSize: '1.15rem', cursor: 'pointer' 
+                  }}
+                >
+                  Get Started
+                  {/* Shimmer Effect */}
+                  <motion.div
+                    animate={{ x: ['-100%', '200%'] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear", repeatDelay: 3 }}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '50%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)', skewX: '-20deg' }}
+                  />
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+
+      {/* ACTION OVERLAY - Appears on top with background blur */}
+      <AnimatePresence>
+        {showActions && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, backdropFilter: 'blur(0px)' }}
+            animate={{ opacity: 1, scale: 1, backdropFilter: 'blur(25px)' }}
+            exit={{ opacity: 0, scale: 0.9, backdropFilter: 'blur(0px)' }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            style={{ 
+              position: 'fixed', zIndex: 20, width: '100%', height: '100%', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)'
+            }}
+          >
+            <div style={{ 
+              width: '340px', padding: '40px 32px', borderRadius: '32px', 
+              backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', 
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+            }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 200, marginBottom: '32px', color: 'rgba(255,255,255,0.8)' }}>Select your journey</h2>
+              
+              <Link to="/signup" style={{ textDecoration: 'none', width: '100%', padding: '18px', borderRadius: '14px', backgroundColor: 'var(--accent)', color: '#000', fontWeight: 800, fontSize: '1rem', display: 'block', marginBottom: '16px' }}>
+                Create Our Space
+              </Link>
+              
+              <Link to="/login" style={{ textDecoration: 'none', width: '100%', padding: '18px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontWeight: 500, fontSize: '1rem', display: 'block' }}>
+                Log In to Existing Space
+              </Link>
+
+              <button 
+                onClick={() => setShowActions(false)}
+                style={{ marginTop: '32px', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '3px', fontWeight: 400 }}
+              >
+                ← Back to Intro
+              </button>
+            </div>
           </motion.div>
-          
-          <motion.p variants={itemBottom} style={{ marginTop:36, fontSize:'0.78rem', opacity:0.5 }}>
-            Private by design · Encrypted · No ads inside
-          </motion.p>
-          
-        </motion.div>
-      </div>
-    </PageTransition>
+        )}
+      </AnimatePresence>
+
+      {/* TRUST BADGE FOOTER - More readable */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: showActions ? 0.2 : 0.6 }}
+        transition={{ delay: 4, duration: 1.5 }}
+        style={{ 
+          position: 'fixed', bottom: '32px', fontSize: '11px', letterSpacing: '2px', 
+          color: 'rgba(201,169,110,0.9)', textTransform: 'uppercase', fontWeight: 600, zIndex: 25
+        }}
+      >
+        E2E Encrypted • Zero Data Sell • Your Private Oasis
+      </motion.div>
+    </div>
   );
 }

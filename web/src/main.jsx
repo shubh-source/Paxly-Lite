@@ -1,16 +1,17 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppGuard from './components/security/AppGuard';
 import Layout from './components/layout/Layout';
-import { AnimatePresence } from 'framer-motion';
-import { useLocation } from 'react-router-dom';
+import SplashScreen from './components/layout/SplashScreen';
 import './index.css';
 
 import Welcome        from './pages/auth/Welcome';
 import Signup         from './pages/auth/Signup';
 import Login          from './pages/auth/Login';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword  from './pages/auth/ResetPassword';
 import Connect        from './pages/auth/Connect';
 import SetupLock      from './pages/auth/SetupLock';
 import Dashboard      from './pages/Dashboard';
@@ -35,10 +36,12 @@ import BucketList     from './pages/bucket/BucketList';
 import LoveShop       from './pages/shop/LoveShop';
 import Checkout       from './pages/shop/Checkout';
 import OrderSuccess   from './pages/shop/OrderSuccess';
+import IconShowcase   from './pages/debug/IconShowcase';
+import Legal          from './pages/Legal';
 
 function Guard({ children, needsPartner = false }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="page center"><div className="spinner" /></div>;
+  if (loading) return <SplashScreen user={user} />;
   if (!user) return <Navigate to="/welcome" replace />;
   if (needsPartner && !user.couple_space_id) return <Navigate to="/connect" replace />;
   return children;
@@ -46,7 +49,7 @@ function Guard({ children, needsPartner = false }) {
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="page center"><div className="spinner" /></div>;
+  if (loading) return null; // Don't show splash on public routes
   if (user) {
     if (!user.couple_space_id) return <Navigate to="/connect" replace />;
     if (!user.has_pin) return <Navigate to="/setup-lock" replace />;
@@ -56,14 +59,14 @@ function PublicRoute({ children }) {
 }
 
 function AnimatedRoutes() {
-  const location = useLocation();
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/"         element={<Navigate to="/welcome" replace />} />
+    <Routes>
+      <Route path="/"         element={<Navigate to="/welcome" replace />} />
         <Route path="/welcome"  element={<PublicRoute><Welcome /></PublicRoute>} />
         <Route path="/signup"   element={<PublicRoute><Signup /></PublicRoute>} />
         <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+        <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
         <Route path="/connect"  element={<Guard><Connect /></Guard>} />
         <Route path="/invite/:code" element={<Guard><Connect /></Guard>} />
         <Route path="/setup-lock" element={<Guard needsPartner><SetupLock /></Guard>} />
@@ -93,10 +96,11 @@ function AnimatedRoutes() {
         
         <Route path="/website/vibe" element={<Guard needsPartner><Layout><VibeEditor /></Layout></Guard>} />
         <Route path="/website/:id"   element={<Guard needsPartner><Layout><VibeViewer /></Layout></Guard>} />
+        <Route path="/legal"         element={<Guard needsPartner><Layout><Legal /></Layout></Guard>} />
+        <Route path="/icons"         element={<IconShowcase />} />
 
         <Route path="*" element={<Navigate to="/welcome" replace />} />
-      </Routes>
-    </AnimatePresence>
+    </Routes>
   );
 }
 

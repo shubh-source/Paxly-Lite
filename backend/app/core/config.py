@@ -23,8 +23,11 @@ class Settings(BaseSettings):
     RAZORPAY_ACCOUNT_NO: str = ""
 
     # Email (SMTP)
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
     SMTP_USER: str = ""
-    SMTP_PASS: str = ""
+    SMTP_PASSWORD: str = ""
+    SENDER_EMAIL: str = "support@vlynxly.com"
 
     # App
     APP_NAME: str = "Vlynxly"

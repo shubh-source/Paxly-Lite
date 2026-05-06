@@ -16,11 +16,21 @@ class WSService {
     this._intentionalClose = false;
     this.token = token;
     
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-                 ? 'localhost:8000' 
-                 : window.location.host;
-    const wsUrl = `${protocol}//${host}/ws?token=${token}`;
+    let wsUrl = '';
+    const apiUrl = import.meta.env.VITE_API_URL;
+    
+    if (apiUrl) {
+      const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+      const wsHost = apiUrl.replace(/^https?:\/\//, '');
+      wsUrl = `${wsProtocol}//${wsHost}/ws?token=${token}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                   ? 'localhost:8000' 
+                   : window.location.host;
+      wsUrl = `${protocol}//${host}/ws?token=${token}`;
+    }
+    
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
@@ -115,6 +125,15 @@ class WSService {
 
   rejectCall() {
     this.send({ type: 'webrtc_reject' });
+  }
+
+  // Media Permissions
+  sendMediaSaveRequest(mediaUrl, messageId) {
+    this.send({ type: 'media_save_request', media_url: mediaUrl, message_id: messageId });
+  }
+
+  sendMediaSaveResponse(requestId, allowed, messageId) {
+    this.send({ type: 'media_save_response', request_id: requestId, allowed, message_id: messageId });
   }
 }
 

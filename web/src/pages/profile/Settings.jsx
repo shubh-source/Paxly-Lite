@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import axios from 'axios';
+import api from '../../services/api';
+import { Icons } from '../../components/ui/Icons';
 
 // --- LEGAL CONTENT ---
 const TERMS = [
@@ -37,65 +38,80 @@ export default function Settings() {
   if (sub === 'closure')      return <ClosureSub onBack={() => setSub(null)} onRequested={logout} />;
 
   return (
-    <div className="page" style={{ paddingBottom: 80 }}>
-      <header className="header" style={{ margin: '12px 20px', borderRadius: '16px' }}>
-        <Link to="/dashboard" style={{ color: 'var(--muted)' }}>←</Link>
-        <span className="header-title">Settings & Privacy</span>
+    <div className="page" style={{ paddingBottom: 100 }}>
+      {/* Premium Header */}
+      <header className="header" style={{ 
+        background: 'rgba(22, 22, 24, 0.4)', 
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        margin: '20px 20px 24px',
+        borderRadius: '24px',
+        padding: '16px 20px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Link to="/profile" style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></Link>
+          <span className="header-title" style={{ color: 'var(--text)' }}>Settings & Privacy</span>
+        </div>
         <div style={{ width: 24 }} />
       </header>
 
-      <div className="content" style={{ maxWidth: 560 }}>
+      <div className="content" style={{ maxWidth: 560, padding: '0 20px' }}>
         {/* Profile Card */}
         <div className="card card-hover" onClick={() => setSub('profile')}
-          style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24, cursor: 'pointer', padding: '16px 18px' }}>
-          <div className="avatar" style={{ width: 52, height: 52, fontSize: '1.2rem', flexShrink: 0 }}>
-            {user?.name?.[0]?.toUpperCase()}
+          style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32, cursor: 'pointer', padding: '20px', borderRadius: 24, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="avatar" style={{ width: 56, height: 56, fontSize: '1.3rem', flexShrink: 0, background: 'linear-gradient(135deg, var(--accent), var(--purple))', color: '#fff' }}>
+            {user?.avatar_url ? <img src={user.avatar_url} style={{width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover'}} /> : <Icons.User size={32} color="#000" />}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text)', marginBottom: 2 }}>{user?.name}</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{user?.email}</div>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text)', marginBottom: 2 }}>{user?.name}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>{user?.email}</div>
           </div>
-          <span style={{ color: 'var(--muted)' }}>›</span>
+          <span style={{ color: 'var(--muted)', display: 'flex' }}><Icons.Back size={20} style={{ transform: 'rotate(180deg)' }} /></span>
         </div>
 
         {/* Categories */}
         <Category title="Account">
-          <SettingRow icon="👤" title="Profile Details" desc="Name and basic info" onClick={() => setSub('profile')} />
+          <SettingRow icon={<Icons.User size={20} />} title="Profile Details" desc="Name and basic info" onClick={() => setSub('profile')} />
           <Divider />
-          <SettingRow icon="🛡️" title="Security" desc="Password, App PIN, Intruder Logs" onClick={() => setSub('security')} />
+          <SettingRow icon={<Icons.Lock size={20} />} title="Security" desc="Password, App PIN, Intruder Logs" onClick={() => setSub('security')} />
         </Category>
 
         <Category title="Privacy & Peace">
-          <SettingRow icon="🔒" title="Privacy Settings" desc="Stealth Mode, Media Blur, Activity" onClick={() => setSub('privacy')} />
+          <SettingRow icon={<Icons.Shield size={20} />} title="Privacy Settings" desc="Stealth Mode, Media Blur, Activity" onClick={() => setSub('privacy')} />
         </Category>
 
         <Category title="Relationship Intelligence">
-          <SettingRow icon="✨" title="AI & Milestones" desc="AI Advisor tone, Relationship alerts" onClick={() => setSub('relationship')} />
+          <SettingRow icon={<Icons.Aura size={20} />} title="AI & Milestones" desc="Aura AI tone, Relationship alerts" onClick={() => setSub('relationship')} />
           <Divider />
-          <SettingRow icon="💾" title="Export Memories" desc="Download your digital scrapbook" onClick={async () => {
-             const res = await axios.get('/api/auth/export');
-             const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
-             const url = window.URL.createObjectURL(blob);
-             const a = document.createElement('a');
-             a.href = url; a.download = 'vlynxly_history.json'; a.click();
+          <SettingRow icon={<Icons.Download size={20} />} title="Export Memories" desc="Download your digital scrapbook" onClick={async () => {
+             try {
+               const res = await api.get('/auth/export');
+               const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+               const url = window.URL.createObjectURL(blob);
+               const a = document.createElement('a');
+               a.href = url; a.download = 'vlynxly_history.json'; a.click();
+             } catch (err) { alert("Failed to export data"); }
           }} />
         </Category>
 
         <Category title="Information">
-          <SettingRow icon="📄" title="Terms & Conditions" onClick={() => setSub('terms')} />
+          <SettingRow icon={<Icons.FileText size={20} />} title="Terms & Conditions" onClick={() => setSub('terms')} />
           <Divider />
-          <SettingRow icon="🔐" title="Privacy Policy" onClick={() => setSub('privacy-policy')} />
+          <SettingRow icon={<Icons.Shield size={20} />} title="Privacy Policy" onClick={() => setSub('privacy-policy')} />
           <Divider />
-          <SettingRow icon="ℹ️" title="About Vlynxly" onClick={() => setSub('about')} />
+          <SettingRow icon={<Icons.Info size={20} />} title="About Vlynxly" onClick={() => setSub('about')} />
         </Category>
 
         <Category title="App Closure">
-          <SettingRow icon="🚪" title="Log Out" titleColor="var(--muted)" onClick={logout} />
+          <SettingRow icon={<Icons.LogOut size={20} />} title="Log Out" titleColor="var(--muted)" onClick={logout} />
           <Divider />
-          <SettingRow icon="⌛" title="Request Account Closure" titleColor="var(--danger)" desc="Free your ID while preserving memories" onClick={() => setSub('closure')} />
+          <SettingRow icon={<Icons.AlertCircle size={20} />} title="Request Account Closure" titleColor="var(--danger)" desc="Free your ID while preserving memories" onClick={() => setSub('closure')} />
         </Category>
 
-        <p style={{ textAlign: 'center', fontSize: '0.72rem', opacity: 0.35, marginTop: 16 }}>
+        <p style={{ textAlign: 'center', fontSize: '0.72rem', opacity: 0.3, marginTop: 40, letterSpacing: 0.5 }}>
           Vlynxly v1.5.0 Premium · Memories Protected Forever
         </p>
       </div>
@@ -106,34 +122,34 @@ export default function Settings() {
 // --- SHARED COMPONENTS ---
 function Category({ title, children }) {
   return (
-    <div style={{ marginBottom: 28 }}>
-      <p style={{ fontSize: '0.75rem', letterSpacing: '0.12em', color: 'var(--accent)', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase', opacity: 0.8 }}>{title}</p>
-      <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>{children}</div>
+    <div style={{ marginBottom: 32 }}>
+      <p style={{ fontSize: '0.75rem', letterSpacing: '0.15em', color: 'var(--accent)', fontWeight: 700, marginBottom: 14, textTransform: 'uppercase', paddingLeft: 8 }}>{title}</p>
+      <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 24 }}>{children}</div>
     </div>
   );
 }
 
 function SettingRow({ icon, title, desc, onClick, right, titleColor }) {
   return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', cursor: onClick ? 'pointer' : 'default', transition: 'background 0.15s' }}
-      onMouseEnter={e => onClick && (e.currentTarget.style.background = 'var(--s2)')}
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', cursor: onClick ? 'pointer' : 'default', transition: 'background 0.2s' }}
+      onMouseEnter={e => onClick && (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-      <span style={{ fontSize: '1.2rem', width: 28 }}>{icon}</span>
+      <div style={{ fontSize: '1.3rem', width: 32, height: 32, display:'flex', alignItems:'center', justifyContent:'center', background: 'rgba(255,255,255,0.05)', borderRadius: 10 }}>{icon}</div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 500, fontSize: '0.9rem', color: titleColor || 'var(--text)', marginBottom: desc ? 2 : 0 }}>{title}</div>
-        {desc && <div style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>{desc}</div>}
+        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: titleColor || 'var(--text)', marginBottom: desc ? 2 : 0 }}>{title}</div>
+        {desc && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{desc}</div>}
       </div>
-      {right ? right : onClick ? <span style={{ color: 'var(--muted)', fontSize: '1rem' }}>›</span> : null}
+      {right ? right : onClick ? <span style={{ color: 'var(--muted)', display: 'flex', opacity: 0.5 }}><Icons.Back size={18} style={{ transform: 'rotate(180deg)' }} /></span> : null}
     </div>
   );
 }
 
-function Divider() { return <div style={{ height: 1, background: 'var(--border)', marginLeft: 58 }} />; }
+function Divider() { return <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', marginLeft: 64 }} />; }
 
 function Toggle({ value, onChange }) {
   return (
-    <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? 'var(--accent)' : 'var(--s3)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-      <div style={{ position: 'absolute', top: 3, left: value ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: value ? 'var(--bg)' : 'var(--muted)', transition: 'left 0.2s' }} />
+    <div onClick={() => onChange(!value)} style={{ width: 48, height: 26, borderRadius: 13, background: value ? 'var(--accent)' : 'rgba(255,255,255,0.1)', cursor: 'pointer', position: 'relative', transition: 'all 0.3s ease', flexShrink: 0 }}>
+      <div style={{ position: 'absolute', top: 3, left: value ? 25 : 3, width: 20, height: 20, borderRadius: '50%', background: value ? '#000' : 'var(--muted)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
     </div>
   );
 }
@@ -141,7 +157,7 @@ function Toggle({ value, onChange }) {
 // --- SUB-VIEWS ---
 
 function SecuritySub({ user, onBack }) {
-  const [sub, setSub] = useState(null); // 'password' | 'pin' | 'logs'
+  const [sub, setSub] = useState(null); 
   const [pin, setPin] = useState('');
   const [pinOk, setPinOk] = useState(false);
 
@@ -150,7 +166,7 @@ function SecuritySub({ user, onBack }) {
 
   const updatePin = async () => {
     try {
-      await axios.post('/api/security/pin/set', { pin });
+      await api.post('/security/pin/set', { pin });
       setPinOk(true);
       setTimeout(() => setPinOk(false), 2000);
     } catch { alert('PIN must be 4-6 digits.'); }
@@ -158,34 +174,34 @@ function SecuritySub({ user, onBack }) {
 
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">Security Settings</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Icons.Back size={20} /> Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>Security</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content" style={{ maxWidth: 480 }}>
+      <div className="content" style={{ maxWidth: 500, padding: '0 20px' }}>
         <Category title="Access Control">
-          <SettingRow icon="🔑" title="Change Password" desc="Account login password" onClick={() => setSub('password')} />
+          <SettingRow icon={<Icons.Lock size={20} />} title="Change Password" desc="Account login password" onClick={() => setSub('password')} />
           <Divider />
-          <div style={{ padding: '16px 18px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
               <div>
-                <p style={{ margin: 0, color: 'var(--text)', fontWeight: 500 }}>App PIN</p>
-                <p style={{ margin: 0, fontSize: '0.75rem' }}>4-6 digit numeric lock</p>
+                <p style={{ margin: 0, color: 'var(--text)', fontWeight: 600, fontSize: '0.95rem' }}>App PIN</p>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>4-6 digit numeric lock</p>
               </div>
-              {pinOk && <span style={{ color: 'var(--success)', fontSize: '0.75rem' }}>Updated!</span>}
+              {pinOk && <span style={{ color: 'var(--success)', fontSize: '0.8rem', fontWeight: 600 }}>Updated! ✓</span>}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input type="password" className="inp" placeholder="New PIN" value={pin} onChange={e => setPin(e.target.value)} maxLength={6} style={{ flex: 1 }} />
-              <button className="btn btn-p" onClick={updatePin} disabled={!pin}>Save</button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input type="password" className="inp" placeholder="New PIN" value={pin} onChange={e => setPin(e.target.value)} maxLength={6} style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: 14 }} />
+              <button className="btn btn-p" onClick={updatePin} disabled={!pin} style={{ padding: '0 20px', borderRadius: 14 }}>Save</button>
             </div>
           </div>
         </Category>
         
         <Category title="Surveillance">
-          <SettingRow icon="📸" title="Intruder Selfie Logs" desc="Photos of failed unlock attempts" onClick={() => setSub('logs')} />
+          <SettingRow icon={<Icons.Camera size={20} />} title="Intruder Selfie Logs" desc="Photos of failed unlock attempts" onClick={() => setSub('logs')} />
           <Divider />
-          <SettingRow icon="⏱️" title="Auto-Lock Timer" desc="Locks app after 20s of inactivity" right={<span style={{ color: 'var(--accent)', fontWeight: 600 }}>20s</span>} />
+          <SettingRow icon={<Icons.Mic size={20} />} title="Auto-Lock Timer" desc="Locks app after 20s of inactivity" right={<span style={{ color: 'var(--accent)', fontWeight: 700 }}>20s</span>} />
         </Category>
       </div>
     </div>
@@ -199,25 +215,32 @@ function PasswordSub({ onBack }) {
 
   const save = async () => {
     try {
-      await axios.post('/api/auth/password', { current_password: cur, new_password: next });
+      await api.post('/auth/password', { current_password: cur, new_password: next });
       setOk('Password updated!');
       setCur(''); setNext('');
+      setTimeout(() => setOk(''), 3000);
     } catch (e) { alert(e.response?.data?.detail || 'Error updating password.'); }
   };
 
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">Change Password</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>Password</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content" style={{ maxWidth: 400 }}>
-        {ok && <div className="alert alert-s">{ok}</div>}
-        <div className="card">
-          <div className="inp-wrap"><label>Current Password</label><input type="password" className="inp" value={cur} onChange={e => setCur(e.target.value)} /></div>
-          <div className="inp-wrap"><label>New Password</label><input type="password" className="inp" value={next} onChange={e => setNext(e.target.value)} /></div>
-          <button className="btn btn-p btn-full" onClick={save} disabled={!cur || !next}>Change Password</button>
+      <div className="content" style={{ maxWidth: 440, padding: '0 20px' }}>
+        {ok && <div className="alert alert-s" style={{ marginBottom: 20 }}>{ok}</div>}
+        <div className="card" style={{ padding: 24, borderRadius: 24, background: 'rgba(255,255,255,0.03)' }}>
+          <div className="inp-wrap" style={{ marginBottom: 16 }}>
+            <label style={{ color: 'var(--muted)', fontSize: '0.8rem', marginBottom: 8, display: 'block' }}>Current Password</label>
+            <input type="password" className="inp" value={cur} onChange={e => setCur(e.target.value)} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14 }} />
+          </div>
+          <div className="inp-wrap" style={{ marginBottom: 24 }}>
+            <label style={{ color: 'var(--muted)', fontSize: '0.8rem', marginBottom: 8, display: 'block' }}>New Password</label>
+            <input type="password" className="inp" value={next} onChange={e => setNext(e.target.value)} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14 }} />
+          </div>
+          <button className="btn btn-p btn-full" onClick={save} disabled={!cur || !next} style={{ padding: 16, borderRadius: 16, fontWeight: 600 }}>Change Password</button>
         </div>
       </div>
     </div>
@@ -226,25 +249,30 @@ function PasswordSub({ onBack }) {
 
 function IntruderLogsSub({ onBack }) {
   const [logs, setLogs] = useState([]);
-  useEffect(() => { axios.get('/api/security/intruder/logs').then(r => setLogs(r.data)); }, []);
+  useEffect(() => { api.get('/security/intruder/logs').then(r => setLogs(r.data)); }, []);
 
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">Intruder Selfie Logs</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>Intruder Logs</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content" style={{ maxWidth: 500 }}>
-        <p style={{ textAlign: 'center', marginBottom: 20, fontSize: '0.85rem' }}>These are photos of anyone who tried to crack your App PIN.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="content" style={{ maxWidth: 540, padding: '0 20px' }}>
+        <p style={{ textAlign: 'center', marginBottom: 28, fontSize: '0.9rem', color: 'var(--muted)', lineHeight: 1.6 }}>Photos of unauthorized attempts to unlock your Vlynxly app.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           {logs.map(log => (
-            <div key={log.id} className="card" style={{ padding: 8 }}>
-              <img src={log.photo_url} style={{ width: '100%', borderRadius: 8, aspectRatio: '3/4', objectFit: 'cover', marginBottom: 8 }} />
-              <p style={{ margin: 0, textAlign: 'center', fontSize: '0.7rem' }}>{new Date(log.timestamp).toLocaleString()}</p>
+            <div key={log.id} className="card" style={{ padding: 12, borderRadius: 20, background: 'rgba(255,255,255,0.03)' }}>
+              <img src={log.photo_url} style={{ width: '100%', borderRadius: 12, aspectRatio: '3/4', objectFit: 'cover', marginBottom: 12, border: '1px solid rgba(255,255,255,0.1)' }} />
+              <p style={{ margin: 0, textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)' }}>{new Date(log.timestamp).toLocaleString()}</p>
             </div>
           ))}
-          {logs.length === 0 && <p style={{ gridColumn: 'span 2', textAlign: 'center', opacity: 0.5, marginTop: 40 }}>No intruder logs found.</p>}
+          {logs.length === 0 && (
+            <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '80px 0', opacity: 0.5 }}>
+              <div style={{ fontSize: '3rem', marginBottom: 16 }}>🛡️</div>
+              <p>No intruder logs found.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -253,15 +281,17 @@ function IntruderLogsSub({ onBack }) {
 
 function PrivacySub({ user, setUser, onBack }) {
   const update = async (key, val) => {
-    await axios.patch('/api/security/preferences', { [key]: val });
-    setUser({ ...user, [key]: val });
+    try {
+      await api.patch('/security/preferences', { [key]: val });
+      setUser({ ...user, [key]: val });
+    } catch (err) { console.error(err); }
   };
 
   // Stealth Mode logic
   useEffect(() => {
     if (user?.stealth_mode) {
       document.title = "Notes";
-      document.querySelector("link[rel~='icon']").href = "https://www.google.com/favicon.ico"; // Generic icon
+      document.querySelector("link[rel~='icon']").href = "https://www.google.com/favicon.ico"; 
     } else {
       document.title = "Vlynxly";
       document.querySelector("link[rel~='icon']").href = "/favicon.ico";
@@ -270,22 +300,22 @@ function PrivacySub({ user, setUser, onBack }) {
 
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">Privacy Fortress</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Icons.Back size={20} /> Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>Privacy Fortress</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content" style={{ maxWidth: 500 }}>
+      <div className="content" style={{ maxWidth: 500, padding: '0 20px' }}>
         <Category title="Visual Privacy">
-          <SettingRow icon="🎭" title="Stealth Mode" desc="Disguises app title & icon as 'Notes'" 
+          <SettingRow icon={<Icons.Aura size={20} />} title="Stealth Mode" desc="Disguises app title & icon as 'Notes'" 
             right={<Toggle value={user?.stealth_mode} onChange={v => update('stealth_mode', v)} />} />
           <Divider />
-          <SettingRow icon="🌫️" title="Media Blurring" desc="Blur images in chat until tapped" 
+          <SettingRow icon={<Icons.Vault size={20} />} title="Media Blurring" desc="Blur images in chat until tapped" 
             right={<Toggle value={user?.blur_sensitive} onChange={v => update('blur_sensitive', v)} />} />
         </Category>
 
         <Category title="Identity Privacy">
-          <SettingRow icon="👻" title="Private Presence" desc="Hide when you are online or typing" 
+          <SettingRow icon={<Icons.Shield size={20} />} title="Private Presence" desc="Hide when you are online or typing" 
             right={<Toggle value={user?.hide_activity} onChange={v => update('hide_activity', v)} />} />
         </Category>
       </div>
@@ -295,37 +325,53 @@ function PrivacySub({ user, setUser, onBack }) {
 
 function RelationshipSub({ user, setUser, onBack }) {
   const update = async (key, val) => {
-    await axios.patch('/api/security/preferences', { [key]: val });
-    setUser({ ...user, [key]: val });
+    try {
+      await api.patch('/security/preferences', { [key]: val });
+      setUser({ ...user, [key]: val });
+    } catch (err) { console.error(err); }
   };
 
   const tones = [
-    { id: 'compassionate', label: 'Compassionate' },
-    { id: 'professional',  label: 'Professional' },
-    { id: 'friend',        label: 'Best Friend' },
+    { id: 'friend',        label: 'Best Friend (Recommended)', desc: 'Warm, witty, and super casual' },
+    { id: 'compassionate', label: 'Compassionate Advisor', desc: 'Gentle, supportive, and formal' },
+    { id: 'professional',  label: 'Relationship Pro', desc: 'Direct, clear, and objective' },
   ];
 
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">Relationship Intelligence</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>Relationship IQ</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content" style={{ maxWidth: 500 }}>
-        <Category title="AI Advisor Tone">
-          <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="content" style={{ maxWidth: 500, padding: '0 20px' }}>
+        <Category title="Aura AI Personality">
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {tones.map(t => (
               <div key={t.id} onClick={() => update('ai_personality', t.id)}
-                style={{ padding: '12px 14px', borderRadius: 12, background: user?.ai_personality === t.id ? 'rgba(201,169,110,0.1)' : 'var(--s2)', border: '1px solid', borderColor: user?.ai_personality === t.id ? 'var(--accent)' : 'transparent', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 500 }}>{t.label}</span>
-                {user?.ai_personality === t.id && <span>✓</span>}
+                style={{ 
+                  padding: '16px', 
+                  borderRadius: 18, 
+                  background: user?.ai_personality === t.id ? 'rgba(201,169,110,0.1)' : 'rgba(255,255,255,0.03)', 
+                  border: '1px solid', 
+                  borderColor: user?.ai_personality === t.id ? 'var(--accent)' : 'rgba(255,255,255,0.06)', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  gap: 4,
+                  transition: 'all 0.2s'
+                }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: user?.ai_personality === t.id ? 'var(--accent)' : 'var(--text)' }}>{t.label}</span>
+                  {user?.ai_personality === t.id && <span style={{ color: 'var(--accent)', fontWeight: 700 }}>✓</span>}
+                </div>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>{t.desc}</p>
               </div>
             ))}
           </div>
         </Category>
 
-        <Category title="Engagement">
+        <Category title="Automation & Alerts">
           <SettingRow icon="🔔" title="Milestone Alerts" desc="Special day & anniversary reminders" 
             right={<Toggle value={user?.milestone_alerts} onChange={v => update('milestone_alerts', v)} />} />
         </Category>
@@ -341,42 +387,54 @@ function ClosureSub({ onBack, onRequested }) {
   const request = async () => {
     setLoading(true);
     try {
-      await axios.post('/api/auth/request-closure');
+      await api.post('/auth/request-closure');
       setOk(true);
     } catch { alert('Error submitting request.'); }
     setLoading(false);
   };
 
-  if (ok) return (
-    <div className="page center" style={{ padding: 40 }}>
-      <div style={{ fontSize: '3rem', marginBottom: 20 }}>🕊️</div>
-      <h2>Request Submitted</h2>
-      <p style={{ lineHeight: 1.8, marginBottom: 40 }}>A Vlynxly Relationship Executive will contact both you and your partner shortly to confirm the closure. Your shared memories and history are now protected in our vault and will **never** be deleted.</p>
-      <button className="btn btn-p btn-full" onClick={onRequested}>Log Out Pending Review</button>
-    </div>
-  );
+  if (ok) {
+    return (
+      <div className="page center" style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.AlertCircle size={64} color="var(--accent)" /></div>
+        <h2 style={{ fontSize: '1.8rem', marginBottom: 12 }}>Request Submitted</h2>
+        <p style={{ lineHeight: 1.8, marginBottom: 40, color: 'var(--muted)', fontSize: '0.95rem' }}>A Vlynxly Relationship Executive will contact both you and your partner shortly to confirm the closure. Your shared memories and history are now protected in our vault and will **never** be deleted.</p>
+        <button className="btn btn-p btn-full" onClick={onRequested} style={{ padding: 18, borderRadius: 18, fontWeight: 700 }}>Log Out Pending Review</button>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">Account Closure</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Icons.Back size={20} /> Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>Closure</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content center" style={{ maxWidth: 440 }}>
-        <div style={{ fontSize: '3rem', marginBottom: 16 }}>⚠️</div>
-        <h2 style={{ color: 'var(--danger)', marginBottom: 8 }}>Closure Request</h2>
-        <p style={{ marginBottom: 32, lineHeight: 1.8 }}>We understand this may be a difficult time. Requesting closure allows you to free your account ID for a new start, while **preserving all your joint history forever** in our secure vault.</p>
+      <div className="content center" style={{ maxWidth: 460, padding: '0 24px', textAlign: 'center' }}>
+        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.AlertCircle size={64} color="#FF3B30" /></div>
+        <h2 style={{ color: '#FF3B30', fontSize: '2rem', marginBottom: 12, fontWeight: 800 }}>Closure Request</h2>
+        <p style={{ marginBottom: 40, lineHeight: 1.8, color: 'var(--muted)', fontSize: '1rem' }}>We understand this may be a difficult time. Requesting closure allows you to free your account ID for a new start, while **preserving all your joint history forever** in our secure vault.</p>
 
-        <div className="card" style={{ marginBottom: 32, textAlign: 'left', borderColor: 'rgba(201,169,110,0.3)' }}>
-          <h3 style={{ fontSize: '1rem', marginBottom: 10 }}>Vlynxly's Guarantee:</h3>
-          {['Your shared history will NEVER be deleted', 'Every message and photo is preserved', 'Your ID will be freed after executive review', 'Memories are safe if you ever reconcile'].map((g, i) => (
-            <p key={i} style={{ fontSize: '0.82rem', marginBottom: 6, color: 'var(--accent)' }}>✓ {g}</p>
+
+        <div className="card" style={{ marginBottom: 40, textAlign: 'left', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(201,169,110,0.2)', padding: 24, borderRadius: 24 }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: 16, fontWeight: 700, color: 'var(--accent)' }}>Vlynxly's Memory Guarantee:</h3>
+          {[
+            'Your shared history will NEVER be deleted', 
+            'Every message and photo is preserved', 
+            'Your ID will be freed after executive review', 
+            'Memories are safe if you ever reconcile'
+          ].map((g, i) => (
+            <p key={i} style={{ fontSize: '0.88rem', marginBottom: 10, display: 'flex', gap: 10, color: '#fff' }}>
+              <span style={{ color: 'var(--accent)' }}>✓</span> {g}
+            </p>
           ))}
         </div>
 
-        <button className="btn btn-d btn-full" onClick={request} disabled={loading}>{loading ? 'Submitting...' : 'Confirm Closure Request'}</button>
-        <p style={{ marginTop: 16, fontSize: '0.75rem', color: 'var(--muted)' }}>An executive will contact both partners within 24-48 hours.</p>
+        <button className="btn btn-d btn-full" onClick={request} disabled={loading} style={{ padding: 18, borderRadius: 18, fontWeight: 700, background: '#FF3B30' }}>
+          {loading ? 'Submitting...' : 'Confirm Closure Request'}
+        </button>
+        <p style={{ marginTop: 20, fontSize: '0.8rem', color: 'var(--muted)' }}>An executive will contact both partners within 24-48 hours.</p>
       </div>
     </div>
   );
@@ -397,11 +455,12 @@ function ProfileSub({ user, setUser, onBack }) {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await axios.post('/api/auth/avatar', formData);
+      const res = await api.post('/auth/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setAvatar(res.data.avatar_url);
       setUser({ ...user, avatar_url: res.data.avatar_url });
       setOk('Photo updated!');
-    } catch {}
+      setTimeout(() => setOk(''), 3000);
+    } catch { alert("Failed to upload photo"); }
     setSaving(false);
   };
 
@@ -412,10 +471,11 @@ function ProfileSub({ user, setUser, onBack }) {
     }
     setSaving(true);
     try {
-      const res = await axios.post('/api/auth/avatar/generate');
+      const res = await api.post('/auth/avatar/generate');
       setAvatar(res.data.avatar_url);
       setUser({ ...user, avatar_url: res.data.avatar_url });
       setOk('AI Stylized your face! ✨');
+      setTimeout(() => setOk(''), 3000);
     } catch (e) { alert(e.response?.data?.detail || "Upload a photo first."); }
     setSaving(false);
   };
@@ -423,44 +483,49 @@ function ProfileSub({ user, setUser, onBack }) {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await axios.put('/api/auth/me', { name });
+      const res = await api.put('/auth/me', { name });
       setUser(res.data);
       setOk('Saved!');
-      setTimeout(() => setOk(''), 2500);
+      setTimeout(() => setOk(''), 3000);
     } catch {}
     setSaving(false);
   };
 
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">Edit Profile</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>Profile</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content" style={{ maxWidth: 480 }}>
-        <div style={{ textAlign: 'center', marginBottom: 28, position: 'relative' }}>
-          <div style={{ position: 'relative', width: 92, height: 92, margin: '0 auto 12px' }}>
-            <div className="avatar" style={{ width: '100%', height: '100%', fontSize: '2.5rem', border: avatar?.includes('ai_stylized') ? '2px solid var(--accent)' : 'none', boxShadow: avatar?.includes('ai_stylized') ? '0 0 15px var(--accent)' : 'none' }}>
+      <div className="content" style={{ maxWidth: 480, padding: '0 20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32, position: 'relative' }}>
+          <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto 16px' }}>
+            <div className="avatar" style={{ 
+              width: '100%', height: '100%', fontSize: '3rem', 
+              background: 'linear-gradient(135deg, var(--accent), var(--purple))',
+              border: avatar?.includes('ai_stylized') ? '3px solid var(--accent)' : 'none', 
+              boxShadow: '0 10px 30px rgba(0,0,0,0.4)' 
+            }}>
               {avatar ? <img src={avatar} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : name?.[0]?.toUpperCase()}
             </div>
-            <button onClick={() => photoRef.current.click()} style={{ position: 'absolute', bottom: 0, right: 0, width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--bg)', fontSize: '1rem', cursor: 'pointer' }}>📷</button>
+            <button onClick={() => photoRef.current.click()} style={{ position: 'absolute', bottom: 5, right: 5, width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', border: '3px solid var(--bg)', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000' }}>📷</button>
             <input type="file" ref={photoRef} style={{ display: 'none' }} onChange={uploadPhoto} />
           </div>
-          <p style={{ margin: 0, fontWeight: 600 }}>{user?.email}</p>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem', color: '#fff' }}>{user?.email}</p>
           {avatar && !avatar.includes('ai_stylized') && (
-            <button onClick={generateAI} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.75rem', fontWeight: 600, marginTop: 8, cursor: 'pointer' }}>
-              ✨ AI Stylize Avatar (Premium)
+            <button onClick={generateAI} style={{ background: 'rgba(201,169,110,0.1)', border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: '0.75rem', fontWeight: 700, marginTop: 12, cursor: 'pointer', padding: '6px 14px', borderRadius: 12 }}>
+              ✨ AI STYLIZE AVATAR
             </button>
           )}
         </div>
-        {ok && <div className="alert alert-s" style={{ marginBottom: 16 }}>{ok}</div>}
-        <div className="card">
-          <div className="inp-wrap">
-            <label>Display Name</label>
-            <input className="inp" value={name} onChange={e => setName(e.target.value)} />
+        {ok && <div className="alert alert-s" style={{ marginBottom: 20 }}>{ok}</div>}
+        <div className="card" style={{ padding: 24, borderRadius: 24, background: 'rgba(255,255,255,0.03)' }}>
+          <div className="inp-wrap" style={{ marginBottom: 24 }}>
+            <label style={{ color: 'var(--muted)', fontSize: '0.8rem', marginBottom: 8, display: 'block' }}>Display Name</label>
+            <input className="inp" value={name} onChange={e => setName(e.target.value)} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14 }} />
           </div>
-          <button className="btn btn-p btn-full" onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
+          <button className="btn btn-p btn-full" onClick={save} disabled={saving} style={{ padding: 16, borderRadius: 16, fontWeight: 700 }}>{saving ? 'Saving...' : 'Save Changes'}</button>
         </div>
       </div>
     </div>
@@ -470,19 +535,19 @@ function ProfileSub({ user, setUser, onBack }) {
 function LegalSub({ title, content, onBack }) {
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">{title}</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>{title}</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content" style={{ maxWidth: 680 }}>
+      <div className="content" style={{ maxWidth: 600, padding: '0 24px' }}>
         {content.map((s, i) => (
-          <div key={i} style={{ marginBottom: 24 }}>
-            <h3 style={{ fontFamily: 'var(--font-b)', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)', marginBottom: 8 }}>{s.heading}</h3>
-            <p style={{ lineHeight: 1.8, fontSize: '0.88rem' }}>{s.body}</p>
+          <div key={i} style={{ marginBottom: 32, background: 'rgba(255,255,255,0.02)', padding: 20, borderRadius: 20, border: '1px solid rgba(255,255,255,0.05)' }}>
+            <h3 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent)', marginBottom: 12 }}>{s.heading}</h3>
+            <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--text)', opacity: 0.85 }}>{s.body}</p>
           </div>
         ))}
-        <p style={{ textAlign: 'center', fontSize: '0.72rem', opacity: 0.35, marginTop: 16 }}>Last updated: March 2026</p>
+        <p style={{ textAlign: 'center', fontSize: '0.75rem', opacity: 0.3, marginTop: 24 }}>Last updated: March 2026</p>
       </div>
     </div>
   );
@@ -491,27 +556,27 @@ function LegalSub({ title, content, onBack }) {
 function AboutSub({ onBack }) {
   return (
     <div className="page">
-      <header className="header">
-        <button className="btn btn-g" onClick={onBack}>← Back</button>
-        <span className="header-title">About Vlynxly</span>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
+        <span className="header-title" style={{ color: 'var(--text)' }}>About</span>
         <div style={{ width: 60 }} />
       </header>
-      <div className="content center" style={{ maxWidth: 480 }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', border: '1px solid rgba(201,169,110,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', margin: '0 auto 20px' }}>🔒</div>
-        <h1 style={{ marginBottom: 6 }}>Vlynxly</h1>
-        <p style={{ color: 'var(--accent)', marginBottom: 32 }}>Version 1.5.0</p>
+      <div className="content center" style={{ maxWidth: 480, padding: '0 24px', textAlign: 'center' }}>
+        <div style={{ width: 88, height: 88, borderRadius: 28, background: 'linear-gradient(135deg, var(--accent), var(--purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 24px', boxShadow: '0 15px 35px rgba(0,0,0,0.4)' }}>🔒</div>
+        <h1 style={{ marginBottom: 8, fontSize: '2.2rem', fontWeight: 800 }}>Vlynxly</h1>
+        <p style={{ color: 'var(--accent)', marginBottom: 40, fontWeight: 700, letterSpacing: 2 }}>PREMIUM EDITION</p>
 
-        <div className="card" style={{ marginBottom: 12, textAlign: 'left', width: '100%' }}>
-          <h3 style={{ fontFamily: 'var(--font-b)', fontWeight: 600, fontSize: '0.9rem', marginBottom: 10 }}>What is Vlynxly?</h3>
-          <p style={{ lineHeight: 1.8, fontSize: '0.88rem' }}>A private, encrypted space designed exclusively for couples. No ads, no feeds, no distractions — just you and your person.</p>
+        <div className="card" style={{ marginBottom: 16, textAlign: 'left', width: '100%', background: 'rgba(255,255,255,0.03)', padding: 24, borderRadius: 24 }}>
+          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 12 }}>What is Vlynxly?</h3>
+          <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--muted)' }}>A private, encrypted space designed exclusively for couples. No ads, no feeds, no distractions — just you and your person.</p>
         </div>
 
-        <div className="card" style={{ textAlign: 'left', width: '100%' }}>
-          <h3 style={{ fontFamily: 'var(--font-b)', fontWeight: 600, fontSize: '0.9rem', marginBottom: 8 }}>Built with ❤️</h3>
-          <p style={{ lineHeight: 1.8, fontSize: '0.88rem' }}>React · FastAPI · MongoDB<br />Design & Security focused.</p>
+        <div className="card" style={{ textAlign: 'left', width: '100%', background: 'rgba(255,255,255,0.03)', padding: 24, borderRadius: 24 }}>
+          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 12 }}>Built with ❤️</h3>
+          <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--muted)' }}>React · FastAPI · MongoDB<br />Securely hosted and encrypted.</p>
         </div>
 
-        <p style={{ marginTop: 28, fontSize: '0.72rem', opacity: 0.35 }}>© 2026 Vlynxly · Memories Protected Forever</p>
+        <p style={{ marginTop: 40, fontSize: '0.75rem', opacity: 0.3 }}>© 2026 Vlynxly · Memories Protected Forever</p>
       </div>
     </div>
   );

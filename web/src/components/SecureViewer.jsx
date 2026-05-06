@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
-export default function SecureViewer({ mediaUrl, messageId, onClosed, onCompromised }) {
+export default function SecureViewer({ mediaUrl, messageId, type, onClosed, onCompromised }) {
   const [model, setModel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [securityOk, setSecurityOk] = useState(false);
@@ -115,12 +115,23 @@ export default function SecureViewer({ mediaUrl, messageId, onClosed, onCompromi
             <p style={{ fontSize: '0.9rem', opacity: 0.7 }}>Starting Security Scan...</p>
           </div>
         ) : (
-          <img 
-            src={mediaUrl} 
-            alt="secure" 
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-            onContextMenu={e => e.preventDefault()}
-          />
+          type === 'video' ? (
+            <video 
+              src={mediaUrl} 
+              autoPlay 
+              playsInline
+              controls={false}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              onContextMenu={e => e.preventDefault()}
+            />
+          ) : (
+            <img 
+              src={mediaUrl} 
+              alt="secure" 
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              onContextMenu={e => e.preventDefault()}
+            />
+          )
         )}
       </div>
 

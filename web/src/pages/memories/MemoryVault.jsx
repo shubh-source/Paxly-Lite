@@ -2,12 +2,40 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getMemories, deleteMemory } from '../../services/api';
 import { format, parseISO } from 'date-fns';
-import BottomNav from '../../components/layout/BottomNav';
+import { Icons } from '../../components/ui/Icons';
+import { wsService } from '../../services/websocket';
+import { useAuth } from '../../context/AuthContext';
 
 export function MemoryVault() {
+  const { user } = useAuth();
   const [memories, setMemories] = useState([]);
+  const [saveRequest, setSaveRequest] = useState(null);
+  const [requestingSave, setRequestingSave] = useState(false);
+  const [partnerName, setPartnerName] = useState('Partner');
 
-  useEffect(() => { getMemories().then(setMemories); }, []);
+  useEffect(() => { 
+    getMemories().then(setMemories);
+    
+    const offs = [
+      wsService.on('media_save_request', d => {
+        if (d.sender_id !== user?.id) setSaveRequest(d);
+      }),
+      wsService.on('media_save_response', d => {
+        if (d.sender_id !== user?.id) {
+          setRequestingSave(false);
+          if (d.allowed) {
+            const link = document.createElement('a');
+            link.href = d.media_url;
+            link.download = `vlynxly_vault_${Date.now()}`;
+            link.click();
+          } else {
+            alert("Save request denied.");
+          }
+        }
+      })
+    ];
+    return () => offs.forEach(off => off());
+  }, [user?.id]);
 
   const del = async (id) => {
     if (!confirm('Delete this memory?')) return;
@@ -15,20 +43,64 @@ export function MemoryVault() {
     setMemories(m => m.filter(x => x.id !== id));
   };
 
+  const requestSave = (m) => {
+    setRequestingSave(true);
+    wsService.sendMediaSaveRequest(m.image_url, m.id);
+  };
+
+  const respondSave = (allowed) => {
+    if (!saveRequest) return;
+    wsService.sendMediaSaveResponse(saveRequest.sender_id, allowed, saveRequest.message_id);
+    setSaveRequest(null);
+  };
+
   return (
     <div className="page" style={{ paddingBottom:80 }}>
-      <header className="header" style={{ margin: '12px 20px', borderRadius: '16px', background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <Link to="/dashboard" style={{ color:'var(--muted)' }}>←</Link>
-        <span className="header-title" style={{ color: 'var(--accent)' }}>The Vault</span>
-        <Link to="/memories/add" className="btn btn-p" style={{ padding:'6px 16px', fontSize:'0.85rem', borderRadius: 12 }}>+ Add moment</Link>
+      <header className="header" style={{ 
+        background: 'rgba(22, 22, 24, 0.4)', 
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        margin: '20px 20px 12px',
+        borderRadius: '24px',
+        padding: '16px 20px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ position: 'absolute', left: 36 }}>
+          <Link to="/dashboard" style={{ color:'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></Link>
+        </div>
+        <span className="header-title" style={{ color: 'var(--text)' }}>The Vault</span>
       </header>
+
+      {/* Permission Modals */}
+      {saveRequest && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(10px)' }}>
+          <div className="card" style={{ maxWidth:360, width:'100%', textAlign:'center', border: '1px solid var(--accent)', padding: 30 }}>
+            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={48} color="var(--accent)" /></div>
+            <h3 style={{ marginBottom:10 }}>Vault Save Request</h3>
+            <p style={{ fontSize:'0.95rem', color:'#fff', marginBottom:24 }}>
+              Your partner wants to save a memory from the vault to their phone. Allow?
+            </p>
+            <div style={{ display:'flex', gap:12 }}>
+              <button className="btn btn-g" onClick={() => respondSave(false)} style={{ flex: 1, padding: 14 }}>Deny</button>
+              <button className="btn btn-p" onClick={() => respondSave(true)} style={{ flex: 1, padding: 14, color: '#000', fontWeight: 700 }}>Allow Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {requestingSave && (
+        <div style={{ position: 'fixed', top: 100, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', padding: '12px 24px', borderRadius: 99, fontWeight: 700, zIndex: 100, boxShadow: '0 10px 30px rgba(201,169,110,0.3)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="spinner-small" style={{ borderTopColor: '#000' }} /> Requesting Permission...
+        </div>
+      )}
       <div className="content">
         {memories.length === 0 ? (
           <div style={{ textAlign:'center', marginTop:100, backdropFilter: 'blur(10px)', padding: 40, borderRadius: 24, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize:'4rem', marginBottom:20 }}>💎</div>
+            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={64} color="var(--accent)" stroke={1} /></div>
             <h3 style={{ marginBottom:12, fontSize: '1.4rem' }}>Your store of magic</h3>
-            <p>Every trip, every first, every quiet moment belongs here.</p>
-            <Link to="/memories/add" className="btn btn-p" style={{ marginTop:30, padding: '12px 24px' }}>Begin the Collection</Link>
+            <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Photos and videos shared in chat will automatically appear here to be preserved forever.</p>
           </div>
         ) : (
           <div style={{ 
@@ -65,8 +137,8 @@ export function MemoryVault() {
                     background: 'linear-gradient(to bottom, transparent 60%, rgba(13,13,15,0.9))' 
                   }} />
                   {!m.allow_download && (
-                    <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', padding: '4px 8px', borderRadius: 8, fontSize: '0.65rem', color: '#fff' }}>
-                      🔒 PRIVATE
+                    <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', padding: '6px 10px', borderRadius: 10, fontSize: '0.65rem', color: '#fff', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Icons.Shield size={12} color="var(--accent)" /> PRIVATE
                     </div>
                   )}
                 </div>
@@ -76,7 +148,8 @@ export function MemoryVault() {
                       <h3 style={{ fontSize:'1.1rem', marginBottom:4, fontWeight: 500 }}>{m.title}</h3>
                       <span style={{ fontSize:'0.75rem', color:'var(--accent)', fontWeight: 600, letterSpacing: '0.5px' }}>{m.date ? format(parseISO(m.date),'MMMM d, yyyy') : ''}</span>
                     </div>
-                    <button onClick={() => del(m.id)} style={{ background:'rgba(255,255,255,0.05)', border:'none', borderRadius: '50%', cursor:'pointer', color:'var(--muted)', fontSize:'1rem', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    <button onClick={() => del(m.id)} style={{ background:'rgba(255,255,255,0.05)', border:'none', borderRadius: '50%', cursor:'pointer', color:'var(--muted)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Trash size={16} /></button>
+                    <button onClick={() => requestSave(m)} style={{ background:'rgba(201,169,110,0.1)', border:'none', borderRadius: '50%', cursor:'pointer', color:'var(--accent)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Download size={16} /></button>
                   </div>
                   {m.description && <p style={{ marginTop:12, fontSize:'0.88rem', lineHeight:1.6, color: 'var(--text)', opacity: 0.7 }}>{m.description}</p>}
                 </div>
@@ -89,7 +162,6 @@ export function MemoryVault() {
         .card-hover:hover .memory-img { transform: scale(1.05); }
         .card-hover:hover { box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
       `}</style>
-      <BottomNav />
     </div>
   );
 }

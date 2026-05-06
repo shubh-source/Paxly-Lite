@@ -2,7 +2,8 @@ import PrivateTheatre from './PrivateTheatre';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getPlaces, getPlace, getCategories } from '../../services/api';
-import BottomNav from '../../components/layout/BottomNav';
+import { Icons } from '../../components/ui/Icons';
+
 
 // ── DATE IDEAS DATA ───────────────────────────────────────────
 const MOVIES = [
@@ -74,10 +75,10 @@ export function Explore() {
 
   useEffect(() => {
     getCategories().then(setCats).catch(() => setCats([
-      { key: 'cafe', icon: '☕', label: 'Cafes' },
-      { key: 'restaurant', icon: '🍽️', label: 'Restaurants' },
-      { key: 'park', icon: '🌿', label: 'Parks' },
-      { key: 'movie', icon: '🎬', label: 'Cinemas' },
+      { key: 'cafe', icon: <Icons.Coffee size={18} />, label: 'Cafes' },
+      { key: 'restaurant', icon: <Icons.Utensils size={18} />, label: 'Restaurants' },
+      { key: 'park', icon: <Icons.Explore size={18} />, label: 'Parks' },
+      { key: 'movie', icon: <Icons.Video size={18} />, label: 'Cinemas' },
     ]));
     navigator.geolocation?.getCurrentPosition(
       p => setLoc({ lat: p.coords.latitude, lng: p.coords.longitude }),
@@ -104,19 +105,19 @@ export function Explore() {
   };
 
   const TABS = [
-    { key: 'places', icon: '📍', label: 'Places' },
-    { key: 'movies', icon: '🎬', label: 'Movies' },
-    { key: 'restaurants', icon: '🍽️', label: 'Dine' },
-    { key: 'activities', icon: '🎯', label: 'Activities' },
-    { key: 'theatre', icon: '🏠', label: 'Private' },
+    { key: 'places', icon: <Icons.Explore size={22} />, label: 'Places' },
+    { key: 'movies', icon: <Icons.Video size={22} />, label: 'Movies' },
+    { key: 'restaurants', icon: <Icons.Utensils size={22} />, label: 'Dine' },
+    { key: 'activities', icon: <Icons.Target size={22} />, label: 'Activities' },
+    { key: 'theatre', icon: <Icons.Home size={22} />, label: 'Private' },
   ];
 
   return (
     <div className="page" style={{ paddingBottom: 80 }}>
-      <header className="header">
-        <Link to="/dashboard" style={{ color: 'var(--muted)' }}>←</Link>
-        <span className="header-title">Explore Together</span>
-        <div style={{ width: 24 }} />
+      <header className="header" style={{ background:'rgba(22,22,24,0.4)', borderBottom:'1px solid rgba(255,255,255,0.05)', margin:'20px 20px 12px', borderRadius:'24px', padding:'16px 20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center' }}>
+        <Link to="/dashboard" style={{ color:'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></Link>
+        <span className="header-title" style={{ color:'var(--text)', marginLeft: 10 }}>Explore Together</span>
+        <div style={{ width:32 }} />
       </header>
 
       {/* Main Tabs */}
@@ -302,8 +303,9 @@ export function Explore() {
                   background: selectedCat === a.cat ? 'rgba(201,169,110,0.1)' : 'var(--s1)',
                   color: selectedCat === a.cat ? 'var(--accent)' : 'var(--muted)',
                   cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'var(--font-b)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                 }}>
-                  {a.emoji} {a.cat}
+                  {a.cat}
                 </button>
               ))}
             </div>
@@ -374,7 +376,6 @@ export function PlaceDetail() {
         {place.description && <div className="card" style={{ marginBottom: 16 }}><p style={{ color: 'var(--text)', lineHeight: 1.7 }}>{place.description}</p></div>}
         <button className="btn btn-p btn-full" onClick={openMaps}>Open in Google Maps</button>
       </div>
-      <BottomNav />
     </div>
   );
 }

@@ -118,7 +118,7 @@ export default function AppGuard({ children }) {
             background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
             color: #fff; fontSize: 1.5rem; fontWeight: 600; font-family: var(--font-b);
             cursor: pointer; transition: all 0.2s;
-            display: flex; alignItems: center; justifyContent: center;
+            display: flex; align-items: center; justify-content: center;
           }
           .pin-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.1); }
         `}</style>

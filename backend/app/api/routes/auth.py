@@ -3,10 +3,12 @@ from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
-from app.models.schemas import UserCreate, UserLogin, Token, UserOut, UserUpdate
-from app.models.orm import User, BannedIP, FailedLoginAttempt, Message, Memory, Mood, CallLog, Note, CoupleSpace
+from app.models.schemas import UserCreate, UserLogin, Token, UserOut, UserUpdate, ForgotPasswordRequest, ResetPasswordRequest
+from app.models.orm import User, BannedIP, FailedLoginAttempt, Message, Memory, Mood, CallLog, Note, CoupleSpace, PasswordResetToken
 from app.core.security import hash_password, verify_password, create_access_token, get_current_user
 from app.core.database import get_db
+from app.services.email_service import email_service
+import uuid
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy import update, delete
@@ -210,3 +212,57 @@ async def update_profile(data: dict, cu: User = Depends(get_current_user), db: A
     # Return updated user
     res = await db.execute(select(User).filter(User.id == cu.id))
     return user_to_out(res.scalars().first())
+
+@router.post("/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).filter(User.email == data.email.lower()))
+    user = result.scalars().first()
+    
+    if not user:
+        # For security, we don't reveal if the email exists, just say 'Link sent'
+        return {"message": "If your email is registered, a recovery link has been sent."}
+    
+    # Generate token
+    token = uuid.uuid4().hex
+    expiry = datetime.utcnow() + timedelta(minutes=30)
+    
+    # Save token
+    new_token = PasswordResetToken(user_id=user.id, token=token, expires_at=expiry)
+    db.add(new_token)
+    await db.commit()
+    
+    # Send email
+    from app.core.config import settings
+    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    await email_service.send_reset_link(user.email, user.name, reset_link)
+    
+    return {"message": "Recovery link sent successfully."}
+
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    # Find token
+    result = await db.execute(select(PasswordResetToken).filter(PasswordResetToken.token == data.token))
+    reset_token = result.scalars().first()
+    
+    if not reset_token or reset_token.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired recovery token.")
+    
+    # Get user
+    res = await db.execute(select(User).filter(User.id == reset_token.user_id))
+    user = res.scalars().first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    
+    # Update password
+    await db.execute(update(User).where(User.id == user.id).values(password=hash_password(data.new_password)))
+    
+    # Delete the used token
+    await db.execute(delete(PasswordResetToken).where(PasswordResetToken.id == reset_token.id))
+    
+    await db.commit()
+    
+    # SEND CONFIRMATION EMAIL (As requested by user)
+    await email_service.send_password_change_confirmation(user.email, user.name)
+    
+    return {"message": "Password updated successfully. Confirmation email sent."}

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { startAISession, sendAIInterviewMessage, finishAIInterview } from '../../services/api';
-import BottomNav from '../../components/layout/BottomNav';
 
 const PHASES = [
   { id: 'start', label: 'Setup', icon: '⚙️' },
@@ -73,10 +72,10 @@ export default function AILab() {
 
   if (phase === 'start') return (
     <div className="page center">
-      <header className="header">
-        <Link to="/ai" style={{ color: 'var(--muted)' }}>←</Link>
-        <span className="header-title">Counseling Lab</span>
-        <div style={{ width: 24 }} />
+      <header className="header" style={{ background:'rgba(22,22,24,0.4)', borderBottom:'1px solid rgba(255,255,255,0.05)', margin:'20px 20px 12px', borderRadius:'24px', padding:'16px 20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
+        <Link to="/ai" style={{ color:'var(--muted)', fontSize:'1.2rem', padding:'0 8px', textDecoration:'none' }}>←</Link>
+        <span className="header-title" style={{ color:'var(--text)' }}>Counseling Lab</span>
+        <div style={{ width:32 }} />
       </header>
       <div className="content" style={{ maxWidth: 440, textAlign: 'center' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>✨</div>
@@ -161,10 +160,10 @@ export default function AILab() {
 
   if (phase === 'report') return (
     <div className="page">
-      <header className="header">
-        <Link to="/ai" style={{ color: 'var(--muted)' }}>←</Link>
-        <span className="header-title">Final Analysis Report</span>
-        <div style={{ width: 24 }} />
+      <header className="header" style={{ background:'rgba(22,22,24,0.4)', borderBottom:'1px solid rgba(255,255,255,0.05)', margin:'20px 20px 12px', borderRadius:'24px', padding:'16px 20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
+        <Link to="/ai" style={{ color:'var(--muted)', fontSize:'1.2rem', padding:'0 8px', textDecoration:'none' }}>←</Link>
+        <span className="header-title" style={{ color:'var(--text)' }}>Final Analysis Report</span>
+        <div style={{ width:32 }} />
       </header>
       <div className="content" style={{ maxWidth: 600, paddingBottom: 40 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>

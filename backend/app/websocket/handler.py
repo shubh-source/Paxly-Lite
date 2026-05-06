@@ -78,6 +78,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                         "type": "typing", "user_id": user_id, "is_typing": payload.get("is_typing", False)
                     }, exclude_user=user_id)
 
+                elif p_type == "mood_update":
+                    await manager.send_to_space(space_id, {
+                        "type": "mood_update", "user_id": user_id, 
+                        "mood_type": payload.get("mood_type"), "note": payload.get("note")
+                    }, exclude_user=user_id)
+
                 elif p_type in ["webrtc_offer", "webrtc_answer", "webrtc_ice", "webrtc_reject", "webrtc_end"]:
                     # Relay to partner
                     payload["from_id"] = user_id

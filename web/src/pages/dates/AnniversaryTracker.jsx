@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const api = axios.create({ baseURL: '/api' });
-api.interceptors.request.use(cfg => {
-  const t = localStorage.getItem('ros_token');
-  if (t) cfg.headers.Authorization = `Bearer ${t}`;
-  return cfg;
-});
+import { useNavigate, Link } from 'react-router-dom';
+import api from '../../services/api';
+import { Icons } from '../../components/ui/Icons';
 
 const EMOJIS = ['💍', '🎂', '❤️', '🌹', '✈️', '🏠', '🐾', '🎉', '📅', '⭐'];
 
@@ -24,87 +18,195 @@ export default function AnniversaryTracker() {
   const [dates, setDates] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', date: '', emoji: '💍', note: '', recurring: true });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => { fetchDates(); }, []);
 
   const fetchDates = async () => {
-    const { data } = await api.get('/dates/');
-    setDates(data);
+    try {
+      const { data } = await api.get('/dates/');
+      setDates(data);
+    } catch (err) {
+      console.error("Failed to fetch dates", err);
+    }
   };
 
   const save = async () => {
     if (!form.title || !form.date) return;
-    await api.post('/dates/', form);
-    setForm({ title: '', date: '', emoji: '💍', note: '', recurring: true });
-    setShowForm(false);
-    fetchDates();
+    setLoading(true);
+    try {
+      await api.post('/dates/', form);
+      setForm({ title: '', date: '', emoji: '💍', note: '', recurring: true });
+      setShowForm(false);
+      fetchDates();
+    } catch (err) {
+      console.error("Failed to save date", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sorted = [...dates].sort((a, b) => daysUntil(a.date) - daysUntil(b.date));
 
   return (
-    <div className="page" style={{ padding: '0 0 80px' }}>
-      <div style={{ padding: '20px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div className="page" style={{ paddingBottom: 80 }}>
+      {/* Premium Header */}
+      <header className="header" style={{ 
+        background: 'rgba(22, 22, 24, 0.4)', 
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        margin: '20px 20px 12px',
+        borderRadius: '24px',
+        padding: '16px 20px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => nav(-1)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1.2rem' }}>←</button>
-          <div>
-            <h2 style={{ margin: 0 }}>Important Dates</h2>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>Never miss a special day</p>
-          </div>
+          <Link to="/dashboard" style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></Link>
+          <span className="header-title" style={{ color: 'var(--text)' }}>Important Dates</span>
         </div>
-        <button className="btn btn-p" onClick={() => setShowForm(true)} style={{ padding: '8px 16px' }}>+ Date</button>
-      </div>
+        <button className="btn btn-p" onClick={() => setShowForm(true)} style={{ padding: '8px 16px', fontSize: '0.85rem', borderRadius: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icons.Plus size={18} color="#000" /> Add Date
+        </button>
+      </header>
 
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }}>
-          <div style={{ background: 'var(--s1)', borderRadius: '24px 24px 0 0', padding: 24, width: '100%', maxWidth: 600, margin: '0 auto' }}>
-            <h3 style={{ marginBottom: 16 }}>Add Important Date</h3>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ 
+            background: 'rgba(22, 22, 26, 0.95)', 
+            borderRadius: '32px 32px 0 0', 
+            padding: 28, 
+            width: '100%', 
+            maxWidth: 600, 
+            margin: '0 auto',
+            boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255,255,255,0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: '1.3rem' }}>Track a Special Date</h3>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Plus size={24} style={{ transform: 'rotate(45deg)' }} /></button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
               {EMOJIS.map(e => (
-                <button key={e} onClick={() => setForm(f => ({ ...f, emoji: e }))} style={{ fontSize: '1.3rem', background: form.emoji === e ? 'var(--s2)' : 'transparent', border: form.emoji === e ? '2px solid var(--accent)' : '2px solid transparent', borderRadius: 8, padding: '4px 8px', cursor: 'pointer' }}>{e}</button>
+                <button 
+                  key={e} 
+                  onClick={() => setForm(f => ({ ...f, emoji: e }))} 
+                  style={{ 
+                    fontSize: '1.4rem', 
+                    background: form.emoji === e ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.03)', 
+                    border: form.emoji === e ? '2px solid var(--accent)' : '2px solid transparent', 
+                    borderRadius: 14, 
+                    width: 50,
+                    height: 50,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >{e}</button>
               ))}
             </div>
-            <div className="inp-wrap"><label>Title</label><input className="inp" placeholder="Our Anniversary" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
-            <div className="inp-wrap"><label>Date</label><input className="inp" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
-            <div className="inp-wrap"><label>Note (optional)</label><input className="inp" placeholder="A special note..." value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} /></div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-              <button className="btn btn-g" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="btn btn-p" style={{ flex: 2 }} onClick={save}>Save Date</button>
+
+            <div className="inp-wrap" style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 8, display: 'block' }}>What is the occasion?</label>
+              <input className="inp" placeholder="e.g. Our Anniversary" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 16 }} />
             </div>
+
+            <div className="inp-wrap" style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 8, display: 'block' }}>When is it?</label>
+              <input className="inp" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 16, colorScheme: 'dark' }} />
+            </div>
+
+            <div className="inp-wrap" style={{ marginBottom: 24 }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 8, display: 'block' }}>A special note (optional)</label>
+              <input className="inp" placeholder="e.g. Remind me to book dinner!" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 16 }} />
+            </div>
+
+            <button className="btn btn-p btn-full" onClick={save} disabled={loading || !form.title || !form.date} style={{ padding: '16px', borderRadius: 18, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              {loading ? 'Saving...' : (
+                <>
+                  Keep it Remembered <Icons.Aura size={18} color="#000" />
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}
 
-      <div style={{ padding: '16px 20px' }}>
+      <div style={{ padding: '10px 20px' }}>
         {sorted.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 12 }}>📅</div>
-            <p>No important dates yet.</p>
+          <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.8 }}>
+            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.Milestone size={64} color="var(--accent)" stroke={1} /></div>
+            <h3 style={{ marginBottom: 8 }}>Your timeline is empty</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Add anniversaries or birthdays to track them together.</p>
           </div>
-        ) : sorted.map(d => {
-          const days = daysUntil(d.date);
-          const isToday = days === 0;
-          const isSoon = days <= 7;
-          return (
-            <div key={d.id} className="card" style={{ marginBottom: 12, borderLeft: `3px solid ${isToday ? 'var(--success)' : isSoon ? 'var(--accent)' : 'var(--border)'}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: '2rem' }}>{d.emoji}</span>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: 500 }}>{d.title}</p>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>{new Date(d.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {sorted.map(d => {
+              const days = daysUntil(d.date);
+              const isToday = days === 0;
+              const isSoon = days <= 7;
+              
+              return (
+                <div key={d.id} className="card card-hover" style={{ 
+                  padding: 20, 
+                  background: isToday ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255,255,255,0.03)',
+                  borderLeft: `4px solid ${isToday ? 'var(--success)' : isSoon ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}`,
+                  animation: 'fadeInUp 0.4s ease-out'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <span style={{ fontSize: '2.5rem' }}>{d.emoji}</span>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: '1.1rem', color: 'var(--text)' }}>{d.title}</p>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>
+                          {new Date(d.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: 16, minWidth: 60 }}>
+                      <p style={{ 
+                        margin: 0, 
+                        fontWeight: 700, 
+                        color: isToday ? 'var(--success)' : isSoon ? 'var(--accent)' : 'var(--text)', 
+                        fontSize: '1.2rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        {isToday ? <Icons.Aura size={24} color="var(--success)" /> : days}
+                      </p>
+                      <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                        {isToday ? 'TODAY' : 'DAYS LEFT'}
+                      </p>
+                    </div>
                   </div>
+                  {d.note && (
+                    <div style={{ 
+                      marginTop: 12, 
+                      padding: '10px 14px', 
+                      background: 'rgba(255,255,255,0.02)', 
+                      borderRadius: 12, 
+                      fontSize: '0.88rem', 
+                      color: 'var(--muted)',
+                      fontStyle: 'italic'
+                    }}>
+                      "{d.note}"
+                    </div>
+                  )}
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ margin: 0, fontWeight: 600, color: isToday ? 'var(--success)' : isSoon ? 'var(--accent)' : 'var(--text)', fontSize: '1.1rem' }}>{isToday ? '🎉 Today!' : `${days}d`}</p>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)' }}>{isToday ? '' : 'left'}</p>
-                </div>
-              </div>
-              {d.note && <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>{d.note}</p>}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      <style>{`
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 }
