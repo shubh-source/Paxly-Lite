@@ -260,8 +260,6 @@ export default function Chat() {
         />
       )}
 
-      )}
-
       {/* Media Save Request Modal (Partner View) */}
       {saveRequest && (
         <div className="modal-overlay" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(10px)' }}>

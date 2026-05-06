@@ -15,11 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        # async with engine.begin() as conn:
-        #     await conn.run_sync(Base.metadata.create_all)
-        print("✅ Database connection initialized.")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("✅ Database connection initialized and tables created.")
     except Exception as e:
-        print(f"⚠️ DB startup warning (non-fatal): {e}")
+        print(f"⚠️ DB startup warning: {e}")
     await connect_db()
     os.makedirs("./media", exist_ok=True)
     yield
@@ -79,8 +79,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "https://paxly-lite.vercel.app", 
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
