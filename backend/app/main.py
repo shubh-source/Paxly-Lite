@@ -30,9 +30,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Vlynxly Fortress API", version="1.1.1", lifespan=lifespan)
 
+# 1. SECURITY: CORS (Must be at the TOP)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- THE FORTRESS MIDDLEWARE ---
 @app.middleware("http")
 async def fortress_middleware(request: Request, call_next):
+    # Bypass security check for OPTIONS (CORS preflight)
+    if request.method == "OPTIONS":
+        return await call_next(request)
+        
     client_ip = request.client.host
     
     # 1. SECURITY: IP BAN CHECK (GLOBAL)
@@ -80,13 +93,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": "Validation error: " + ", ".join(errors)}
     )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ── ROUTES ──────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
