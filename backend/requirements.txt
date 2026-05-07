@@ -14,3 +14,4 @@ aiosmtplib
 cryptography
 alembic
 python-dotenv
+gunicorn
