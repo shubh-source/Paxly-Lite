@@ -1,10 +1,31 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
+import { login } from '../../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const data = await login(email, password);
+      localStorage.setItem('ros_token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -74,11 +95,18 @@ export default function Login() {
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem', fontWeight: 300 }}>Enter your private sanctuary.</p>
         </motion.div>
 
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <form 
+          onSubmit={handleLogin}
+          style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
+        >
           <motion.div variants={itemVariants}>
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px', fontWeight: 600 }}>Email Address</label>
             <input 
-              type="email" placeholder="you@love.com"
+              type="email" 
+              required
+              placeholder="you@love.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'border 0.3s' }}
               onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
               onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -90,7 +118,10 @@ export default function Login() {
             <div style={{ position: 'relative' }}>
               <input 
                 type={showPassword ? "text" : "password"} 
+                required
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 style={{ width: '100%', padding: '16px 55px 16px 20px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'border 0.3s' }}
                 onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -112,22 +143,29 @@ export default function Login() {
             </div>
           </motion.div>
 
+          {error && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: '#ff6b6b', fontSize: '0.8rem', textAlign: 'center' }}>
+              {error}
+            </motion.div>
+          )}
+
           <motion.button
             variants={itemVariants}
-            whileHover={{ scale: 1.02, filter: 'brightness(1.1)', boxShadow: '0 0 30px rgba(201,169,110,0.3)' }}
-            whileTap={{ scale: 0.98 }}
+            disabled={loading}
+            whileHover={!loading ? { scale: 1.02, filter: 'brightness(1.1)', boxShadow: '0 0 30px rgba(201,169,110,0.3)' } : {}}
+            whileTap={!loading ? { scale: 0.98 } : {}}
             style={{ 
               marginTop: '8px', width: '100%', padding: '18px', borderRadius: '16px', 
-              backgroundColor: '#b3945a', 
+              backgroundColor: loading ? '#555' : '#b3945a', 
               color: '#2a241e', 
               border: 'none', 
-              fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', 
+              fontWeight: 800, fontSize: '1.05rem', cursor: loading ? 'not-allowed' : 'pointer', 
               textTransform: 'uppercase', letterSpacing: '2px',
               boxShadow: '0 8px 25px rgba(0,0,0,0.4)',
               transition: 'all 0.3s ease'
             }}
           >
-            Access Our Space
+            {loading ? 'Entering...' : 'Access Our Space'}
           </motion.button>
         </form>
 
