@@ -202,29 +202,15 @@ export default function VoiceNotes() {
         <div style={{ width: 32 }} />
       </header>
 
-      {/* Search & Filter */}
-      <div style={{ padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Search Bar Only (Cleaner UI) */}
+      <div style={{ padding: '8px 20px 24px' }}>
         <input 
           type="text" 
-          placeholder="Find a memory..." 
+          placeholder="Search your whispers..." 
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          style={{ width: '100%', padding: '14px 20px', borderRadius: 18, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '1rem', outline: 'none' }}
+          style={{ width: '100%', padding: '16px 24px', borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}
         />
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input 
-            type="date" 
-            value={fromDate}
-            onChange={e => setFromDate(e.target.value)}
-            style={{ flex: 1, padding: '10px 14px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.85rem', colorScheme: 'dark' }}
-          />
-          <input 
-            type="date" 
-            value={toDate}
-            onChange={e => setToDate(e.target.value)}
-            style={{ flex: 1, padding: '10px 14px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '0.85rem', colorScheme: 'dark' }}
-          />
-        </div>
       </div>
 
       {/* Record button Area */}

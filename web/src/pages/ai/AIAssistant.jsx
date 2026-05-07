@@ -41,8 +41,12 @@ export default function AIAssistant() {
         content: finalReply,
         isLabPrompt: needsCounseling 
       }]);
-    } catch {
-      setMsgs(prev => [...prev, { role: 'assistant', content: 'Yaar kuch gadbad ho gayi, ek baar phir try karo 😅' }]);
+    } catch (err) {
+      console.error("AI Error:", err);
+      const errorMsg = err.response?.status === 503 
+        ? "Yaar, Aura abhi configured nahi hai. Groq API Key check karo .env mein! 🔑"
+        : "Yaar kuch gadbad ho gayi, ek baar phir try karo 😅";
+      setMsgs(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setLoading(false);
       inputRef.current?.focus();

@@ -42,7 +42,7 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
     client = AsyncGroq(api_key=settings.GROQ_API_KEY)
     try:
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama3-70b-8192",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 *[{"role": m.role, "content": m.content} for m in data.messages]
