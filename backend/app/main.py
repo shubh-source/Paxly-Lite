@@ -14,12 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Try to create tables, but don't block startup forever
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        print("✅ Database connection initialized and tables created.")
+        print("✅ Database tables verified.")
     except Exception as e:
-        print(f"⚠️ DB startup warning: {e}")
+        print(f"⚠️ DB auto-init warning: {e}")
+    
     await connect_db()
     os.makedirs("./media", exist_ok=True)
     yield
