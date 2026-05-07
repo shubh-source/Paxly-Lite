@@ -98,10 +98,13 @@ export default function AppGuard({ children }) {
       if (!isLocked) return;
       
       if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
         handleKey(e.key);
       } else if (e.key === 'Backspace') {
+        e.preventDefault();
         setPin(prev => prev.slice(0, -1));
       } else if (e.key === 'Enter') {
+        e.preventDefault();
         verifyPin();
       }
     };
