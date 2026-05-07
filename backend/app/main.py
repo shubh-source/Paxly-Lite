@@ -48,14 +48,14 @@ async def fortress_middleware(request: Request, call_next):
         
     client_ip = request.client.host
     
-    # Temporarily disabled IP ban check to speed up Render boot
-    # async with AsyncSessionLocal() as db:
-    #     ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
-    #     if ban_check.scalars().first():
-    #         return JSONResponse(
-    #             status_code=403,
-    #             content={"message": "Access Denied: Your IP is permanently banned for security reasons."}
-    #         )
+    # 1. SECURITY: IP BAN CHECK (GLOBAL)
+    async with AsyncSessionLocal() as db:
+        ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
+        if ban_check.scalars().first():
+            return JSONResponse(
+                status_code=403,
+                content={"message": "Access Denied: Your IP is permanently banned for security reasons."}
+            )
 
     # 2. SECURITY: ADD HEADERS
     response = await call_next(request)
