@@ -1,10 +1,40 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
+import { signup } from '../../services/api';
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+
+  const handleSignup = async (e) => {
+    if (e) e.preventDefault();
+    if (!name || !email || !password) {
+      setError('Please fill in all details to create your sanctuary.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      await signup(name, email, password);
+      // Automatically login or navigate to login
+      navigate('/login', { state: { message: 'Sanctuary created! Please log in.' } });
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Signup failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -69,11 +99,23 @@ export default function Signup() {
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem', fontWeight: 300 }}>Create your private world.</p>
         </motion.div>
 
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <form 
+          onSubmit={handleSignup}
+          style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
+        >
           <motion.div variants={itemVariants}>
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px', fontWeight: 600 }}>Your Name</label>
             <input 
-              type="text" placeholder="Alex"
+              ref={nameRef}
+              type="text" required placeholder="Alex"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  emailRef.current?.focus();
+                }
+              }}
               style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'border 0.3s' }}
               onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
               onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -83,7 +125,16 @@ export default function Signup() {
           <motion.div variants={itemVariants}>
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px', fontWeight: 600 }}>Email</label>
             <input 
-              type="email" placeholder="you@love.com"
+              ref={emailRef}
+              type="email" required placeholder="you@love.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  passwordRef.current?.focus();
+                }
+              }}
               style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'border 0.3s' }}
               onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
               onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -94,8 +145,18 @@ export default function Signup() {
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px', fontWeight: 600 }}>Password</label>
             <div style={{ position: 'relative' }}>
               <input 
+                ref={passwordRef}
                 type={showPassword ? "text" : "password"} 
-                placeholder="••••••••"
+                required placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (name && email && password) handleSignup();
+                    else setError('Please fill in all details.');
+                  }
+                }}
                 style={{ width: '100%', padding: '16px 55px 16px 20px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'border 0.3s' }}
                 onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -114,22 +175,29 @@ export default function Signup() {
             </div>
           </motion.div>
 
+          {error && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: '#ff6b6b', fontSize: '0.8rem', textAlign: 'center' }}>
+              {error}
+            </motion.div>
+          )}
+
           <motion.button
             variants={itemVariants}
-            whileHover={{ scale: 1.02, filter: 'brightness(1.1)', boxShadow: '0 0 30px rgba(201,169,110,0.3)' }}
-            whileTap={{ scale: 0.98 }}
+            disabled={loading}
+            whileHover={!loading ? { scale: 1.02, filter: 'brightness(1.1)', boxShadow: '0 0 30px rgba(201,169,110,0.3)' } : {}}
+            whileTap={!loading ? { scale: 0.98 } : {}}
             style={{ 
               marginTop: '16px', width: '100%', padding: '18px', borderRadius: '16px', 
-              backgroundColor: '#b3945a', // Richer Dark Gold
-              color: '#2a241e', // Charcoal with light brown mix
+              backgroundColor: loading ? '#555' : '#b3945a', 
+              color: '#2a241e', 
               border: 'none', 
-              fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', 
+              fontWeight: 800, fontSize: '1.05rem', cursor: loading ? 'not-allowed' : 'pointer', 
               textTransform: 'uppercase', letterSpacing: '2px',
               boxShadow: '0 8px 25px rgba(0,0,0,0.4)',
               transition: 'all 0.3s ease'
             }}
           >
-            Create Our Space
+            {loading ? 'Creating...' : 'Create Our Space'}
           </motion.button>
         </form>
 

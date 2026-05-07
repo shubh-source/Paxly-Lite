@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../../services/api';
@@ -11,8 +11,16 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+
   const handleLogin = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (!email || !password) {
+      setError('Please fill in all fields to enter.');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     try {
@@ -102,11 +110,18 @@ export default function Login() {
           <motion.div variants={itemVariants}>
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px', fontWeight: 600 }}>Email Address</label>
             <input 
+              ref={emailRef}
               type="email" 
               required
               placeholder="you@love.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  passwordRef.current?.focus();
+                }
+              }}
               style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'border 0.3s' }}
               onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
               onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -117,11 +132,19 @@ export default function Login() {
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px', fontWeight: 600 }}>Password</label>
             <div style={{ position: 'relative' }}>
               <input 
+                ref={passwordRef}
                 type={showPassword ? "text" : "password"} 
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (email && password) handleLogin();
+                    else setError('Please fill in both fields.');
+                  }
+                }}
                 style={{ width: '100%', padding: '16px 55px 16px 20px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '1rem', outline: 'none', transition: 'border 0.3s' }}
                 onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
