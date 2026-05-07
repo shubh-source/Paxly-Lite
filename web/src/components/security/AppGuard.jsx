@@ -59,14 +59,17 @@ export default function AppGuard({ children }) {
     }
   };
 
+  const [pinLoading, setPinLoading] = useState(false);
+  
   const verifyPin = async () => {
     if (pin.length < 4) return setError('PIN too short');
+    setPinLoading(true);
+    setError('');
     try {
       const res = await api.post('/security/pin/verify', { pin });
       if (res.data.status === 'ok') {
         setIsLocked(false);
         setPin('');
-        setError('');
         setAttempts(3);
       } else {
         const left = res.data.attempts_left || 0;
@@ -79,7 +82,9 @@ export default function AppGuard({ children }) {
         }
       }
     } catch {
-      setError('Communication error with Security Vault.');
+      setError('Vault is waking up... Wait 30s and try again.');
+    } finally {
+      setPinLoading(false);
     }
   };
 
@@ -128,7 +133,9 @@ export default function AppGuard({ children }) {
           ))}
           <button onClick={() => setPin(prev => prev.slice(0, -1))} className="pin-btn" style={{ fontSize: '1.2rem' }}>⌫</button>
           <button onClick={() => handleKey('0')} className="pin-btn">0</button>
-          <button onClick={verifyPin} className="pin-btn" style={{ background: 'var(--accent)', color: '#000', fontSize: '1.1rem' }}>OK</button>
+          <button onClick={verifyPin} disabled={pinLoading} className="pin-btn" style={{ background: 'var(--accent)', color: '#000', fontSize: '1.1rem' }}>
+            {pinLoading ? '...' : 'OK'}
+          </button>
         </div>
 
         <style>{`
