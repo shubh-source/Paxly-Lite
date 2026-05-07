@@ -1,4 +1,4 @@
-# Deployment Trigger: Clean Requirements
+# Deployment Trigger: Flexible Requirements
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
