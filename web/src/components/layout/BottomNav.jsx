@@ -2,10 +2,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { Icons } from '../ui/Icons';
 
 const TABS = [
-  { path: '/chat',     icon: <Icons.Chat size={20} />, label: 'Chat'     },
   { path: '/mood',     icon: <Icons.Aura size={20} />, label: 'Mood'     },
   { path: '/memories', icon: <Icons.Vault size={20} />, label: 'Vault'    },
-  { path: '/explore',  icon: <Icons.Explore size={20} />, label: 'Explore'  },
   { path: '/ai',       icon: <Icons.Aura size={20} />, label: 'Aura'       },
 ];
 

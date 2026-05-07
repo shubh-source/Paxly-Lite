@@ -28,7 +28,7 @@ export default function Layout({ children }) {
           .glass-sidebar { display: none; }
         }
       `}</style>
-      {!isImmersive && <BottomNav />}
+      {!isImmersive && pathname === '/dashboard' && <BottomNav />}
     </div>
   );
 }

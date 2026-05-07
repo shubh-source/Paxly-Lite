@@ -10,7 +10,6 @@ const CORE_QUICK = [
   { to: '/memories',icon: <Icons.Vault size={32} color="var(--purple)" />, label: 'Our Vault',   sub: 'Saved moments', full: false },
   { to: '/notes',   icon: <Icons.LoveNote size={32} color="var(--accent)" />, label: 'Love Notes',  sub: 'Secret letters', full: false },
   { to: '/dates',   icon: <Icons.Milestone size={32} color="var(--purple)" />, label: 'Milestones',  sub: 'Never forget', full: false },
-  { to: '/explore', icon: <Icons.Explore size={32} color="var(--accent)" />, label: 'Discover',    sub: 'Date ideas', full: true },
   { to: '/ai',      icon: <Icons.Aura size={32} color="var(--accent)" />, label: 'Aura AI',     sub: 'Your best friend', full: true },
 ];
 
