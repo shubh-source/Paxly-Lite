@@ -117,7 +117,9 @@ export default function AppGuard({ children }) {
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#0D0D0F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🛡️</div>
+          <div style={{ marginBottom: 16 }}>
+            <Icons.Shield size={64} color="var(--accent)" stroke={1.5} />
+          </div>
           <h2 style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.5px' }}>Welcome back, {user?.name?.split(' ')[0]}</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginTop: 8 }}>Fortress is Locked. Enter PIN.</p>
         </div>
@@ -134,10 +136,12 @@ export default function AppGuard({ children }) {
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
             <button key={n} onClick={() => handleKey(n.toString())} className="pin-btn">{n}</button>
           ))}
-          <button onClick={() => setPin(prev => prev.slice(0, -1))} className="pin-btn" style={{ fontSize: '1.2rem' }}>⌫</button>
+          <button onClick={() => setPin(prev => prev.slice(0, -1))} className="pin-btn">
+            <Icons.Back size={24} />
+          </button>
           <button onClick={() => handleKey('0')} className="pin-btn">0</button>
-          <button onClick={verifyPin} disabled={pinLoading} className="pin-btn" style={{ background: 'var(--accent)', color: '#000', fontSize: '1.1rem' }}>
-            {pinLoading ? '...' : 'OK'}
+          <button onClick={verifyPin} disabled={pinLoading} className="pin-btn" style={{ background: 'var(--accent)', color: '#000' }}>
+            {pinLoading ? '...' : <Icons.Check size={28} color="#000" />}
           </button>
         </div>
 
