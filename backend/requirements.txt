@@ -16,3 +16,4 @@ alembic
 python-dotenv
 gunicorn
 email-validator
+aiofiles
