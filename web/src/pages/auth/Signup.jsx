@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { signup } from '../../services/api';
+import { register } from '../../services/api';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ export default function Signup() {
     setLoading(true);
     setError('');
     try {
-      await signup(name, email, password);
+      await register(name, email, password);
       // Automatically login or navigate to login
       navigate('/login', { state: { message: 'Sanctuary created! Please log in.' } });
     } catch (err) {

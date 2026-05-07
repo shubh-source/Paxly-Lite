@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import { Icons } from '../ui/Icons';
 
 export default function AppGuard({ children }) {
   const { user, loading } = useAuth();
