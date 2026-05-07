@@ -22,13 +22,13 @@ export default function SplashScreen({ user }) {
           <img src="/logo.png" style={{ width: 120, height: 120, objectFit: 'contain', mixBlendMode: 'screen', filter: 'drop-shadow(0 0 10px rgba(201,169,110,0.2))' }} alt="Vlynxly Logo" />
         </motion.div>
         
-        <h1 style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+        <h1 style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: '#fff', fontSize: '3.5rem', fontWeight: 800, letterSpacing: '-2px' }}>
           {titleText.map((char, index) => (
             <motion.span 
               key={index} 
               variants={{
-                hidden: { opacity: 0, x: Math.random() * 60 - 30, y: Math.random() * 60 - 30, rotate: Math.random() * 45 - 22 },
-                show: { opacity: 1, x: 0, y: 0, rotate: 0, transition: { type: 'spring', damping: 12, stiffness: 100 } }
+                hidden: { opacity: 0, y: 10 },
+                show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 12, stiffness: 200, delay: index * 0.05 } }
               }}
             >
               {char}

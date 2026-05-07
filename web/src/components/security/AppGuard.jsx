@@ -86,13 +86,31 @@ export default function AppGuard({ children }) {
     if (pin.length < 4) setPin(prev => prev + num);
   };
 
+  // Keyboard support for Laptop/Desktop
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!isLocked) return;
+      
+      if (e.key >= '0' && e.key <= '9') {
+        handleKey(e.key);
+      } else if (e.key === 'Backspace') {
+        setPin(prev => prev.slice(0, -1));
+      } else if (e.key === 'Enter') {
+        verifyPin();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLocked, pin]); // Re-bind when PIN changes to ensure verifyPin has latest state
+
   if (!loading && user?.has_pin && isLocked) {
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#0D0D0F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔒</div>
-          <h2 style={{ color: '#fff', fontSize: '1.5rem' }}>Fortress Locked</h2>
-          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Enter your App PIN to continue</p>
+          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🛡️</div>
+          <h2 style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.5px' }}>Welcome back, {user?.name?.split(' ')[0]}</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginTop: 8 }}>Fortress is Locked. Enter PIN.</p>
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginBottom: 40 }}>
