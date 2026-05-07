@@ -33,27 +33,44 @@ Rules:
 
 @router.post("/chat", response_model=AIResponse)
 async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
-    if not settings.GROQ_API_KEY:
-        raise HTTPException(503, "AI service not configured. Add GROQ_API_KEY to .env")
+    # 1. Try Gemini (Free & High Quality)
+    if settings.GOOGLE_API_KEY:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            model = genai.GenerativeModel(
+                model_name="gemini-2.0-flash",
+                system_instruction=SYSTEM_PROMPT
+            )
+            chat_history = []
+            for m in data.messages[:-1]:
+                chat_history.append({"role": "user" if m.role == "user" else "model", "parts": [m.content]})
+            
+            chat = model.start_chat(history=chat_history)
+            response = await chat.send_message_async(data.messages[-1].content)
+            return AIResponse(reply=response.text)
+        except Exception as e:
+            print(f"Gemini Error: {e}")
+            # Fallback to Groq if Gemini fails but key is there
 
-    if len(data.messages) > 20:
-        data.messages = data.messages[-20:]
+    # 2. Try Groq (Ultra Fast)
+    if settings.GROQ_API_KEY:
+        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        try:
+            response = await client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    *[{"role": m.role, "content": m.content} for m in data.messages]
+                ],
+                temperature=0.7,
+                max_tokens=400,
+            )
+            return AIResponse(reply=response.choices[0].message.content)
+        except Exception as e:
+            raise HTTPException(500, f"AI service error: {str(e)}")
 
-    client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-    try:
-        response = await client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                *[{"role": m.role, "content": m.content} for m in data.messages]
-            ],
-            temperature=0.7,
-            max_tokens=400,
-        )
-        reply = response.choices[0].message.content
-        return AIResponse(reply=reply)
-    except Exception as e:
-        raise HTTPException(500, f"AI service error: {str(e)}")
+    raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY or GROQ_API_KEY to .env")
 
 # ── COUNSELING SESSION LOGIC ────────────────────────────────
 
