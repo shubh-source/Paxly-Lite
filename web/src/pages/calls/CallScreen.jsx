@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { wsService } from '../../services/websocket';
 import api, { getSpace } from '../../services/api';
 import { Icons } from '../../components/ui/Icons';
@@ -38,7 +39,6 @@ export default function CallScreen() {
   const startTime = useRef(null);
 
   useEffect(() => {
-    // Correctly fetch partner info using centralized API
     getSpace().then(d => setPartner(d.partner));
 
     if (isHistoryView) {
@@ -67,39 +67,14 @@ export default function CallScreen() {
         }
       }),
       wsService.on('webrtc_end', () => endCall(false)),
-      wsService.on('webrtc_reject', () => { endCall(false); alert('Call rejected.'); }),
+      wsService.on('webrtc_reject', () => { endCall(false); }),
     ];
-
-    // Aggressive Screenshot/Recording Protection
-    const handleSecurityThreat = () => {
-      if (callState === 'connected') {
-        alert("Security Alert: Screen capture attempt detected. Call terminated for privacy.");
-        endCall(true);
-        nav('/dashboard');
-      }
-    };
-
-    const handleKeydown = (e) => {
-      // Common screenshot keys (PrintScreen, Win+Shift+S, Cmd+Shift+4)
-      if (e.key === 'PrintScreen' || (e.metaKey && e.shiftKey && (e.key === '4' || e.key === 's'))) {
-        handleSecurityThreat();
-      }
-    };
-
-    window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') handleSecurityThreat();
-    });
-    window.addEventListener('keydown', handleKeydown);
-    window.addEventListener('blur', handleSecurityThreat);
 
     return () => { 
       offs.forEach(off => off()); 
-      window.removeEventListener('visibilitychange', handleSecurityThreat);
-      window.removeEventListener('keydown', handleKeydown);
-      window.removeEventListener('blur', handleSecurityThreat);
       cleanup(); 
     };
-  }, [isHistoryView, callState]);
+  }, [isHistoryView]);
 
   const fetchHistory = async () => {
     try {
@@ -146,7 +121,6 @@ export default function CallScreen() {
       wsService.sendOffer(offer, type);
     } catch {
       setCallState('idle');
-      alert('Camera/Mic access denied.');
       nav('/chat');
     }
   };
@@ -200,61 +174,52 @@ export default function CallScreen() {
     localStream.current = null;
   };
 
-  const enterPiP = async () => {
-    try {
-      if (remoteRef.current) await remoteRef.current.requestPictureInPicture();
-    } catch (e) { console.error("PiP failed", e); }
-  };
-
   const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
-  // RENDER: HISTORY VIEW
+  // RENDER: HISTORY VIEW (Unchanged but stylized)
   if (callState === 'history') {
     return (
-      <div className="page" style={{ paddingBottom: 80 }}>
+      <div className="page" style={{ paddingBottom: 80, backgroundColor: '#0a0a0b' }}>
         <header className="header" style={{ 
           background: 'rgba(22, 22, 24, 0.4)', 
+          backdropFilter: 'blur(20px)',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
           margin: '20px 20px 12px',
           borderRadius: '24px',
-          padding: '16px 20px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+          padding: '16px 20px'
         }}>
-          <Link to="/dashboard" style={{ color: 'var(--muted)', fontSize: '1.2rem', textDecoration: 'none' }}>←</Link>
-          <span className="header-title" style={{ color: 'var(--text)' }}>Call History</span>
+          <Link to="/dashboard" style={{ color: 'var(--muted)', fontSize: '1.2rem', textDecoration: 'none' }}><Icons.Back size={24} /></Link>
+          <span className="header-title" style={{ color: 'var(--text)' }}>Vlynxly Call Vault</span>
           <div style={{ width: 24 }} />
         </header>
 
-        <div className="content">
+        <div className="content" style={{ padding: '0 20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {history.length === 0 && <p style={{ color: 'var(--muted)', textAlign: 'center', marginTop: 40 }}>No calls recorded yet.</p>}
             {history.map(log => (
-              <div key={log.id} className="card card-hover" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 18 }}>
+              <div key={log.id} style={{ 
+                background: 'rgba(255,255,255,0.02)', 
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: 20, 
+                padding: 18,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
                 <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <div style={{ 
-                    width: 48, 
-                    height: 48, 
-                    borderRadius: '50%', 
-                    background: 'rgba(255,255,255,0.05)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    fontSize: '1.2rem'
-                  }}>
-                    {log.call_type === 'video' ? <Icons.Video size={20} /> : <Icons.Mic size={20} />}
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(179, 148, 90, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {log.call_type === 'video' ? <Icons.Video size={18} color="var(--accent)" /> : <Icons.Mic size={18} color="var(--accent)" />}
                   </div>
                   <div>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.95rem', color: log.caller_id === user?.id ? 'var(--text)' : 'var(--accent)' }}>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', color: log.caller_id === user?.id ? '#fff' : 'var(--accent)' }}>
                       {log.caller_id === user?.id ? 'Outgoing Call' : 'Incoming Call'}
                     </p>
-                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)' }}>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
                       {format(new Date(log.timestamp), 'MMM d, h:mm a')}
                     </p>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--accent)', fontSize: '1rem' }}>{fmt(log.duration)}</p>
-                  {log.recording_url && <span style={{ fontSize: '0.65rem', color: 'var(--success)', textTransform: 'uppercase', letterSpacing: 1 }}>● Recorded</span>}
+                  <p style={{ margin: 0, fontWeight: 700, color: 'var(--accent)', fontSize: '1.1rem' }}>{fmt(log.duration)}</p>
                 </div>
               </div>
             ))}
@@ -264,11 +229,10 @@ export default function CallScreen() {
     );
   }
 
-  // RENDER: ACTIVE CALL
   return (
     <div style={{ 
       height: '100vh', 
-      background: '#000', 
+      background: '#050505', 
       display: 'flex', 
       flexDirection: 'column', 
       alignItems: 'center', 
@@ -276,15 +240,26 @@ export default function CallScreen() {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Background with Ambient Glow */}
-      <div style={{ 
-        position: 'absolute', 
-        inset: 0, 
-        background: 'radial-gradient(circle at center, #1a1a2e 0%, #000 100%)', 
-        zIndex: 0
-      }} />
+      {/* Cinematic Aura Background */}
+      <motion.div
+        animate={{ 
+          scale: [1, 1.2, 1],
+          opacity: [0.1, 0.15, 0.1],
+          rotate: [0, 180, 360]
+        }}
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        style={{ 
+          position: 'absolute', 
+          width: '150vw', 
+          height: '150vw', 
+          background: 'radial-gradient(circle, var(--accent) 0%, transparent 50%, #000 80%)', 
+          zIndex: 0,
+          pointerEvents: 'none',
+          filter: 'blur(80px)'
+        }}
+      />
 
-      {/* Remote video */}
+      {/* Remote Video (Visible only when connected) */}
       <video 
         ref={remoteRef} 
         autoPlay 
@@ -296,12 +271,12 @@ export default function CallScreen() {
           height: '100%', 
           objectFit: 'cover', 
           zIndex: 1,
-          opacity: callState === 'connected' ? 1 : 0.3,
-          transition: 'opacity 1s ease'
+          opacity: callState === 'connected' ? 1 : 0,
+          transition: 'opacity 1s cubic-bezier(0.4, 0, 0.2, 1)'
         }} 
       />
 
-      {/* Local video (PiP) */}
+      {/* Local Video Overlay (PiP) */}
       {callType === 'video' && (
         <video 
           ref={localRef} 
@@ -312,124 +287,205 @@ export default function CallScreen() {
             position: 'absolute', 
             top: 40, 
             right: 20, 
-            width: minimized ? 60 : 110, 
-            height: minimized ? 80 : 160, 
+            width: minimized ? 60 : 120, 
+            height: minimized ? 80 : 180, 
             objectFit: 'cover', 
             borderRadius: 24, 
-            border: '2px solid rgba(255,255,255,0.15)', 
-            zIndex: 10,
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255,255,255,0.2)', 
+            zIndex: 30,
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
             background: '#111'
           }} 
         />
       )}
 
-      {/* Overlay UI */}
-      <div style={{ position: 'relative', zIndex: 20, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {/* Main Overlay UI */}
+      <div style={{ position: 'relative', zIndex: 40, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         
-        {/* Top Info Bar during connected call */}
-        {callState === 'connected' && !minimized && (
-          <div style={{ 
-            marginTop: 40, 
-            background: 'rgba(0,0,0,0.4)', 
-            backdropFilter: 'blur(20px)', 
-            padding: '8px 20px', 
-            borderRadius: 99, 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 12,
-            border: '1px solid rgba(255,255,255,0.1)'
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 1.5s infinite' }} />
-            <span style={{ fontSize: '0.9rem', fontWeight: 600, letterSpacing: 0.5 }}>{partner?.name || 'Partner'}</span>
-            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>|</span>
-            <span style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: 600 }}>{fmt(duration)}</span>
-          </div>
-        )}
+        {/* Connected Header */}
+        <AnimatePresence>
+          {callState === 'connected' && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ 
+                position: 'absolute', 
+                top: 40,
+                background: 'rgba(0,0,0,0.4)', 
+                backdropFilter: 'blur(30px)', 
+                padding: '10px 24px', 
+                borderRadius: 40, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 12,
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+              }}
+            >
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#34C759', boxShadow: '0 0 10px #34C759', animation: 'pulse 1.5s infinite' }} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--accent)' }}>SECURE CALL</span>
+              <span style={{ color: 'rgba(255,255,255,0.3)' }}>|</span>
+              <span style={{ fontSize: '1rem', color: '#fff', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(duration)}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* CALLING / INCOMING Identity Card */}
+        {/* Calling/Incoming Interface */}
         {(callState === 'calling' || callState === 'incoming' || callState === 'connecting') && (
-          <div style={{ 
-            marginTop: 'auto',
-            marginBottom: 'auto',
-            textAlign: 'center',
-            animation: 'fadeInUp 0.6s ease-out'
-          }}>
-            <div style={{ position: 'relative', margin: '0 auto 32px', width: 140, height: 140 }}>
-              <div style={{ position: 'absolute', inset: -15, borderRadius: '50%', background: 'var(--accent)', opacity: 0.15, animation: 'ping 2s infinite' }} />
-              <div className="avatar" style={{ 
-                width: 140, 
-                height: 140, 
-                fontSize: '3rem', 
-                border: '4px solid var(--accent)',
-                boxShadow: '0 0 40px rgba(201,169,110,0.2)'
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{ textAlign: 'center', width: '100%' }}
+          >
+            <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 40px' }}>
+              {/* Pulsing Rings */}
+              {[1, 2, 3].map(i => (
+                <motion.div
+                  key={i}
+                  animate={{ scale: [1, 1.8], opacity: [0.3, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, delay: i * 0.6 }}
+                  style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid var(--accent)' }}
+                />
+              ))}
+              <div style={{ 
+                width: 160, 
+                height: 160, 
+                borderRadius: '50%', 
+                background: 'linear-gradient(135deg, #2a241e, #1a1a1a)',
+                border: '2px solid var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '4rem',
+                color: 'var(--accent)',
+                boxShadow: '0 0 60px rgba(179,148,90,0.2)',
+                position: 'relative',
+                zIndex: 2,
+                overflow: 'hidden'
               }}>
-                {partner?.name?.[0]?.toUpperCase() || '?'}
+                {partner?.avatar_url ? (
+                  <img src={partner.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontFamily: 'serif' }}>{partner?.name?.[0]?.toUpperCase() || '?'}</span>
+                )}
               </div>
             </div>
-            <h2 style={{ color: '#fff', fontSize: '2.2rem', marginBottom: 12, fontWeight: 700 }}>{partner?.name || 'Connecting...'}</h2>
-            <p style={{ color: 'var(--accent)', letterSpacing: '0.2em', fontSize: '0.8rem', fontWeight: 600 }}>
-              {callState === 'calling' ? 'CALLING...' : callState === 'incoming' ? 'INCOMING CALL' : 'ESTABLISHING...'}
-            </p>
 
-            <div style={{ marginTop: 60, display: 'flex', gap: 40, justifyContent: 'center' }}>
+            <h2 style={{ fontSize: '2.8rem', fontWeight: 200, fontFamily: 'serif', color: '#fff', marginBottom: 8, letterSpacing: '-0.02em' }}>
+              {partner?.name || 'Searching...'}
+            </h2>
+            <motion.p 
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              style={{ color: 'var(--accent)', letterSpacing: '4px', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase' }}
+            >
+              {callState === 'calling' ? 'Summoning Partner...' : callState === 'incoming' ? 'Partner is Calling...' : 'Weaving Connection...'}
+            </motion.p>
+
+            {/* Action Buttons */}
+            <div style={{ marginTop: 80, display: 'flex', gap: 40, justifyContent: 'center' }}>
               {callState === 'calling' ? (
-                <button onClick={() => endCall()} style={{ background: '#FF3B30', border: 'none', borderRadius: '50%', width: 80, height: 80, cursor: 'pointer', boxShadow: '0 10px 30px rgba(255,59,48,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Phone size={32} color="#fff" style={{ transform: 'rotate(135deg)' }} /></button>
+                <motion.button 
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => endCall()} 
+                  style={{ background: '#FF3B30', border: 'none', borderRadius: '50%', width: 84, height: 84, cursor: 'pointer', boxShadow: '0 15px 35px rgba(255,59,48,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Icons.Phone size={36} color="#fff" style={{ transform: 'rotate(135deg)' }} />
+                </motion.button>
               ) : (
                 <>
-                  <button onClick={() => { wsService.rejectCall(); setCallState('idle'); nav('/chat'); }} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: 80, height: 80, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Back size={32} color="#fff" style={{ transform: 'rotate(45deg)' }} /></button>
-                  <button onClick={answerCall} style={{ background: '#34C759', border: 'none', borderRadius: '50%', width: 80, height: 80, cursor: 'pointer', animation: 'pulseGreen 2s infinite', boxShadow: '0 10px 30px rgba(52,199,89,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Phone size={32} color="#fff" /></button>
+                  <motion.button 
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => { wsService.rejectCall(); setCallState('idle'); nav('/chat'); }} 
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: 84, height: 84, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Icons.Back size={36} color="#fff" />
+                  </motion.button>
+                  <motion.button 
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    onClick={answerCall} 
+                    style={{ background: '#34C759', border: 'none', borderRadius: '50%', width: 84, height: 84, cursor: 'pointer', boxShadow: '0 15px 35px rgba(52,199,89,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Icons.Phone size={36} color="#fff" />
+                  </motion.button>
                 </>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* CONNECTED Controls */}
-        {callState === 'connected' && !minimized && (
-          <div style={{ 
-            marginTop: 'auto', 
-            marginBottom: 60, 
-            width: '90%', 
-            maxWidth: 400,
-            background: 'rgba(255,255,255,0.08)', 
-            backdropFilter: 'blur(30px) saturate(180%)', 
-            padding: '24px', 
-            borderRadius: 40, 
-            border: '1px solid rgba(255,255,255,0.12)',
-            display: 'flex',
-            justifyContent: 'space-around',
-            alignItems: 'center',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
-            animation: 'slideUp 0.5s ease-out'
-          }}>
-            <button onClick={() => setMuted(!muted)} style={{ background: muted ? '#FF3B30' : 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 60, height: 60, cursor: 'pointer', color: '#fff', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{muted ? <Icons.Mic size={24} /> : <Icons.Mic size={24} />}</button>
-            <button onClick={enterPiP} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 60, height: 60, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Explore size={24} /></button>
-            <button onClick={() => setMinimized(true)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 60, height: 60, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Vault size={24} /></button>
-            <button onClick={() => endCall()} style={{ background: '#FF3B30', border: 'none', borderRadius: '50%', width: 72, height: 72, cursor: 'pointer', color: '#fff', boxShadow: '0 10px 25px rgba(255,59,48,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Phone size={32} style={{ transform: 'rotate(135deg)' }} /></button>
-          </div>
-        )}
-
-        {/* MINIMIZED BUBBLE (In-App PiP) */}
-        {minimized && (
-          <div 
-            onClick={() => setMinimized(false)}
-            style={{ position: 'fixed', bottom: 100, right: 20, width: 130, height: 180, borderRadius: 24, overflow: 'hidden', boxShadow: '0 15px 40px rgba(0,0,0,0.6)', zIndex: 1000, border: '2px solid var(--accent)', cursor: 'pointer' }}
-          >
-            <video ref={remoteRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '4px 8px', color: '#fff', fontSize: '0.75rem', fontWeight: 600 }}>{fmt(duration)}</div>
-          </div>
-        )}
+        {/* Connected Control Bar */}
+        <AnimatePresence>
+          {callState === 'connected' && !minimized && (
+            <motion.div 
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              style={{ 
+                position: 'absolute', 
+                bottom: 60, 
+                width: '90%', 
+                maxWidth: 440,
+                background: 'rgba(255,255,255,0.08)', 
+                backdropFilter: 'blur(40px) saturate(180%)', 
+                padding: '28px 32px', 
+                borderRadius: 48, 
+                border: '1px solid rgba(255,255,255,0.15)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: '0 30px 60px rgba(0,0,0,0.8)'
+              }}
+            >
+              <ControlBtn active={!muted} onClick={() => setMuted(!muted)} icon={muted ? <Icons.Mic size={24} /> : <Icons.Mic size={24} />} danger={muted} />
+              <ControlBtn active={!camOff} onClick={() => setCamOff(!camOff)} icon={<Icons.Video size={24} />} danger={camOff} />
+              <ControlBtn active={false} onClick={() => setMinimized(true)} icon={<Icons.Vault size={24} />} />
+              <motion.button 
+                whileHover={{ scale: 1.1, rotate: -15 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => endCall()} 
+                style={{ background: '#FF3B30', border: 'none', borderRadius: '50%', width: 72, height: 72, cursor: 'pointer', boxShadow: '0 15px 30px rgba(255,59,48,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Icons.Phone size={32} color="#fff" style={{ transform: 'rotate(135deg)' }} />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <style>{`
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(50px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes ping { 75%, 100% { transform: scale(1.8); opacity: 0; } }
-        @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
-        @keyframes pulseGreen { 0% { box-shadow: 0 0 0 0 rgba(52,199,89, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(52,199,89, 0); } 100% { box-shadow: 0 0 0 0 rgba(52,199,89, 0); } }
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
       `}</style>
     </div>
+  );
+}
+
+function ControlBtn({ icon, onClick, active, danger }) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.15)' }}
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      style={{ 
+        background: danger ? '#FF3B30' : 'rgba(255,255,255,0.06)', 
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '50%', 
+        width: 64, height: 64, 
+        cursor: 'pointer', 
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'background 0.3s'
+      }}
+    >
+      {icon}
+    </motion.button>
   );
 }
