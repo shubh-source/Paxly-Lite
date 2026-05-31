@@ -14,6 +14,7 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword  from './pages/auth/ResetPassword';
 import Connect        from './pages/auth/Connect';
 import SetupLock      from './pages/auth/SetupLock';
+import ForgotPin      from './pages/auth/ForgotPin';
 import Dashboard      from './pages/Dashboard';
 import Chat           from './pages/chat/Chat';
 import CallScreen     from './pages/calls/CallScreen';
@@ -50,11 +51,8 @@ function Guard({ children, needsPartner = false }) {
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null; // Don't show splash on public routes
-  if (user) {
-    if (!user.couple_space_id) return <Navigate to="/connect" replace />;
-    if (!user.has_pin) return <Navigate to="/setup-lock" replace />;
-    return <Navigate to="/dashboard" replace />;
-  }
+  const hasUser = user || localStorage.getItem('ros_user');
+  if (hasUser) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -70,6 +68,7 @@ function AnimatedRoutes() {
         <Route path="/connect"  element={<Guard><Connect /></Guard>} />
         <Route path="/invite/:code" element={<Guard><Connect /></Guard>} />
         <Route path="/setup-lock" element={<Guard needsPartner><SetupLock /></Guard>} />
+        <Route path="/forgot-pin" element={<Guard needsPartner><ForgotPin /></Guard>} />
 
         <Route path="/dashboard"  element={<Guard needsPartner><Layout><Dashboard /></Layout></Guard>} />
         <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />

@@ -2,9 +2,11 @@ import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { loginUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -25,9 +27,8 @@ export default function Login() {
     setError('');
     try {
       const data = await login(email, password);
-      localStorage.setItem('ros_token', data.access_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      navigate('/dashboard');
+      loginUser(data.access_token, data.user);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
     } finally {

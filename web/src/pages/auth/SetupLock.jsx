@@ -61,7 +61,7 @@ export default function SetupLock() {
       await api.post('/security/pin/set', { pin });
       await refreshUser();
       
-      nav('/dashboard');
+      nav('/dashboard', { replace: true });
     } catch (ex) {
       setErr('Failed to set PIN.');
     } finally {

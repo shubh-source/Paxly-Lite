@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { register } from '../../services/api';
+import { register, login } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Signup() {
   const navigate = useNavigate();
+  const { loginUser } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,8 +29,10 @@ export default function Signup() {
     setError('');
     try {
       await register(name, email, password);
-      // Automatically login or navigate to login
-      navigate('/login', { state: { message: 'Sanctuary created! Please log in.' } });
+      // Automatically login
+      const data = await login(email, password);
+      loginUser(data.access_token, data.user);
+      navigate('/connect', { replace: true });
     } catch (err) {
       setError(err.response?.data?.detail || 'Signup failed. Please try again.');
     } finally {

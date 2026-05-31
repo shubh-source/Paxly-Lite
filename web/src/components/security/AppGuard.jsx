@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { Icons } from '../ui/Icons';
@@ -10,6 +11,8 @@ export default function AppGuard({ children }) {
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(3);
   const timerRef = useRef(null);
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   // Auto-lock when putting the app in the background
   useEffect(() => {
@@ -113,6 +116,10 @@ export default function AppGuard({ children }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isLocked, pin]); // Re-bind when PIN changes to ensure verifyPin has latest state
 
+  if (pathname === '/forgot-pin') {
+    return children;
+  }
+
   if (!loading && user?.has_pin && isLocked) {
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#0D0D0F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -142,6 +149,12 @@ export default function AppGuard({ children }) {
           <button onClick={() => handleKey('0')} className="pin-btn">0</button>
           <button onClick={verifyPin} disabled={pinLoading} className="pin-btn" style={{ background: 'var(--accent)', color: '#000' }}>
             {pinLoading ? '...' : <Icons.Check size={28} color="#000" />}
+          </button>
+        </div>
+
+        <div style={{ marginTop: 24 }}>
+          <button onClick={() => navigate('/forgot-pin')} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+            Forgot PIN?
           </button>
         </div>
 
