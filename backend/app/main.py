@@ -19,7 +19,24 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        print("✅ Database tables verified.")
+            from sqlalchemy import text
+            
+            # Force add missing columns to existing messages table
+            # In case create_all doesn't alter the existing table on Render
+            alter_queries = [
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR",
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_once_view BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_limit INTEGER DEFAULT 1",
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS views_used INTEGER DEFAULT 0",
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_compromised BOOLEAN DEFAULT FALSE"
+            ]
+            for q in alter_queries:
+                try:
+                    await conn.execute(text(q))
+                except Exception as e:
+                    print(f"Skipping alter: {e}")
+            
+        print("✅ Database tables verified and migrated.")
     except Exception as e:
         print(f"⚠️ DB auto-init warning: {e}")
     
