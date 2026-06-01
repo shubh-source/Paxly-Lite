@@ -47,7 +47,7 @@ export default function Welcome() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.8, delay: 3 }}
+                transition={{ duration: 0.5 }}
                 style={{ marginTop: '56px' }}
               >
                 <h1 style={{ fontSize: '3.5rem', fontWeight: 200, marginBottom: '4px', fontFamily: 'serif', letterSpacing: '-0.03em' }}>Vlynxly</h1>
@@ -120,7 +120,7 @@ export default function Welcome() {
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: showActions ? 0.2 : 0.6 }}
-        transition={{ delay: 4, duration: 1.5 }}
+        transition={{ duration: 0.5 }}
         style={{ 
           position: 'fixed', bottom: '32px', fontSize: '11px', letterSpacing: '2px', 
           color: 'rgba(201,169,110,0.9)', textTransform: 'uppercase', fontWeight: 600, zIndex: 25
