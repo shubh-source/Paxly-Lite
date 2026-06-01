@@ -46,6 +46,11 @@ export default function CallScreen() {
     if (isHistoryView) {
       setCallState('history');
       fetchHistory();
+    } else if (wsService.latestOffer) {
+      setIncomingOffer(wsService.latestOffer);
+      setCallType(wsService.latestOffer.call_type);
+      setCallState('incoming');
+      wsService.latestOffer = null; // consume it
     } else if (params.get('type')) {
       startCall(params.get('type'));
     }

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { Icons } from '../ui/Icons';
+import { wsService } from '../../services/websocket';
 
 export default function AppGuard({ children }) {
   const { user, loading } = useAuth();
@@ -31,6 +32,16 @@ export default function AppGuard({ children }) {
       setIsLocked(true);
     }
   }, [loading, user?.has_pin]);
+
+  useEffect(() => {
+    if (!user) return;
+    const off = wsService.on('webrtc_offer', (offer) => {
+       if (pathname !== '/call') {
+          navigate('/call');
+       }
+    });
+    return () => off();
+  }, [user, pathname, navigate]);
 
   const captureIntruder = async () => {
     try {

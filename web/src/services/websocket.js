@@ -41,6 +41,12 @@ class WSService {
     this.ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
+        if (data.type === 'webrtc_offer') {
+          this.latestOffer = data;
+        }
+        if (data.type === 'webrtc_end' || data.type === 'webrtc_reject') {
+          this.latestOffer = null;
+        }
         this.emit(data.type, data);
       } catch {}
     };
