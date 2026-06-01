@@ -4,6 +4,8 @@ import { generateInvite } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 
+import { Icons } from '../../components/ui/Icons';
+
 export default function Connect() {
   const { refreshUser } = useAuth();
   const nav = useNavigate();
@@ -102,7 +104,7 @@ export default function Connect() {
     return (
       <div className="page center" style={{ padding: '40px 24px' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Icons.Heart size={64} color="var(--accent)" /></div>
           <h2 style={{ marginBottom: 8, color: 'var(--success)' }}>Connected!</h2>
           <p>Taking you to your space...</p>
           <div className="spinner" style={{ margin: '24px auto 0' }} />

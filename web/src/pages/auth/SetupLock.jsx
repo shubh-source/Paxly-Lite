@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import PageTransition from '../../components/layout/PageTransition';
 import { motion } from 'framer-motion';
 
+import { Icons } from '../../components/ui/Icons';
+
 export default function SetupLock() {
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -83,7 +85,7 @@ export default function SetupLock() {
           transition={{ duration: 0.5, delay: 0.2 }}
           style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}
         >
-          <div style={{ fontSize: '3rem', marginBottom: 16 }}>🛡️</div>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Icons.Shield size={64} color="var(--accent)" stroke={1.5} /></div>
           <h2 style={{ marginBottom: 8 }}>{step === 1 ? 'Set App Lock' : 'Confirm App Lock'}</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: 32 }}>
             {step === 1 

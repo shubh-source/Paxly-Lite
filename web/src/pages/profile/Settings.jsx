@@ -269,7 +269,7 @@ function IntruderLogsSub({ onBack }) {
           ))}
           {logs.length === 0 && (
             <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '80px 0', opacity: 0.5 }}>
-              <div style={{ fontSize: '3rem', marginBottom: 16 }}>🛡️</div>
+              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Icons.Shield size={64} color="var(--accent)" stroke={1.5} /></div>
               <p>No intruder logs found.</p>
             </div>
           )}
