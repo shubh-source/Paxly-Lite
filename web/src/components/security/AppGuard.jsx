@@ -39,6 +39,10 @@ export default function AppGuard({ children }) {
     if (!user) return;
     const off = wsService.on('webrtc_offer', (offer) => {
        if (pathname !== '/call') {
+          // Trigger Android Native if available
+          if (window.Android && window.Android.showIncomingCall) {
+            window.Android.showIncomingCall(offer.from_name || 'Partner', offer.call_type || 'video');
+          }
           // Instead of immediate navigation, show the Heads-Up Banner
           setIncomingCall(offer);
        }
