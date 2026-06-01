@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -70,6 +70,28 @@ export default function SetupLock() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleKey(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (step === 1 && pin.length === 4) {
+          handleNext();
+        } else if (step === 2 && confirm.length === 4) {
+          handleConfirm();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [step, pin, confirm]);
 
   const dots = [1, 2, 3, 4];
   const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'];
