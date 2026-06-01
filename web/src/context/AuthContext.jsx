@@ -33,11 +33,10 @@ export const AuthProvider = ({ children }) => {
           // Otherwise, it's a network error/timeout, keep the cached user!
         })
         .finally(() => {
-          // Add a minimum 2-second delay to let the Splash Screen play out beautifully
-          setTimeout(() => setLoading(false), 2000);
+          setLoading(false);
         });
     } else {
-      setTimeout(() => setLoading(false), 2000);
+      setLoading(false);
     }
   }, []);
 
