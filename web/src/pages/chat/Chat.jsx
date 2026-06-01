@@ -25,9 +25,14 @@ export default function Chat() {
   const [reactTo, setReactTo] = useState(null);
   const [sending, setSending] = useState(false);
   
+  // Voice Recording State
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [audioRecorder, setAudioRecorder] = useState(null);
+  const audioChunks = useRef([]);
+  
 // Security State
   const [pendingFile, setPendingFile] = useState(null);
-  const [showSecurityOptions, setShowSecurityOptions] = useState(false);
+  const [showGallerySecureModal, setShowGallerySecureModal] = useState(false);
   const [unblurred, setUnblurred] = useState({}); // Tracking unblurred msgs manually
 
   // Presence & Theme State
@@ -138,20 +143,49 @@ export default function Chat() {
     const file = e.target.files[0];
     if (!file) return;
     setPendingFile(file);
-    setShowSecurityOptions(true); // Show the "How to send?" modal
+    setShowGallerySecureModal(true); // Show gallery secure modal instead
   };
 
-  const sendMedia = async (mode = 'standard') => {
-    if (!pendingFile) return;
+  const startVoiceRecord = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunks.current = [];
+      recorder.ondataavailable = e => audioChunks.current.push(e.data);
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
+        const file = new File([audioBlob], 'voice_note.webm', { type: 'audio/webm' });
+        const { media_url } = await uploadMedia(file);
+        wsService.sendMessage('', 'audio', media_url, false, 0);
+        stream.getTracks().forEach(t => t.stop());
+      };
+      recorder.start();
+      setAudioRecorder(recorder);
+      setIsRecordingAudio(true);
+    } catch (err) {
+      console.error("Audio recording failed", err);
+    }
+  };
+
+  const stopVoiceRecord = () => {
+    if (audioRecorder && isRecordingAudio) {
+      audioRecorder.stop();
+      setIsRecordingAudio(false);
+    }
+  };
+
+  const sendMedia = async (fileToSync, mode = 'standard') => {
+    const targetFile = fileToSync || pendingFile;
+    if (!targetFile) return;
     setSending(true);
-    setShowSecurityOptions(false);
+    setShowGallerySecureModal(false);
     
     try {
-      const { media_url } = await uploadMedia(pendingFile);
-      const isOnceView = mode !== 'standard';
+      const { media_url } = await uploadMedia(targetFile);
+      const isOnceView = mode !== 'standard' && mode !== 'permanent';
       const limit = mode === 'twice' ? 2 : 1;
       
-      const type = pendingFile.type.startsWith('video') ? 'video' : 'image';
+      const type = targetFile.type.startsWith('video') ? 'video' : 'image';
       wsService.sendMessage('', type, media_url, isOnceView, limit);
     } finally { 
       setSending(false); 
@@ -238,9 +272,31 @@ export default function Chat() {
       
       {showingStudio && (
         <VlynxlyStudio 
-          onCapture={(file) => { setPendingFile(file); setShowingStudio(false); setShowSecurityOptions(true); }}
+          onCapture={(file, mode) => { 
+            setShowingStudio(false); 
+            sendMedia(file, mode); 
+          }}
           onClose={() => setShowingStudio(false)}
         />
+      )}
+
+      {/* Gallery Secure Send Modal */}
+      {showGallerySecureModal && (
+        <div className="modal-overlay" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(10px)' }}>
+          <div className="card" style={{ maxWidth:360, width:'100%', textAlign:'center', border: '1px solid #b3945a', background: '#1a1614', padding: 30, borderRadius: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={48} color="#b3945a" /></div>
+            <h3 style={{ marginBottom:10, color: '#fff' }}>Secure Media Transfer</h3>
+            <p style={{ fontSize:'0.95rem', color:'var(--muted)', marginBottom:24 }}>
+              How would you like to send this file from your gallery?
+            </p>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <button onClick={() => sendMedia(pendingFile, 'once')} style={{ padding: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(179,148,90,0.3)', borderRadius: 14, color: '#b3945a', fontWeight: 600, cursor: 'pointer' }}>Once View</button>
+              <button onClick={() => sendMedia(pendingFile, 'twice')} style={{ padding: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(179,148,90,0.3)', borderRadius: 14, color: '#b3945a', fontWeight: 600, cursor: 'pointer' }}>Twice View</button>
+              <button onClick={() => sendMedia(pendingFile, 'permanent')} style={{ padding: 14, background: '#b3945a', border: 'none', borderRadius: 14, color: '#000', fontWeight: 700, cursor: 'pointer' }}>Permanent Keep</button>
+              <button onClick={() => { setShowGallerySecureModal(false); setPendingFile(null); }} style={{ padding: 14, background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', marginTop: 8 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Secure Viewer Overlay */}
@@ -301,10 +357,12 @@ export default function Chat() {
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || 'Partner'}</div>
-            <div style={{ fontSize:'0.75rem', color: partnerOnline ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: partnerOnline ? 'var(--success)' : 'var(--muted)' }}></span>
-              {partnerOnline ? 'Online' : 'Offline'}
-            </div>
+            {partnerOnline && (
+              <div style={{ fontSize:'0.75rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }}></span>
+                Online
+              </div>
+            )}
           </div>
           <Icons.Back size={14} color="var(--muted)" style={{ transform: 'rotate(-90deg)', marginLeft: 8 }} />
         </div>
@@ -426,6 +484,13 @@ export default function Chat() {
                       )}
                     </div>
                   )
+                ) : msg.message_type === 'audio' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: isMe(msg) ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icons.Mic size={18} color={isMe(msg) ? '#000' : '#b3945a'} />
+                    </div>
+                    <audio src={msg.media_url} controls style={{ height: 36, width: 200 }} />
+                  </div>
                 ) : <span style={{ fontSize:'1rem', whiteSpace:'pre-wrap', lineHeight: 1.5 }}>{msg.text}</span>}
                 </div>
                 <span style={{ fontSize:'0.7rem', color: isMe(msg) ? 'var(--accent)' : 'var(--muted)', marginTop:4, opacity: 0.8, fontWeight: 500 }}>{ts(msg)}</span>
@@ -442,31 +507,102 @@ export default function Chat() {
         bottom: 20, 
         left: 20, 
         right: 20, 
-        background:'rgba(22, 22, 26, 0.65)', 
-        backdropFilter: 'blur(25px) saturate(200%)', 
-        border:'1px solid rgba(255,255,255,0.1)', 
-        borderRadius: 28,
-        padding:'16px', 
+        background:'#1a1614', // Solid Charcoal Pill
+        border:'1px solid rgba(179,148,90,0.3)', // Golden/Bronze border
+        borderRadius: 32,
+        padding:'10px 16px', 
         display:'flex', 
-        flexDirection: 'column', 
+        alignItems: 'flex-end',
         gap: 12,
-        boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+        boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
         zIndex: 100
       }}>
-        <ReactionPicker currentMood={selfMood} onSelect={setSelfMood} />
+        {/* Reaction Picker is still absolute inside the pill if needed, but let's keep it clean */}
+        <div style={{ marginBottom: 6 }}>
+           <ReactionPicker currentMood={selfMood} onSelect={setSelfMood} />
+        </div>
         
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
-          <button className="btn btn-g" style={{ padding: '10px', flexShrink:0, background:'rgba(255,255,255,0.05)', borderRadius:'50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowingStudio(true)}><Icons.Camera size={22} /></button>
-          <button className="btn btn-g" style={{ padding: '10px', flexShrink:0, background:'rgba(255,255,255,0.05)', borderRadius:'50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => fileRef.current?.click()}><Icons.Gallery size={22} /></button>
-          
-          <div style={{ flex: 1, background: 'rgba(0,0,0,0.3)', borderRadius: 20, padding: '4px 16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <textarea className="inp" value={text} onChange={handleType} onKeyDown={e => { if (e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); }}} placeholder="Whisper something..." rows={1} style={{ width: '100%', resize:'none', background:'transparent', border:'none', borderRadius:0, padding:'10px 0', minHeight: 44, fontSize:'1.05rem', color: '#fff', outline: 'none' }} />
-          </div>
-
-          <button className="btn btn-p" style={{ padding:'0', borderRadius:'50%', flexShrink:0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 48, boxShadow: '0 8px 20px rgba(201,169,110,0.4)' }} onClick={send} disabled={sending||!text.trim()}>
-            <Icons.Send size={24} color="#000" />
+        <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
+        
+        {/* Left Side Icons */}
+        <div style={{ display: 'flex', gap: 4, paddingBottom: 6 }}>
+          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer' }} onClick={() => setShowingStudio(true)}>
+            <Icons.Camera size={22} color="#b3945a" />
           </button>
+          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer' }} onClick={() => fileRef.current?.click()}>
+            <Icons.Gallery size={22} color="#b3945a" />
+          </button>
+        </div>
+        
+        {/* Text Area */}
+        <div style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center' }}>
+          <textarea 
+            className="inp" 
+            value={text} 
+            onChange={handleType} 
+            onKeyDown={e => { if (e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); }}} 
+            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Whisper something..."} 
+            rows={1} 
+            disabled={isRecordingAudio}
+            style={{ 
+              width: '100%', 
+              resize:'none', 
+              background:'transparent', 
+              border:'none', 
+              padding:'12px 0', 
+              fontSize:'1.05rem', 
+              color: isRecordingAudio ? '#ff4b2b' : '#fff', 
+              outline: 'none',
+              fontFamily: 'inherit'
+            }} 
+          />
+        </div>
+
+        {/* Right Side Icons (Mic / Send) */}
+        <div style={{ paddingBottom: 4 }}>
+          {text.trim().length > 0 ? (
+            <button 
+              style={{ 
+                padding:'0', 
+                borderRadius:'50%', 
+                background: '#b3945a', 
+                border: 'none',
+                width: 44, 
+                height: 44, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                boxShadow: '0 8px 20px rgba(179,148,90,0.4)',
+                cursor: 'pointer'
+              }} 
+              onClick={send} 
+              disabled={sending}
+            >
+              <Icons.Send size={20} color="#000" />
+            </button>
+          ) : (
+            <button 
+              onPointerDown={startVoiceRecord}
+              onPointerUp={stopVoiceRecord}
+              onPointerLeave={stopVoiceRecord} // Safety if they drag off
+              style={{ 
+                padding:'0', 
+                borderRadius:'50%', 
+                background: isRecordingAudio ? '#ff4b2b' : 'rgba(255,255,255,0.05)', 
+                border: '1px solid rgba(255,255,255,0.1)',
+                width: 44, 
+                height: 44, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                transform: isRecordingAudio ? 'scale(1.2)' : 'scale(1)'
+              }} 
+            >
+              <Icons.Mic size={20} color={isRecordingAudio ? '#fff' : '#b3945a'} />
+            </button>
+          )}
         </div>
       </div>
       <style>{`@keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}`}</style>

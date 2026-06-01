@@ -10,6 +10,11 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
   const [textItems, setTextItems] = useState([]);
   const [activeTextId, setActiveTextId] = useState(null);
   
+  // Preview State
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [viewMode, setViewMode] = useState('permanent'); // permanent | once | twice
+
   const videoRef = useRef(null);
   const galleryRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -59,6 +64,8 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
     if (isRecording) {
       stopRecording();
     } else {
+      // Prevent taking photo if we actually intended to hold but stopped before 3 sec
+      // A quick tap should take a photo. If progress was less than some amount, it's a tap.
       takePhoto();
     }
   };
@@ -94,7 +101,10 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
     });
 
     canvas.toBlob(blob => {
-      onCapture(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+      const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+      setPreviewFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      stopCamera();
     }, 'image/jpeg', 0.9);
   };
 
@@ -107,7 +117,10 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
     recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-      onCapture(new File([blob], 'video.webm', { type: 'video/webm' }));
+      const file = new File([blob], 'video.webm', { type: 'video/webm' });
+      setPreviewFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      stopCamera();
     };
     
     recorder.start();
@@ -139,6 +152,92 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     setTextItems(textItems.map(t => t.id === id ? { ...t, x, y } : t));
   };
+
+  const handleSend = () => {
+    let modeToPass = 'standard';
+    if (viewMode === 'once') modeToPass = 'once';
+    if (viewMode === 'twice') modeToPass = 'twice';
+    onCapture(previewFile, modeToPass);
+  };
+
+  const cycleViewMode = () => {
+    if (viewMode === 'permanent') setViewMode('once');
+    else if (viewMode === 'once') setViewMode('twice');
+    else setViewMode('permanent');
+  };
+
+  const closePreview = () => {
+    setPreviewFile(null);
+    setPreviewUrl(null);
+    startCamera();
+  };
+
+  // PREVIEW SCREEN
+  if (previewUrl) {
+    const isVideo = previewFile.type.startsWith('video');
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#1a1614', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'relative', flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {isVideo ? (
+            <video src={previewUrl} autoPlay loop playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <img src={previewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          )}
+
+          {/* Top Back Button */}
+          <button onClick={closePreview} style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 44, height: 44, color: '#fff', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' }}>✕</button>
+
+          {/* Bottom Control Bar */}
+          <div style={{ position: 'absolute', bottom: 30, left: 20, right: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            
+            {/* View Mode Toggle Button */}
+            <button 
+              onClick={cycleViewMode} 
+              style={{ 
+                background: 'rgba(26,22,20,0.8)', 
+                border: '1px solid rgba(179,148,90,0.3)', 
+                borderRadius: 24, 
+                padding: '12px 20px', 
+                color: '#b3945a', 
+                fontSize: '0.9rem', 
+                fontWeight: 600, 
+                cursor: 'pointer', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8,
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+              }}
+            >
+              {viewMode === 'permanent' ? '∞ Permanent' : viewMode === 'once' ? '1x Once View' : '2x Twice View'}
+            </button>
+
+            {/* Send Button */}
+            <button 
+              onClick={handleSend}
+              style={{ 
+                background: '#b3945a', 
+                border: 'none', 
+                borderRadius: '50%', 
+                width: 56, 
+                height: 56, 
+                color: '#000', 
+                cursor: 'pointer', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                boxShadow: '0 8px 20px rgba(179,148,90,0.4)',
+                transform: 'rotate(-45deg)' // Make a cool send arrow effect
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            </button>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>

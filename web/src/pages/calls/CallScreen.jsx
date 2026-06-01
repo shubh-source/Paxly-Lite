@@ -30,6 +30,8 @@ export default function CallScreen() {
   const [duration, setDuration] = useState(0);
   const [history, setHistory] = useState([]);
   const [minimized, setMinimized] = useState(false);
+  const [audioRoute, setAudioRoute] = useState('earpiece');
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
 
   const localRef = useRef(null);
   const remoteRef = useRef(null);
@@ -229,263 +231,164 @@ export default function CallScreen() {
     );
   }
 
+  const toggleMute = () => {
+    if (localStream.current) {
+      localStream.current.getAudioTracks().forEach(t => t.enabled = muted);
+    }
+    setMuted(!muted);
+  };
+
+  const toggleVideo = () => {
+    if (localStream.current && callType === 'video') {
+      localStream.current.getVideoTracks().forEach(t => t.enabled = camOff);
+    }
+    setCamOff(!camOff);
+  };
+
   return (
     <div style={{ 
-      height: '100vh', 
-      background: '#050505', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      position: 'relative',
-      overflow: 'hidden'
+      position: 'fixed', inset: 0, backgroundColor: '#1a1614', color: '#fff',
+      display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', 
+      overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif', zIndex: 9999
     }}>
-      {/* Cinematic Aura Background */}
-      <motion.div
-        animate={{ 
-          scale: [1, 1.2, 1],
-          opacity: [0.1, 0.15, 0.1],
-          rotate: [0, 180, 360]
-        }}
-        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        style={{ 
-          position: 'absolute', 
-          width: '150vw', 
-          height: '150vw', 
-          background: 'radial-gradient(circle, var(--accent) 0%, transparent 50%, #000 80%)', 
-          zIndex: 0,
-          pointerEvents: 'none',
-          filter: 'blur(80px)'
-        }}
-      />
+      {/* Background Aura */}
+      <motion.div animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        style={{ position: 'absolute', top: '15%', left: '10%', width: '80vw', height: '80vw', background: 'radial-gradient(circle, #b3945a 0%, transparent 60%)', filter: 'blur(100px)', zIndex: 0 }} />
 
-      {/* Remote Video (Visible only when connected) */}
-      <video 
-        ref={remoteRef} 
-        autoPlay 
-        playsInline 
-        style={{ 
-          position: 'absolute', 
-          inset: 0, 
-          width: '100%', 
-          height: '100%', 
-          objectFit: 'cover', 
-          zIndex: 1,
-          opacity: callState === 'connected' ? 1 : 0,
-          transition: 'opacity 1s cubic-bezier(0.4, 0, 0.2, 1)'
-        }} 
-      />
-
-      {/* Local Video Overlay (PiP) */}
-      {callType === 'video' && (
-        <video 
-          ref={localRef} 
-          autoPlay 
-          playsInline 
-          muted 
-          style={{ 
-            position: 'absolute', 
-            top: 40, 
-            right: 20, 
-            width: minimized ? 60 : 120, 
-            height: minimized ? 80 : 180, 
-            objectFit: 'cover', 
-            borderRadius: 24, 
-            border: '1px solid rgba(255,255,255,0.2)', 
-            zIndex: 30,
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
-            background: '#111'
-          }} 
-        />
-      )}
-
-      {/* Main Overlay UI */}
-      <div style={{ position: 'relative', zIndex: 40, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        
-        {/* Connected Header */}
-        <AnimatePresence>
-          {callState === 'connected' && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{ 
-                position: 'absolute', 
-                top: 40,
-                background: 'rgba(0,0,0,0.4)', 
-                backdropFilter: 'blur(30px)', 
-                padding: '10px 24px', 
-                borderRadius: 40, 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 12,
-                border: '1px solid rgba(255,255,255,0.1)',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-              }}
-            >
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#34C759', boxShadow: '0 0 10px #34C759', animation: 'pulse 1.5s infinite' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--accent)' }}>SECURE CALL</span>
-              <span style={{ color: 'rgba(255,255,255,0.3)' }}>|</span>
-              <span style={{ fontSize: '1rem', color: '#fff', fontWeight: 700, fontFamily: 'monospace' }}>{fmt(duration)}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Calling/Incoming Interface */}
-        {(callState === 'calling' || callState === 'incoming' || callState === 'connecting') && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            style={{ textAlign: 'center', width: '100%' }}
-          >
-            <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 40px' }}>
-              {/* Pulsing Rings */}
-              {[1, 2, 3].map(i => (
-                <motion.div
-                  key={i}
-                  animate={{ scale: [1, 1.8], opacity: [0.3, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: i * 0.6 }}
-                  style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid var(--accent)' }}
-                />
-              ))}
-              <div style={{ 
-                width: 160, 
-                height: 160, 
-                borderRadius: '50%', 
-                background: 'linear-gradient(135deg, #2a241e, #1a1a1a)',
-                border: '2px solid var(--accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '4rem',
-                color: 'var(--accent)',
-                boxShadow: '0 0 60px rgba(179,148,90,0.2)',
-                position: 'relative',
-                zIndex: 2,
-                overflow: 'hidden'
-              }}>
-                {partner?.avatar_url ? (
-                  <img src={partner.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <span style={{ fontFamily: 'serif' }}>{partner?.name?.[0]?.toUpperCase() || '?'}</span>
-                )}
-              </div>
-            </div>
-
-            <h2 style={{ fontSize: '2.8rem', fontWeight: 200, fontFamily: 'serif', color: '#fff', marginBottom: 8, letterSpacing: '-0.02em' }}>
-              {partner?.name || 'Searching...'}
-            </h2>
-            <motion.p 
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              style={{ color: 'var(--accent)', letterSpacing: '4px', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase' }}
-            >
-              {callState === 'calling' ? 'Summoning Partner...' : callState === 'incoming' ? 'Partner is Calling...' : 'Weaving Connection...'}
-            </motion.p>
-
-            {/* Action Buttons */}
-            <div style={{ marginTop: 80, display: 'flex', gap: 40, justifyContent: 'center' }}>
-              {callState === 'calling' ? (
-                <motion.button 
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => endCall()} 
-                  style={{ background: '#FF3B30', border: 'none', borderRadius: '50%', width: 84, height: 84, cursor: 'pointer', boxShadow: '0 15px 35px rgba(255,59,48,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Icons.Phone size={36} color="#fff" style={{ transform: 'rotate(135deg)' }} />
-                </motion.button>
-              ) : (
-                <>
-                  <motion.button 
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => { wsService.rejectCall(); setCallState('idle'); nav('/chat'); }} 
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: 84, height: 84, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Icons.Back size={36} color="#fff" />
-                  </motion.button>
-                  <motion.button 
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    onClick={answerCall} 
-                    style={{ background: '#34C759', border: 'none', borderRadius: '50%', width: 84, height: 84, cursor: 'pointer', boxShadow: '0 15px 35px rgba(52,199,89,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Icons.Phone size={36} color="#fff" />
-                  </motion.button>
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Connected Control Bar */}
-        <AnimatePresence>
-          {callState === 'connected' && !minimized && (
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 50 }}
-              style={{ 
-                position: 'absolute', 
-                bottom: 60, 
-                width: '90%', 
-                maxWidth: 440,
-                background: 'rgba(255,255,255,0.08)', 
-                backdropFilter: 'blur(40px) saturate(180%)', 
-                padding: '28px 32px', 
-                borderRadius: 48, 
-                border: '1px solid rgba(255,255,255,0.15)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 30px 60px rgba(0,0,0,0.8)'
-              }}
-            >
-              <ControlBtn active={!muted} onClick={() => setMuted(!muted)} icon={muted ? <Icons.Mic size={24} /> : <Icons.Mic size={24} />} danger={muted} />
-              <ControlBtn active={!camOff} onClick={() => setCamOff(!camOff)} icon={<Icons.Video size={24} />} danger={camOff} />
-              <ControlBtn active={false} onClick={() => setMinimized(true)} icon={<Icons.Vault size={24} />} />
-              <motion.button 
-                whileHover={{ scale: 1.1, rotate: -15 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => endCall()} 
-                style={{ background: '#FF3B30', border: 'none', borderRadius: '50%', width: 72, height: 72, cursor: 'pointer', boxShadow: '0 15px 30px rgba(255,59,48,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Icons.Phone size={32} color="#fff" style={{ transform: 'rotate(135deg)' }} />
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <div style={{ zIndex: 10, textAlign: 'center', position: 'absolute', top: 40, width: '100%' }}>
+        <h2 style={{ fontSize: '0.8rem', fontWeight: 600, letterSpacing: '2px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>
+          {callState === 'incoming' ? 'Incoming Call' : callState === 'idle' ? 'Call Ended' : callState === 'connecting' ? 'Connecting...' : ''}
+        </h2>
       </div>
 
-      <style>{`
-        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
-      `}</style>
-    </div>
-  );
-}
+      {/* REMOTE VIDEO RENDER - Used as background for video calls */}
+      {callType === 'video' && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1, opacity: callState === 'connected' ? 1 : 0, transition: 'opacity 0.5s' }}>
+          <video ref={remoteRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      )}
 
-function ControlBtn({ icon, onClick, active, danger }) {
-  return (
-    <motion.button
-      whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.15)' }}
-      whileTap={{ scale: 0.9 }}
-      onClick={onClick}
-      style={{ 
-        background: danger ? '#FF3B30' : 'rgba(255,255,255,0.06)', 
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '50%', 
-        width: 64, height: 64, 
-        cursor: 'pointer', 
-        color: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'background 0.3s'
-      }}
-    >
-      {icon}
-    </motion.button>
+      {/* LOCAL VIDEO PIP - Shown only when connected in video call */}
+      {callType === 'video' && callState === 'connected' && (
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ position: 'absolute', top: 60, right: 24, width: 100, height: 140, borderRadius: 16, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)', background: '#000', zIndex: 5, boxShadow: '0 20px 40px rgba(0,0,0,0.8)' }}>
+          <video ref={localRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: camOff ? 0 : 1 }} />
+          {camOff && <div style={{position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center'}}><Icons.Camera size={32} color="rgba(255,255,255,0.2)"/></div>}
+        </motion.div>
+      )}
+
+      {/* VOICE CALL / CONNECTING UI */}
+      {(callType !== 'video' || callState !== 'connected') && (
+        <div style={{ zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ position: 'relative', width: 130, height: 130, marginBottom: 24 }}>
+            {callState === 'connected' && <motion.div animate={{ scale: [1, 1.15, 0.95, 1.05, 1] }} transition={{ duration: 1.2, repeat: Infinity }} style={{ position: 'absolute', inset: -15, borderRadius: '50%', background: 'rgba(179,148,90,0.15)', filter: 'blur(12px)' }} />}
+            <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'linear-gradient(135deg, #2a241e, #111)', border: '2px solid rgba(179,148,90,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 2, overflow: 'hidden' }}>
+              {partner?.avatar_url ? (
+                <img src={partner.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '3rem', fontFamily: 'serif', color: 'var(--accent)' }}>{partner?.name?.[0]?.toUpperCase() || '?'}</span>
+              )}
+            </div>
+          </div>
+
+          <h1 style={{ fontSize: '2rem', fontWeight: 300, fontFamily: 'serif', letterSpacing: '1px', margin: 0, marginBottom: 4 }}>{partner?.name || 'Partner'}</h1>
+          <p style={{ fontSize: '1rem', color: callState === 'connected' ? '#b3945a' : 'rgba(255,255,255,0.4)', fontFamily: 'monospace', margin: 0 }}>
+            {callState === 'connected' ? fmt(duration) : (callState === 'calling' ? 'Calling...' : callState === 'connecting' ? 'Connecting...' : '')}
+          </p>
+
+          {callState === 'connected' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ marginTop: 24, display: 'flex', alignItems: 'center', gap: 4, height: 20 }}>
+              {[1, 2, 3, 2, 1, 3, 4, 2, 1, 2].map((val, i) => <motion.div key={i} animate={{ height: [4, val * 6, 4] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.1 }} style={{ width: 2, background: '#b3945a', borderRadius: 2 }} />)}
+            </motion.div>
+          )}
+        </div>
+      )}
+
+      {/* DURATION OVERLAY FOR VIDEO */}
+      {callType === 'video' && callState === 'connected' && (
+        <div style={{ position: 'absolute', top: 60, left: 24, padding: '4px 12px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', borderRadius: 20, zIndex: 10 }}>
+           <span style={{ fontSize: '0.9rem', color: '#fff', fontFamily: 'monospace' }}>{fmt(duration)}</span>
+        </div>
+      )}
+
+      {/* --- INCOMING CALL SLIDER --- */}
+      <AnimatePresence>
+        {callState === 'incoming' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            style={{ position: 'absolute', bottom: 60, width: '80%', maxWidth: 320, height: 72, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(30px)', borderRadius: 100, border: '1px solid rgba(255,255,255,0.05)', padding: 8, display: 'flex', alignItems: 'center', zIndex: 20 }}>
+            <motion.div drag="x" dragConstraints={{ left: 0, right: 240 }} dragElastic={0.1} onDragEnd={(e, info) => { if (info.offset.x > 150) answerCall(); }}
+              style={{ width: 56, height: 56, borderRadius: '50%', background: '#34C759', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', zIndex: 10, boxShadow: '0 4px 15px rgba(52,199,89,0.3)' }}>
+               <Icons.Phone size={24} color="#fff" />
+            </motion.div>
+            <span style={{ position: 'absolute', width: '100%', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '0.9rem', letterSpacing: '1px', zIndex: 1, pointerEvents: 'none' }}>Slide to answer</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- OUTGOING CALL (Calling state) --- */}
+      <AnimatePresence>
+        {callState === 'calling' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            style={{ position: 'absolute', bottom: 60, display: 'flex', gap: 32, padding: '16px 36px', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(30px)', borderRadius: 100, border: '1px solid rgba(255,255,255,0.05)', zIndex: 20 }}>
+            <button onClick={() => setShowAudioMenu(true)} style={{ background: 'none', border: 'none', color: audioRoute !== 'earpiece' ? '#b3945a' : '#fff', cursor: 'pointer', transition: 'color 0.3s' }}>
+               {audioRoute === 'speaker' ? <Icons.Volume2 size={24} /> : audioRoute === 'bluetooth' ? <Icons.Smile size={24} /> : <Icons.Phone size={24} />}
+            </button>
+            <button onClick={() => endCall(true)} style={{ background: '#FF3B30', border: 'none', color: '#fff', width: 56, height: 56, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -8, boxShadow: '0 4px 15px rgba(255,59,48,0.3)' }}>
+               <Icons.Phone size={24} style={{ transform: 'rotate(135deg)' }} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- ACTIVE CALL CONTROLS --- */}
+      <AnimatePresence>
+        {callState === 'connected' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            style={{ position: 'absolute', bottom: 60, display: 'flex', gap: 24, padding: '16px 32px', background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(30px)', borderRadius: 100, border: '1px solid rgba(255,255,255,0.05)', zIndex: 20 }}>
+            
+            <button onClick={() => setShowAudioMenu(true)} style={{ background: 'none', border: 'none', color: audioRoute !== 'earpiece' ? '#b3945a' : '#fff', cursor: 'pointer', transition: 'color 0.3s' }}>
+               {audioRoute === 'speaker' ? <Icons.Volume2 size={24} /> : audioRoute === 'bluetooth' ? <Icons.Smile size={24} /> : <Icons.Phone size={24} />}
+            </button>
+
+            <button onClick={toggleMute} style={{ background: 'none', border: 'none', color: muted ? '#FF3B30' : '#fff', cursor: 'pointer', transition: 'color 0.3s' }}>
+               <Icons.Mic size={24} />
+            </button>
+            
+            {callType === 'video' && (
+              <button onClick={toggleVideo} style={{ background: 'none', border: 'none', color: camOff ? '#FF3B30' : '#fff', cursor: 'pointer', transition: 'color 0.3s' }}>
+                 <Icons.Camera size={24} />
+              </button>
+            )}
+
+            <button onClick={() => endCall(true)} style={{ background: '#FF3B30', border: 'none', color: '#fff', width: 56, height: 56, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: -8, boxShadow: '0 4px 15px rgba(255,59,48,0.3)' }}>
+               <Icons.Phone size={24} style={{ transform: 'rotate(135deg)' }} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Audio Routing Bottom Sheet Menu */}
+      <AnimatePresence>
+        {showAudioMenu && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAudioMenu(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 30 }} />
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: '#1a1614', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: '32px 24px', zIndex: 40, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <h3 style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: 24, marginTop: 0 }}>Audio Output</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <button onClick={() => { setAudioRoute('bluetooth'); setShowAudioMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', background: audioRoute === 'bluetooth' ? 'rgba(179,148,90,0.1)' : 'rgba(255,255,255,0.02)', border: audioRoute === 'bluetooth' ? '1px solid rgba(179,148,90,0.2)' : '1px solid transparent', borderRadius: 16, color: audioRoute === 'bluetooth' ? '#b3945a' : '#fff', fontSize: '1rem', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}>
+                   <Icons.Smile size={20} /> Bluetooth Buds
+                </button>
+                <button onClick={() => { setAudioRoute('speaker'); setShowAudioMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', background: audioRoute === 'speaker' ? 'rgba(179,148,90,0.1)' : 'rgba(255,255,255,0.02)', border: audioRoute === 'speaker' ? '1px solid rgba(179,148,90,0.2)' : '1px solid transparent', borderRadius: 16, color: audioRoute === 'speaker' ? '#b3945a' : '#fff', fontSize: '1rem', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}>
+                   <Icons.Volume2 size={20} /> Speakerphone
+                </button>
+                <button onClick={() => { setAudioRoute('earpiece'); setShowAudioMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', background: audioRoute === 'earpiece' ? 'rgba(179,148,90,0.1)' : 'rgba(255,255,255,0.02)', border: audioRoute === 'earpiece' ? '1px solid rgba(179,148,90,0.2)' : '1px solid transparent', borderRadius: 16, color: audioRoute === 'earpiece' ? '#b3945a' : '#fff', fontSize: '1rem', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}>
+                   <Icons.Phone size={20} /> Phone Earpiece
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

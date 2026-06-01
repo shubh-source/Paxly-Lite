@@ -27,6 +27,14 @@ export const Icons = {
     </IconWrapper>
   ),
   
+  Volume2: (props) => (
+    <IconWrapper {...props}>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </IconWrapper>
+  ),
+  
   Mic: (props) => (
     <IconWrapper {...props}>
       <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />

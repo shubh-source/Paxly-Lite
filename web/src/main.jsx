@@ -30,6 +30,7 @@ import VibeEditor     from './pages/website/VibeEditor';
 import VibeViewer     from './pages/website/VibeViewer';
 import Profile        from './pages/profile/Profile';
 import Settings       from './pages/profile/Settings';
+import SettingsDemo   from './pages/profile/SettingsDemo';
 import VoiceNotes    from './pages/voice/VoiceNotes';
 import LoveNotes      from './pages/notes/LoveNotes';
 import AnniversaryTracker from './pages/dates/AnniversaryTracker';
@@ -83,6 +84,7 @@ function AnimatedRoutes() {
         <Route path="/ai/lab"     element={<Guard needsPartner><Layout><AILab /></Layout></Guard>} />
         <Route path="/profile"    element={<Guard needsPartner><Layout><Profile /></Layout></Guard>} />
         <Route path="/settings"   element={<Guard needsPartner><Layout><Settings /></Layout></Guard>} />
+        <Route path="/settings-demo" element={<Guard needsPartner><Layout><SettingsDemo /></Layout></Guard>} />
 
         {/* New features */}
         <Route path="/notes"      element={<Guard needsPartner><Layout><LoveNotes /></Layout></Guard>} />

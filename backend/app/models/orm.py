@@ -33,6 +33,8 @@ class User(Base):
     pin_failed_attempts = Column(Integer, default=0)
     intruder_trigger = Column(Boolean, default=False)
     auto_lock_seconds = Column(Integer, default=30)
+    security_question = Column(String, nullable=True)
+    security_answer = Column(String, nullable=True)
 
     # Payouts (encrypted)
     payout_method = Column(String, nullable=True)

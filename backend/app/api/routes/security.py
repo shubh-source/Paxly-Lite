@@ -31,6 +31,13 @@ class PINSetRequest(BaseModel):
 class PINVerifyRequest(BaseModel):
     pin: str
 
+class SecurityQuestionSetRequest(BaseModel):
+    question: str
+    answer: str
+
+class SecurityQuestionVerifyRequest(BaseModel):
+    answer: str
+
 class AutoLockRequest(BaseModel):
     seconds: int
 
@@ -142,6 +149,25 @@ async def set_pin(req: PINSetRequest, db: AsyncSession = Depends(get_db), cu: Us
     await db.execute(update(User).where(User.id == cu.id).values(app_pin=pin_hash, pin_set_at=datetime.utcnow()))
     await db.commit()
     return {"status": "ok", "message": "App PIN updated."}
+
+@router.post("/pin/question/set")
+async def set_security_question(req: SecurityQuestionSetRequest, db: AsyncSession = Depends(get_db), cu: User = Depends(get_current_user)):
+    if not req.question or not req.answer:
+        raise HTTPException(400, "Question and answer are required.")
+    ans_hash = hashlib.sha256(req.answer.lower().strip().encode()).hexdigest()
+    await db.execute(update(User).where(User.id == cu.id).values(security_question=req.question, security_answer=ans_hash))
+    await db.commit()
+    return {"status": "ok", "message": "Security question saved."}
+
+@router.post("/pin/question/verify")
+async def verify_security_question(req: SecurityQuestionVerifyRequest, db: AsyncSession = Depends(get_db), cu: User = Depends(get_current_user)):
+    if not cu.security_answer:
+        raise HTTPException(400, "Security question not set.")
+    ans_hash = hashlib.sha256(req.answer.lower().strip().encode()).hexdigest()
+    if ans_hash == cu.security_answer:
+        return {"status": "ok", "message": "Answer correct."}
+    else:
+        return {"status": "wrong", "message": "Incorrect answer."}
 
 @router.patch("/preferences")
 async def update_preferences(req: PreferencesUpdate, db: AsyncSession = Depends(get_db), cu: User = Depends(get_current_user)):
