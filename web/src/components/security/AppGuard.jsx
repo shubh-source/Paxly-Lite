@@ -33,15 +33,33 @@ export default function AppGuard({ children }) {
     }
   }, [loading, user?.has_pin]);
 
+  const [incomingCall, setIncomingCall] = useState(null);
+
   useEffect(() => {
     if (!user) return;
     const off = wsService.on('webrtc_offer', (offer) => {
        if (pathname !== '/call') {
-          navigate('/call');
+          // Instead of immediate navigation, show the Heads-Up Banner
+          setIncomingCall(offer);
        }
     });
-    return () => off();
-  }, [user, pathname, navigate]);
+    
+    // Also clear banner if call is cancelled by caller
+    const offEnd = wsService.on('webrtc_end', () => setIncomingCall(null));
+    
+    return () => { off(); offEnd(); };
+  }, [user, pathname]);
+
+  const answerCall = () => {
+    navigate('/call');
+    setIncomingCall(null);
+  };
+
+  const declineCall = () => {
+    wsService.rejectCall();
+    wsService.latestOffer = null;
+    setIncomingCall(null);
+  };
 
   const captureIntruder = async () => {
     try {
@@ -183,5 +201,54 @@ export default function AppGuard({ children }) {
     );
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      {incomingCall && (
+        <div style={{
+          position: 'fixed',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '90%',
+          maxWidth: 400,
+          background: 'rgba(30, 30, 34, 0.85)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 24,
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          zIndex: 999999,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+          animation: 'slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #111)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--accent)' }}>
+               <Icons.Phone size={24} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '1.05rem', color: '#fff' }}>Incoming Call</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--accent)' }}>{incomingCall.call_type === 'video' ? 'Video Call' : 'Voice Call'}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+             <button onClick={declineCall} style={{ width: 44, height: 44, borderRadius: '50%', background: '#FF3B30', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 15px rgba(255,59,48,0.4)' }}>
+               <Icons.Phone size={20} color="#fff" style={{ transform: 'rotate(135deg)' }} />
+             </button>
+             <button onClick={answerCall} style={{ width: 44, height: 44, borderRadius: '50%', background: '#34C759', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 15px rgba(52,199,89,0.4)' }}>
+               <Icons.Phone size={20} color="#fff" />
+             </button>
+          </div>
+          <style>{`
+            @keyframes slideDown {
+              from { transform: translate(-50%, -100px); opacity: 0; }
+              to { transform: translate(-50%, 0); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
+    </>
+  );
 }
