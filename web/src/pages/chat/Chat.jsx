@@ -505,31 +505,29 @@ export default function Chat() {
       <div style={{ 
         position:'fixed', 
         bottom: 20, 
-        left: 20, 
-        right: 20, 
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'calc(100% - 40px)',
+        maxWidth: 800,
         background:'#1a1614', // Solid Charcoal Pill
         border:'1px solid rgba(179,148,90,0.3)', // Golden/Bronze border
         borderRadius: 32,
-        padding:'10px 16px', 
+        padding:'8px 16px', 
         display:'flex', 
-        alignItems: 'flex-end',
+        alignItems: 'center',
         gap: 12,
         boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
         zIndex: 100
       }}>
-        {/* Reaction Picker is still absolute inside the pill if needed, but let's keep it clean */}
-        <div style={{ marginBottom: 6 }}>
-           <ReactionPicker currentMood={selfMood} onSelect={setSelfMood} />
-        </div>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
         {/* Left Side Icons */}
-        <div style={{ display: 'flex', gap: 4, paddingBottom: 6 }}>
-          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer' }} onClick={() => setShowingStudio(true)}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setShowingStudio(true)}>
             <Icons.Camera size={22} color="#b3945a" />
           </button>
-          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer' }} onClick={() => fileRef.current?.click()}>
+          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => fileRef.current?.click()}>
             <Icons.Gallery size={22} color="#b3945a" />
           </button>
         </div>
@@ -549,7 +547,7 @@ export default function Chat() {
               resize:'none', 
               background:'transparent', 
               border:'none', 
-              padding:'12px 0', 
+              padding:'10px 0', 
               fontSize:'1.05rem', 
               color: isRecordingAudio ? '#ff4b2b' : '#fff', 
               outline: 'none',
@@ -559,7 +557,7 @@ export default function Chat() {
         </div>
 
         {/* Right Side Icons (Mic / Send) */}
-        <div style={{ paddingBottom: 4 }}>
+        <div>
           {text.trim().length > 0 ? (
             <button 
               style={{ 
