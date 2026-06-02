@@ -17,7 +17,9 @@ const EMOJIS = ['❤️','😂','😮','😢','🔥','👏'];
 
 export default function ChatPremiumPreview() {
   const { user } = useAuth();
-  const [msgs, setMsgs] = useState([]);
+  const [msgs, setMsgs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cached_messages')) || []; } catch { return []; }
+  });
   const [text, setText] = useState('');
   const [partner, setPartner] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
@@ -39,7 +41,9 @@ export default function ChatPremiumPreview() {
 
   // Presence & Theme State
   const [viewingSecureMsg, setViewingSecureMsg] = useState(null);
-  const [space, setSpace] = useState(null);
+  const [space, setSpace] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cached_space'))?.space || null; } catch { return null; }
+  });
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [partnerPresence, setPartnerPresence] = useState('idle'); // idle | peeking | typing | watching
   const [partnerMood, setPartnerMood] = useState('neutral');
@@ -60,8 +64,12 @@ export default function ChatPremiumPreview() {
       setPartner(d.partner);
       localStorage.setItem('cached_partner', JSON.stringify(d.partner));
       setSpace(d.space);
+      localStorage.setItem('cached_space', JSON.stringify(d));
     });
-    getMessages().then(setMsgs);
+    getMessages().then(data => {
+      setMsgs(data);
+      localStorage.setItem('cached_messages', JSON.stringify(data));
+    });
 
     const offs = [
       wsService.on('chat_message', msg => setMsgs(prev => [...prev, msg])),
