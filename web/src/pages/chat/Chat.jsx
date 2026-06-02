@@ -361,10 +361,10 @@ export default function Chat() {
         <Link to="/dashboard" style={{ color:'var(--muted)', display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}><Icons.Back size={24} /></Link>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <div className="avatar" style={{ width: 40, height: 40, fontSize:'1rem', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)' }}>
-            {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : partner?.name?.[0]?.toUpperCase()}
+            {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (partner?.name?.[0]?.toUpperCase() || user?.partner_name?.[0]?.toUpperCase() || '?')}
           </div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || 'Loading...'}</div>
+            <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || user?.partner_name || 'Partner'}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 18 }}>
               {typing ? (
                 <div style={{ fontSize:'0.8rem', color: 'var(--accent)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
