@@ -167,3 +167,23 @@ async def debug_db():
     except Exception as e:
         import traceback
         return {"status": "error", "error": str(e), "trace": traceback.format_exc()}
+
+@app.get("/api/debug/insert")
+async def debug_insert():
+    try:
+        from app.models.orm import Message
+        import uuid
+        from datetime import datetime
+        async with AsyncSessionLocal() as db:
+            msg = Message(
+                id=str(uuid.uuid4()), couple_space_id="test_space", sender_id="test_user",
+                message_type="text", text="test_encrypted",
+                media_url=None, is_once_view=False,
+                view_limit=1, timestamp=datetime.utcnow()
+            )
+            db.add(msg)
+            await db.commit()
+            return {"status": "insert_ok"}
+    except Exception as e:
+        import traceback
+        return {"status": "insert_error", "error": str(e), "trace": traceback.format_exc()}
