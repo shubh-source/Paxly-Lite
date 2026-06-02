@@ -21,14 +21,22 @@ async def lifespan(app: FastAPI):
             await conn.run_sync(Base.metadata.create_all)
             from sqlalchemy import text
             
-            # Force add missing columns to existing messages table
-            # In case create_all doesn't alter the existing table on Render
+            # Force add missing columns to existing tables
             alter_queries = [
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR",
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_once_view BOOLEAN DEFAULT FALSE",
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_limit INTEGER DEFAULT 1",
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS views_used INTEGER DEFAULT 0",
-                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_compromised BOOLEAN DEFAULT FALSE"
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_compromised BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS blur_sensitive BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS hide_activity BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_personality VARCHAR DEFAULT 'compassionate'",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS milestone_alerts BOOLEAN DEFAULT TRUE",
+                "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS theme_id VARCHAR DEFAULT 'classic'",
+                "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS chat_wallpaper VARCHAR",
+                "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS allow_media_save BOOLEAN DEFAULT TRUE",
             ]
             for q in alter_queries:
                 try:
