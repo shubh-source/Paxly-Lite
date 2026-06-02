@@ -127,6 +127,15 @@ async def get_active_session(cu: User = Depends(get_current_user), db: AsyncSess
         "final_report": session.final_report
     }
 
+@router.get("/session/history")
+async def get_session_history(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not cu.couple_space_id: return []
+    res = await db.execute(select(AICounselingSession).filter(
+        AICounselingSession.couple_space_id == cu.couple_space_id,
+        AICounselingSession.status == "completed"
+    ).order_by(desc(AICounselingSession.completed_at)))
+    return [{"id": s.id, "completed_at": s.completed_at, "report": s.final_report} for s in res.scalars().all()]
+
 @router.post("/session/start")
 async def start_session(data: AISessionStart, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not cu.couple_space_id: raise HTTPException(400, "Partner connection required.")

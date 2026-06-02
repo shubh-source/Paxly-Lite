@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { startAISession, sendAIInterviewMessage, finishAIInterview, getActiveAISession } from '../../services/api';
+import { startAISession, sendAIInterviewMessage, finishAIInterview, getActiveAISession, getAIHistory } from '../../services/api';
 
 const PHASES = [
   { id: 'start', label: 'Setup', icon: '⚙️' },
@@ -11,7 +11,8 @@ const PHASES = [
 ];
 
 export default function AILab() {
-  const [phase, setPhase] = useState('init'); // init | start | analyzing | join_session | interview | waiting | report
+  const [phase, setPhase] = useState('init'); // init | start | analyzing | join_session | interview | waiting | report | history
+  const [historyList, setHistoryList] = useState([]);
   const [days, setDays] = useState(7);
   const [sessionId, setSessionId] = useState(null);
   const [msgs, setMsgs] = useState([]);
@@ -106,6 +107,18 @@ export default function AILab() {
     setLoading(false);
   };
 
+  const fetchHistory = async () => {
+    setLoading(true);
+    try {
+      const data = await getAIHistory();
+      setHistoryList(data);
+      setPhase('history');
+    } catch {
+      alert('Error fetching history');
+    }
+    setLoading(false);
+  };
+
   if (phase === 'start') return (
     <div className="page center">
       <header className="header" style={{ background:'rgba(22,22,24,0.4)', borderBottom:'1px solid rgba(255,255,255,0.05)', margin:'20px 20px 12px', borderRadius:'24px', padding:'16px 20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
@@ -133,6 +146,9 @@ export default function AILab() {
 
         <button className="btn btn-p btn-full" onClick={start} disabled={loading}>
           {loading ? 'Analyzing History...' : 'Start Discovery Session'}
+        </button>
+        <button className="btn btn-s btn-full" onClick={fetchHistory} disabled={loading} style={{ marginTop: 12 }}>
+          View Past Lab Reports
         </button>
         <p style={{ marginTop: 16, fontSize: '0.7rem', color: 'var(--muted)' }}>
           🔒 AI access is temporary and strictly for this session.
@@ -254,7 +270,37 @@ export default function AILab() {
           "{report.summary}"
         </div>
 
-        <button className="btn btn-p btn-full" onClick={() => nav('/dashboard')} style={{ marginTop: 32 }}>Close Lab</button>
+        <button className="btn btn-p btn-full" onClick={() => setPhase('start')} style={{ marginTop: 32 }}>Back</button>
+      </div>
+    </div>
+  );
+
+  if (phase === 'history') return (
+    <div className="page" style={{ paddingBottom: 100 }}>
+      <header className="header" style={{ background:'rgba(22,22,24,0.4)', borderBottom:'1px solid rgba(255,255,255,0.05)', margin:'20px 20px 12px', borderRadius:'24px', padding:'16px 20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
+        <button onClick={() => setPhase('start')} style={{ background: 'none', border: 'none', color:'var(--muted)', fontSize:'1.2rem', padding:'0 8px', cursor: 'pointer' }}>←</button>
+        <span className="header-title" style={{ color:'var(--text)' }}>Past Lab Reports</span>
+        <div style={{ width:32 }} />
+      </header>
+      <div className="content" style={{ maxWidth: 600 }}>
+        {historyList.length === 0 ? (
+          <div className="center" style={{ padding: 40, color: 'var(--muted)' }}>No past reports found.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {historyList.map(h => (
+              <div key={h.id} className="card card-hover" onClick={() => {
+                setReport(h.report);
+                setPhase('report');
+              }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ fontSize: '2rem' }}>✨</div>
+                <div>
+                  <div style={{ fontWeight: 600 }}>Synthesis Report</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{new Date(h.completed_at).toLocaleDateString()}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

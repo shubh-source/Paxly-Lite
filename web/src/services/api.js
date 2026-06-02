@@ -111,8 +111,9 @@ export const startAISession = (days) =>
 export const sendAIInterviewMessage = (session_id, message) =>
   api.post('/ai/session/interview', { session_id, message }).then(r => r.data);
 
-export const finishAIInterview = (session_id, pov) =>
-  api.post('/ai/session/finish-interview', null, { params: { session_id, pov } }).then(r => r.data);
+export const finishAIInterview = (sessionId, pov) => 
+  api.post('/ai/session/finish-interview', null, { params: { session_id: sessionId, pov } }).then(r => r.data);
+export const getAIHistory = () => api.get('/ai/session/history').then(r => r.data);
 
 // Notifications
 export const getNotifications = () =>
