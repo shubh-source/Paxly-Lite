@@ -79,6 +79,21 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                             created_at=msg.timestamp
                         )
                         db.add(mem)
+                        
+                    # Auto-save audio to voice notes
+                    if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
+                        from app.models.orm import VoiceNote
+                        vn = VoiceNote(
+                            id=str(uuid.uuid4()),
+                            couple_space_id=space_id,
+                            sender_id=user_id,
+                            url=msg.media_url,
+                            filename="voice_note.webm",
+                            custom_name="Chat Whisper",
+                            size=0,
+                            created_at=msg.timestamp
+                        )
+                        db.add(vn)
                     
                     broadcast_data = {
                         "type": "chat_message", "id": msg.id, "sender_id": user_id, "sender_name": user_name,
