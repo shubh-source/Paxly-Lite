@@ -62,6 +62,34 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Global Presence Notification Listener
+  useEffect(() => {
+    if (!user) return;
+    
+    // Request permission once
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    const off = wsService.on('presence', (d) => {
+      if (d.online && d.user_id !== user.id) {
+        if ("Notification" in window && Notification.permission === "granted") {
+          const notif = new Notification("Vlynxly Space", {
+            body: `${d.user_name || 'Your partner'} just entered the space! ❤️`,
+            icon: '/vite.svg',
+            silent: false
+          });
+          notif.onclick = () => {
+            window.focus();
+            notif.close();
+          };
+        }
+      }
+    });
+
+    return () => off();
+  }, [user?.id]);
+
   const loginUser = (token, userData) => {
     localStorage.setItem('ros_token', token);
     localStorage.setItem('ros_user', JSON.stringify(userData));
