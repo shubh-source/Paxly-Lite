@@ -45,7 +45,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
 
             while True:
                 data = await websocket.receive_text()
-                payload = json.loads(data)
+                try:
+                    payload = json.loads(data)
+                except Exception:
+                    continue
+                
+                if not isinstance(payload, dict):
+                    continue
+                    
                 p_type = payload.get("type")
                 
                 if p_type == "chat_message":

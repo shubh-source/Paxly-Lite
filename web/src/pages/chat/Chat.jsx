@@ -98,7 +98,7 @@ export default function Chat() {
   // Self Presence Emission
   useEffect(() => {
     const sendPulse = (st) => {
-      wsService.send('presence_state', { state: st, mood: selfMood });
+      wsService.send({ type: 'presence_state', state: st, mood: selfMood });
     };
 
     const handleFocus = () => sendPulse('peeking');
@@ -117,17 +117,17 @@ export default function Chat() {
 
   useEffect(() => {
     const st = viewingSecureMsg ? 'watching' : 'peeking';
-    wsService.send('presence_state', { state: st, mood: selfMood });
+    wsService.send({ type: 'presence_state', state: st, mood: selfMood });
   }, [viewingSecureMsg, selfMood]);
 
   const handleType = e => {
     setText(e.target.value);
-    wsService.send('presence_state', { state: e.target.value.length > 0 ? 'typing' : 'peeking', mood: selfMood });
+    wsService.send({ type: 'presence_state', state: e.target.value.length > 0 ? 'typing' : 'peeking', mood: selfMood });
     wsService.sendTyping(true);
     clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => {
        wsService.sendTyping(false);
-       wsService.send('presence_state', { state: 'peeking', mood: selfMood });
+       wsService.send({ type: 'presence_state', state: 'peeking', mood: selfMood });
     }, 1500);
   };
 
