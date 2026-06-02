@@ -47,7 +47,7 @@ function Guard({ children, needsPartner = false }) {
   if (loading) return <SplashScreen user={user} />;
   if (!user) return <Navigate to="/welcome" replace />;
   if (needsPartner && !user.couple_space_id) return <Navigate to="/connect" replace />;
-  return children;
+  return <AppGuard>{children}</AppGuard>;
 }
 
 function PublicRoute({ children }) {

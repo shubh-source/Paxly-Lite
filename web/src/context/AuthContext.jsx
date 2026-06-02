@@ -16,7 +16,8 @@ export const AuthProvider = ({ children }) => {
     if (cachedUser) {
       try { 
         setUser(JSON.parse(cachedUser)); 
-        setLoading(false); // Instant boot if cached!
+        // 1.5s artificial delay so the premium splash screen is always visible
+        setTimeout(() => setLoading(false), 1500);
       } catch (e) {}
     }
 
