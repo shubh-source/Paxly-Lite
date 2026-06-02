@@ -65,10 +65,26 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                         view_limit=payload.get("view_limit", 1), timestamp=datetime.utcnow()
                     )
                     
+                    # Auto-save image to memory vault if not once-view
+                    if msg.media_url and not msg.is_once_view and msg.message_type == "image":
+                        from app.models.orm import Memory
+                        mem = Memory(
+                            id=str(uuid.uuid4()),
+                            couple_space_id=space_id,
+                            title="Chat Memory",
+                            description="Automatically saved from chat",
+                            date=msg.timestamp.strftime("%Y-%m-%d"),
+                            image_url=msg.media_url,
+                            created_by=user_id,
+                            created_at=msg.timestamp
+                        )
+                        db.add(mem)
+                    
                     broadcast_data = {
                         "type": "chat_message", "id": msg.id, "sender_id": user_id, "sender_name": user_name,
                         "message_type": msg.message_type, "text": raw_text, "media_url": msg.media_url,
-                        "is_once_view": msg.is_once_view, "view_limit": msg.view_limit, "timestamp": msg.timestamp.isoformat()
+                        "is_once_view": msg.is_once_view, "view_limit": msg.view_limit, 
+                        "timestamp": msg.timestamp.isoformat() + "Z"
                     }
                     
                     db.add(msg)

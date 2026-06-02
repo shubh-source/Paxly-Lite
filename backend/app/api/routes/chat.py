@@ -38,7 +38,7 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
         "views_used": m.views_used,
         "is_compromised": m.is_compromised,
         "allow_download": allow_download if not m.is_once_view else False,
-        "timestamp": m.timestamp.isoformat(),
+        "timestamp": m.timestamp.isoformat() + "Z",
     }
 
 @router.get("/messages")
