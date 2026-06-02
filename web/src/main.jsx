@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppGuard from './components/security/AppGuard';
 import Layout from './components/layout/Layout';
@@ -44,10 +45,35 @@ import Legal          from './pages/Legal';
 
 function Guard({ children, needsPartner = false }) {
   const { user, loading } = useAuth();
-  if (loading) return <SplashScreen user={user} />;
-  if (!user) return <Navigate to="/welcome" replace />;
-  if (needsPartner && !user.couple_space_id) return <Navigate to="/connect" replace />;
-  return <AppGuard>{children}</AppGuard>;
+  
+  if (!loading && !user) return <Navigate to="/welcome" replace />;
+  if (!loading && needsPartner && !user?.couple_space_id) return <Navigate to="/connect" replace />;
+
+  return (
+    <AnimatePresence mode="wait">
+      {loading ? (
+        <motion.div 
+          key="splash" 
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0, filter: 'blur(20px)' }}
+          transition={{ duration: 0.8, ease: 'easeInOut' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 999999 }}
+        >
+          <SplashScreen user={user} />
+        </motion.div>
+      ) : (
+        <motion.div 
+          key="app"
+          initial={{ opacity: 0, filter: 'blur(20px)' }}
+          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          style={{ height: '100%', width: '100%' }}
+        >
+          <AppGuard>{children}</AppGuard>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
 
 function PublicRoute({ children }) {

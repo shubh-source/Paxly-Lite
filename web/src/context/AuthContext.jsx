@@ -18,8 +18,8 @@ export const AuthProvider = ({ children }) => {
     if (cachedUser) {
       try { 
         setUser(JSON.parse(cachedUser)); 
-        // 1.5s artificial delay so the premium splash screen is always visible
-        setTimeout(() => setLoading(false), 1500);
+        // 3s artificial delay so the premium splash screen animation can fully complete
+        setTimeout(() => setLoading(false), 3000);
       } catch (e) {}
     }
 
