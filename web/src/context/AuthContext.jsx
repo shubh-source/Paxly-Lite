@@ -21,42 +21,43 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (token) {
-      getMe()
-        .then(u => { 
-          setUser(u); 
-          localStorage.setItem('ros_user', JSON.stringify(u));
-          wsService.connect(token, u.couple_space_id); 
-          
-          // Background Global Prefetch (SWR pattern)
-          setTimeout(() => {
-            getSpace().then(d => {
-              localStorage.setItem('cached_space', JSON.stringify(d));
-              localStorage.setItem('cached_partner', JSON.stringify(d.partner));
-            }).catch(()=>{});
-            
-            getMessages().then(d => {
-              localStorage.setItem('cached_messages', JSON.stringify(d));
-            }).catch(()=>{});
+      Promise.all([
+        getMe().catch(e => { throw e; }),
+        getSpace().catch(() => null),
+        getMessages().catch(() => [])
+      ])
+      .then(([u, spaceData, msgsData]) => {
+        setUser(u);
+        localStorage.setItem('ros_user', JSON.stringify(u));
+        wsService.connect(token, u.couple_space_id);
+        
+        if (spaceData) {
+          localStorage.setItem('cached_space', JSON.stringify(spaceData));
+          localStorage.setItem('cached_partner', JSON.stringify(spaceData.partner));
+        }
+        if (msgsData && msgsData.length >= 0) {
+          const reversed = [...msgsData].reverse();
+          localStorage.setItem('cached_messages', JSON.stringify(reversed));
+        }
+        
+        // Background Notifications (Non-blocking)
+        const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        api.get('/notifications').then(res => {
+          localStorage.setItem('cached_notifications', JSON.stringify(res.data));
+        }).catch(()=>{});
 
-            const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            api.get('/notifications').then(res => {
-              localStorage.setItem('cached_notifications', JSON.stringify(res.data));
-            }).catch(()=>{});
-
-          }, 1000); // 1 second after boot
-        })
-        .catch((err) => {
-          if (err.response && (err.response.status === 401 || err.response.status === 403)) {
-            localStorage.removeItem('ros_token');
-            localStorage.removeItem('ros_user');
-            setUser(null);
-            setLoading(false);
-          }
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+      })
+      .catch((err) => {
+        if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+          localStorage.removeItem('ros_token');
+          localStorage.removeItem('ros_user');
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
     } else {
       setLoading(false);
     }
