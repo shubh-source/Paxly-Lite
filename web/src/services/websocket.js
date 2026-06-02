@@ -19,7 +19,9 @@ class WSService {
     this.token = token;
     this.coupleSpaceId = coupleSpaceId;
 
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
     
     this._intentionalClose = false;
     
