@@ -39,7 +39,7 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
+                model_name="gemini-2.5-flash",
                 system_instruction=SYSTEM_PROMPT
             )
             chat_history = []

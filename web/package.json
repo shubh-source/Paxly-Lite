@@ -8,8 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.1",
-    "@capacitor/core": "^8.3.1",
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
     "@tensorflow-models/coco-ssd": "^2.2.3",
     "@tensorflow/tfjs": "^4.15.0",
     "axios": "^1.6.7",
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.3.1",
+    "@capacitor/cli": "^8.3.4",
     "@vitejs/plugin-react": "^4.2.1",
     "vite": "^5.4.11"
   }
