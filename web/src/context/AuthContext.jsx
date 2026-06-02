@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { getMe } from '../services/api';
+import { getMe, getSpace, getMessages } from '../services/api';
 import { wsService } from '../services/websocket';
+import axios from 'axios';
 
 const AuthContext = createContext(null);
 
@@ -25,6 +26,25 @@ export const AuthProvider = ({ children }) => {
           setUser(u); 
           localStorage.setItem('ros_user', JSON.stringify(u));
           wsService.connect(token, u.couple_space_id); 
+          
+          // Background Global Prefetch (SWR pattern)
+          setTimeout(() => {
+            getSpace().then(d => {
+              localStorage.setItem('cached_space', JSON.stringify(d));
+              localStorage.setItem('cached_partner', JSON.stringify(d.partner));
+            }).catch(()=>{});
+            
+            getMessages().then(d => {
+              localStorage.setItem('cached_messages', JSON.stringify(d));
+            }).catch(()=>{});
+
+            const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            api.get('/notifications').then(res => {
+              localStorage.setItem('cached_notifications', JSON.stringify(res.data));
+            }).catch(()=>{});
+
+          }, 1000); // 1 second after boot
         })
         .catch((err) => {
           if (err.response && (err.response.status === 401 || err.response.status === 403)) {

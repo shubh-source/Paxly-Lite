@@ -10,8 +10,18 @@ export default function Notifications() {
   const nav = useNavigate();
 
   useEffect(() => {
+    // Instant cache load
+    const cached = localStorage.getItem('cached_notifications');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setNotifs(parsed);
+      } catch (e) {}
+    }
+
     getNotifications().then(data => {
       setNotifs(data);
+      localStorage.setItem('cached_notifications', JSON.stringify(data));
       setLoading(false);
       markAllNotificationsRead();
     });
