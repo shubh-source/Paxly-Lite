@@ -170,7 +170,7 @@ export default function AppGuard({ children }) {
           ))}
         </div>
 
-        {error && <p style={{ color: 'var(--error)', fontSize: '0.85rem', marginBottom: 20 }}>{error}</p>}
+        {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: 20 }}>{error}</p>}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 280 }}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
