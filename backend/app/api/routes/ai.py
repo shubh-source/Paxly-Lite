@@ -78,16 +78,32 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
 
 # ── COUNSELING SESSION LOGIC ────────────────────────────────
 
-async def summarize_history(messages: list, client: AsyncGroq) -> str:
-    # Recursively summarize to fit context
-    formatted = "\n".join([f"{m.sender_id}: {m.text}" for m in messages if m.text])
+async def summarize_history(messages: list) -> str:
+    from app.core.encryption import decrypt_data
+    formatted = "\n".join([f"{m.sender_name or m.sender_id}: {decrypt_data(m.text)}" for m in messages if m.text])
     prompt = f"Analyze this chat history between a couple. Summarize the recurring themes, their emotional tone, and identify the main points of friction:\n\n{formatted}"
     
-    resp = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": "You are a senior relationship analyst. Your tone is extremely friendly, warm, and insightful."}, {"role": "user", "content": prompt}]
-    )
-    return resp.choices[0].message.content
+    system = "You are a senior relationship analyst. Your tone is extremely friendly, warm, and insightful."
+    
+    if settings.GOOGLE_API_KEY:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            resp = await model.generate_content_async(prompt)
+            return resp.text
+        except Exception:
+            pass
+            
+    if settings.GROQ_API_KEY:
+        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        resp = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+        )
+        return resp.choices[0].message.content
+        
+    raise Exception("No AI configured")
 
 @router.post("/session/start")
 async def start_session(data: AISessionStart, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -100,10 +116,11 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
     
     if not msgs: raise HTTPException(400, "No chat history found for this period.")
 
-    client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-    
     # 2. Summarize
-    synopsis = await summarize_history(msgs, client)
+    try:
+        synopsis = await summarize_history(msgs)
+    except Exception as e:
+        raise HTTPException(500, f"AI Error: {str(e)}")
     
     # 3. Create Session
     session = AICounselingSession(
@@ -124,17 +141,28 @@ async def interview_chat(data: AIInterviewRequest, cu: User = Depends(get_curren
     session = res.scalars().first()
     if not session or session.status != "interviewing": raise HTTPException(400, "No active session.")
 
-    client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-    
-    # Role-play as a discovery counselor
     system = f"You are conducting a private, one-on-one interview with {cu.name} regarding their relationship. You have analyzed their chat history and know: {session.history_synopsis}. Be extremely friendly, empathetic, and warm. Ask kind questions to uncover their true feelings and point of view that they haven't shared with their partner yet. Make them feel safe and heard."
     
-    resp = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": data.message}],
-        temperature=0.7
-    )
-    return AIResponse(reply=resp.choices[0].message.content)
+    if settings.GOOGLE_API_KEY:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            resp = await model.generate_content_async(data.message)
+            return AIResponse(reply=resp.text)
+        except Exception:
+            pass
+            
+    if settings.GROQ_API_KEY:
+        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        resp = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": data.message}],
+            temperature=0.7
+        )
+        return AIResponse(reply=resp.choices[0].message.content)
+        
+    raise HTTPException(503, "AI service not configured.")
 
 @router.post("/session/finish-interview")
 async def finish_interview(session_id: str, pov: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -157,8 +185,6 @@ async def finish_interview(session_id: str, pov: str, cu: User = Depends(get_cur
     return {"status": "waiting_for_partner"}
 
 async def finalize_session(session: AICounselingSession, db: AsyncSession):
-    client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-    
     prompt = f"""Generate a RELATIONAL SYNTHESIS REPORT for this couple.
     
     HISTORY SUMMARY: {session.history_synopsis}
@@ -173,13 +199,36 @@ async def finalize_session(session: AICounselingSession, db: AsyncSession):
     summary: a compassionate closing message explaining each other's inner condition to one another.
     """
     
-    resp = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": "You are a world-class relationship mediator. Provide a structured JSON analysis. Your tone in the summary should be extremely friendly, warm, and compassionate."}, {"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}
-    )
+    system = "You are a world-class relationship mediator. Provide a structured JSON analysis. Your tone in the summary should be extremely friendly, warm, and compassionate. Output ONLY raw JSON."
     
-    report_data = json.loads(resp.choices[0].message.content)
+    report_data = None
+    if settings.GOOGLE_API_KEY:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            resp = await model.generate_content_async(prompt)
+            # Clean up potential markdown formatting from Gemini
+            cleaned = resp.text.strip()
+            if cleaned.startswith("```json"): cleaned = cleaned[7:]
+            if cleaned.startswith("```"): cleaned = cleaned[3:]
+            if cleaned.endswith("```"): cleaned = cleaned[:-3]
+            report_data = json.loads(cleaned.strip())
+        except Exception as e:
+            print(f"Gemini fallback error: {e}")
+            pass
+            
+    if not report_data and settings.GROQ_API_KEY:
+        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        resp = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
+        )
+        report_data = json.loads(resp.choices[0].message.content)
+        
+    if not report_data:
+        raise HTTPException(500, "Could not generate report")
     session.final_report = report_data
     session.status = "completed"
     session.completed_at = datetime.utcnow()
