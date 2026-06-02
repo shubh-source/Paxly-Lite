@@ -14,6 +14,23 @@ export default function AIAssistant() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
+  // Load chat history from local storage on mount
+  useEffect(() => {
+    const cached = localStorage.getItem('paxly_aura_chat_history');
+    if (cached) {
+      try { setMsgs(JSON.parse(cached)); } catch(e){}
+    }
+  }, []);
+
+  // Save chat history whenever it changes
+  useEffect(() => {
+    if (msgs.length > 0) {
+      localStorage.setItem('paxly_aura_chat_history', JSON.stringify(msgs));
+    } else {
+      localStorage.removeItem('paxly_aura_chat_history');
+    }
+  }, [msgs]);
+
   const send = async (msg) => {
     const content = (msg || text).trim();
     if (!content || loading) return;
@@ -54,6 +71,13 @@ export default function AIAssistant() {
     }
   };
 
+  const clearChat = () => {
+    if (confirm("Are you sure you want to clear your conversation with Aura?")) {
+      setMsgs([]);
+      localStorage.removeItem('paxly_aura_chat_history');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)', overflow: 'hidden' }}>
 
@@ -69,7 +93,10 @@ export default function AIAssistant() {
             Always here
           </span>
         </div>
-        <Link to="/ai/lab" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', background: 'rgba(201,169,110,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(201,169,110,0.2)' }}>Deep Lab</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {msgs.length > 0 && <button onClick={clearChat} style={{ fontSize: '0.75rem', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>}
+          <Link to="/ai/lab" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', background: 'rgba(201,169,110,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(201,169,110,0.2)' }}>Deep Lab</Link>
+        </div>
       </header>
 
       <div style={{ textAlign: 'center', padding: '8px 0', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
