@@ -30,16 +30,31 @@ export default function AILab() {
         return;
       }
       setSessionId(active.session_id);
+      
       if (active.status === 'completed') {
         setReport(active.final_report);
         setPhase('report');
       } else if (active.my_pov_done) {
         setPhase('waiting');
       } else {
-        setPhase('join_session');
+        // Resume interview if cached
+        const cached = localStorage.getItem(`paxly_ai_lab_${active.session_id}`);
+        if (cached) {
+          setMsgs(JSON.parse(cached));
+          setPhase('interview');
+        } else {
+          setPhase('join_session');
+        }
       }
     }).catch(() => setPhase('start'));
   }, []);
+
+  // Save to localStorage whenever msgs update during an active session
+  useEffect(() => {
+    if (sessionId && msgs.length > 0 && phase === 'interview') {
+      localStorage.setItem(`paxly_ai_lab_${sessionId}`, JSON.stringify(msgs));
+    }
+  }, [msgs, sessionId, phase]);
 
   const start = async () => {
     setLoading(true);
@@ -63,7 +78,9 @@ export default function AILab() {
     setInput('');
     setLoading(true);
     try {
-      const { reply } = await sendAIInterviewMessage(sessionId, input);
+      // Send full conversation history as context for the AI
+      const fullContext = updated.map(m => `${m.role === 'user' ? 'User' : 'Counselor'}: ${m.content}`).join('\n');
+      const { reply } = await sendAIInterviewMessage(sessionId, fullContext + '\n\nPlease respond to the User directly.');
       setMsgs([...updated, { role: 'assistant', content: reply }]);
     } catch {
       alert('Error communicating with AI.');
@@ -76,6 +93,7 @@ export default function AILab() {
     try {
       const pov = msgs.filter(m => m.role === 'user').map(m => m.content).join(' ');
       const res = await finishAIInterview(sessionId, pov);
+      localStorage.removeItem(`paxly_ai_lab_${sessionId}`);
       if (res.status === 'completed') {
         setReport(res);
         setPhase('report');
