@@ -10,26 +10,79 @@ export default function AIAssistant() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
-  const inputRef = useRef(null);
+  const [threads, setThreads] = useState([]);
+  const [activeThreadId, setActiveThreadId] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
-  // Load chat history from local storage on mount
+  // Load threads on mount
   useEffect(() => {
-    const cached = localStorage.getItem('paxly_aura_chat_history');
-    if (cached) {
-      try { setMsgs(JSON.parse(cached)); } catch(e){}
+    const cachedThreads = localStorage.getItem('paxly_aura_threads');
+    if (cachedThreads) {
+      try {
+        const parsed = JSON.parse(cachedThreads);
+        setThreads(parsed);
+        if (parsed.length > 0) {
+          setActiveThreadId(parsed[0].id);
+          setMsgs(parsed[0].messages || []);
+        }
+      } catch(e) {}
+    } else {
+      // Migrate old array
+      const oldCached = localStorage.getItem('paxly_aura_chat_history');
+      if (oldCached) {
+        try {
+          const oldMsgs = JSON.parse(oldCached);
+          if (oldMsgs.length > 0) {
+            const newThread = { id: 'thread_' + Date.now(), title: oldMsgs[0].content.substring(0, 30) + '...', messages: oldMsgs, updated_at: Date.now() };
+            setThreads([newThread]);
+            setActiveThreadId(newThread.id);
+            setMsgs(oldMsgs);
+            localStorage.setItem('paxly_aura_threads', JSON.stringify([newThread]));
+            localStorage.removeItem('paxly_aura_chat_history');
+          }
+        } catch(e) {}
+      }
     }
   }, []);
 
-  // Save chat history whenever it changes
+  // Sync active thread messages
   useEffect(() => {
-    if (msgs.length > 0) {
-      localStorage.setItem('paxly_aura_chat_history', JSON.stringify(msgs));
+    if (msgs.length === 0) return;
+    if (!activeThreadId) {
+      const id = 'thread_' + Date.now();
+      const title = msgs[0].content.substring(0, 30) + '...';
+      const newThread = { id, title, messages: msgs, updated_at: Date.now() };
+      setThreads(prev => {
+        const next = [newThread, ...prev];
+        localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
+        return next;
+      });
+      setActiveThreadId(id);
     } else {
-      localStorage.removeItem('paxly_aura_chat_history');
+      setThreads(prev => {
+        const next = prev.map(t => t.id === activeThreadId ? { ...t, messages: msgs, updated_at: Date.now() } : t);
+        localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
+        return next;
+      });
     }
-  }, [msgs]);
+  }, [msgs, activeThreadId]);
+
+  const startNewChat = () => {
+    setActiveThreadId(null);
+    setMsgs([]);
+    setIsDrawerOpen(false);
+  };
+
+  const switchThread = (id) => {
+    const thread = threads.find(t => t.id === id);
+    if (thread) {
+      setActiveThreadId(id);
+      setMsgs(thread.messages);
+      setIsDrawerOpen(false);
+    }
+  };
 
   const send = async (msg) => {
     const content = (msg || text).trim();
@@ -46,7 +99,23 @@ export default function AIAssistant() {
       const triggerWords = ['fight', 'tension', 'problem', 'sad', 'angry', 'upset', 'ladayi', 'jhagda', 'breakup'];
       const needsCounseling = triggerWords.some(w => content.toLowerCase().includes(w));
 
-      const { reply } = await askAI(updated.map(m => ({ role: m.role, content: m.content })));
+      // Global Context Injection
+      let globalContext = '';
+      if (threads.length > 0) {
+        const otherThreads = threads.filter(t => t.id !== activeThreadId).slice(0, 3);
+        let pastMsgs = [];
+        otherThreads.forEach(t => pastMsgs.push(...t.messages.slice(-4)));
+        if (pastMsgs.length > 0) {
+           globalContext = "Context from user's OTHER recent chats (do NOT mention you read this unless relevant): " + pastMsgs.map(m => m.content).join(' | ');
+        }
+      }
+
+      const aiRequestPayload = updated.map(m => ({ role: m.role, content: m.content }));
+      if (globalContext) {
+        aiRequestPayload.unshift({ role: 'system', content: globalContext });
+      }
+
+      const { reply } = await askAI(aiRequestPayload);
       
       let finalReply = reply;
       if (needsCounseling && !msgs.some(m => m.isLabPrompt)) {
@@ -72,9 +141,14 @@ export default function AIAssistant() {
   };
 
   const clearChat = () => {
-    if (confirm("Are you sure you want to clear your conversation with Aura?")) {
+    if (confirm("Delete this conversation?")) {
+      setThreads(prev => {
+        const next = prev.filter(t => t.id !== activeThreadId);
+        localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
+        return next;
+      });
+      setActiveThreadId(null);
       setMsgs([]);
-      localStorage.removeItem('paxly_aura_chat_history');
     }
   };
 
@@ -83,7 +157,7 @@ export default function AIAssistant() {
 
       {/* Header */}
       <header className="header" style={{ background: 'rgba(22,22,24,0.6)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '16px 16px 0', borderRadius: '24px', padding: '14px 20px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Link to="/dashboard" style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}><Icons.Back size={24} /></Link>
+        <button onClick={() => setIsDrawerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><Icons.Menu size={24} /></button>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Icons.Aura size={20} color="var(--accent)" /> Aura
@@ -94,10 +168,37 @@ export default function AIAssistant() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {msgs.length > 0 && <button onClick={clearChat} style={{ fontSize: '0.75rem', color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>}
           <Link to="/ai/lab" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', background: 'rgba(201,169,110,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(201,169,110,0.2)' }}>Deep Lab</Link>
         </div>
       </header>
+
+      {/* Drawer */}
+      <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 280, background: 'var(--bg)', borderRight: '1px solid rgba(255,255,255,0.05)', transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontWeight: 600 }}>Chat History</span>
+          <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}>×</button>
+        </div>
+        <div style={{ padding: 16 }}>
+          <button onClick={startNewChat} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '12px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 16 }}>
+            <span style={{ fontSize: '1.2rem' }}>+</span> New Chat
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 20px' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 12, fontWeight: 600 }}>Recents</div>
+          {threads.length === 0 ? <div style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>No recent chats.</div> : null}
+          {threads.map(t => (
+            <div key={t.id} onClick={() => switchThread(t.id)} style={{ padding: '12px', borderRadius: 12, background: activeThreadId === t.id ? 'rgba(255,255,255,0.08)' : 'transparent', color: activeThreadId === t.id ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', marginBottom: 4, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {t.title}
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: 16, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <Link to="/dashboard" style={{ color: 'var(--muted)', textDecoration: 'none', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 8 }}><Icons.Back size={16} /> Back to Dashboard</Link>
+        </div>
+      </div>
+
+      {/* Drawer Overlay */}
+      {isDrawerOpen && <div onClick={() => setIsDrawerOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, backdropFilter: 'blur(2px)' }} />}
 
       <div style={{ textAlign: 'center', padding: '8px 0', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <Icons.Shield size={12} color="var(--muted)" />
