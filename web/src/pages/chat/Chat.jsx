@@ -314,7 +314,7 @@ export default function Chat() {
         position: 'relative',
         zIndex: 10
       }}>
-        <Link to="/home" style={{ color: '#fff', display: 'flex', alignItems: 'center' }}><Icons.ChevronLeft size={28} /></Link>
+        <Link to="/dashboard" style={{ color: '#fff', display: 'flex', alignItems: 'center' }}><Icons.Back size={28} /></Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', marginLeft: 8 }} onClick={() => setShowThemePicker(true)}>
           <div className="avatar" style={{ width: 40, height: 40, overflow: 'hidden', borderRadius: '50%' }}>
             {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (partner?.name?.[0]?.toUpperCase() || 'P')}
@@ -424,54 +424,6 @@ export default function Chat() {
         </div>
       )}
 
-      {/* Glassmorphic Header */}
-      <header className="header" onClick={() => setShowThemePicker(true)} style={{ 
-        cursor: 'pointer', 
-        background: 'rgba(25, 25, 28, 0.45)', 
-        backdropFilter: 'blur(30px) saturate(150%)',
-        WebkitBackdropFilter: 'blur(30px) saturate(150%)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        borderTop: '1px solid rgba(255,255,255,0.15)',
-        margin: '16px 16px 8px',
-        borderRadius: '30px',
-        padding: '12px 20px',
-        boxShadow: '0 16px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
-        position: 'relative',
-        zIndex: 10,
-        flexShrink: 0
-      }}>
-        <Link to="/dashboard" style={{ color:'var(--muted)', display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}><Icons.Back size={24} /></Link>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <div className="avatar" style={{ width: 40, height: 40, fontSize:'1rem', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)' }}>
-            {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (partner?.name?.[0]?.toUpperCase() || user?.partner_name?.[0]?.toUpperCase() || '?')}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || user?.partner_name || 'Partner'}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 18 }}>
-              {typing ? (
-                <div style={{ fontSize:'0.8rem', color: 'var(--accent)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  typing
-                  <div style={{ display: 'flex', gap: 2, paddingBottom: 2 }}>
-                    <span style={{ width: 3, height: 3, background: 'var(--accent)', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
-                    <span style={{ width: 3, height: 3, background: 'var(--accent)', borderRadius: '50%', animation: 'pulse 1s infinite 0.2s' }} />
-                    <span style={{ width: 3, height: 3, background: 'var(--accent)', borderRadius: '50%', animation: 'pulse 1s infinite 0.4s' }} />
-                  </div>
-                </div>
-              ) : partnerOnline ? (
-                <div style={{ fontSize:'0.75rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }}></span>
-                  Online
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <Icons.Back size={14} color="var(--muted)" style={{ transform: 'rotate(-90deg)', marginLeft: 8 }} />
-        </div>
-        <div style={{ display: 'flex', gap: 16 }} onClick={e => e.stopPropagation()}>
-          <Link to="/call?type=voice" style={{ display: 'flex', alignItems: 'center' }}><Icons.Phone size={24} color="var(--accent)" /></Link>
-          <Link to="/call?type=video" style={{ display: 'flex', alignItems: 'center' }}><Icons.Video size={24} color="var(--accent)" /></Link>
-        </div>
-      </header>
 
       {/* Messages */}
       <div style={{ flex:1, overflowY:'auto', padding:'12px 16px', paddingBottom:80, position: 'relative' }}>
