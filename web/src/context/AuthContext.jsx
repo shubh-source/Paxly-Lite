@@ -13,7 +13,10 @@ export const AuthProvider = ({ children }) => {
     const cachedUser = localStorage.getItem('ros_user');
     
     if (cachedUser) {
-      try { setUser(JSON.parse(cachedUser)); } catch (e) {}
+      try { 
+        setUser(JSON.parse(cachedUser)); 
+        setLoading(false); // Instant boot if cached!
+      } catch (e) {}
     }
 
     if (token) {
@@ -24,13 +27,12 @@ export const AuthProvider = ({ children }) => {
           wsService.connect(token, u.couple_space_id); 
         })
         .catch((err) => {
-          // Only log out if it's an explicit auth failure (401/403)
           if (err.response && (err.response.status === 401 || err.response.status === 403)) {
             localStorage.removeItem('ros_token');
             localStorage.removeItem('ros_user');
             setUser(null);
+            setLoading(false);
           }
-          // Otherwise, it's a network error/timeout, keep the cached user!
         })
         .finally(() => {
           setLoading(false);
