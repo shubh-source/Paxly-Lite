@@ -57,12 +57,15 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
     if settings.GROQ_API_KEY:
         client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         try:
+            # Fix surrogates that cause Groq python client to crash
+            clean_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            for m in data.messages:
+                clean_content = m.content.encode('utf-16', 'surrogatepass').decode('utf-16')
+                clean_messages.append({"role": m.role, "content": clean_content})
+
             response = await client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    *[{"role": m.role, "content": m.content} for m in data.messages]
-                ],
+                messages=clean_messages,
                 temperature=0.7,
                 max_tokens=400,
             )

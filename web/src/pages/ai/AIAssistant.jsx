@@ -43,9 +43,10 @@ export default function AIAssistant() {
       }]);
     } catch (err) {
       console.error("AI Error:", err);
+      const errDetail = err.response?.data?.detail || err.message || "Unknown error";
       const errorMsg = err.response?.status === 503 
         ? "Yaar, Aura abhi configured nahi hai. Groq API Key check karo .env mein! 🔑"
-        : "Yaar kuch gadbad ho gayi, ek baar phir try karo 😅";
+        : `Yaar kuch gadbad ho gayi: ${errDetail}`;
       setMsgs(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setLoading(false);
