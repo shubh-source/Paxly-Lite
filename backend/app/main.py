@@ -24,6 +24,7 @@ async def lifespan(app: FastAPI):
             # Force add missing columns to existing tables
             alter_queries = [
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR",
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb",
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_once_view BOOLEAN DEFAULT FALSE",
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_limit INTEGER DEFAULT 1",
                 "ALTER TABLE messages ADD COLUMN IF NOT EXISTS views_used INTEGER DEFAULT 0",
@@ -148,6 +149,12 @@ app.mount("/media", StaticFiles(directory="./media"), name="media")
 @app.get("/")
 async def root():
     return {"status": "Fortress Active", "integrity": "Verified"}
+
+last_error = {"error": None, "trace": None}
+
+@app.get("/api/debug/last-error")
+async def debug_last_error():
+    return last_error
 
 @app.get("/api/debug/db")
 async def debug_db():

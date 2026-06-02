@@ -111,5 +111,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
             manager.disconnect(space_id, user_id)
             await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})
     except Exception as e:
-        print(f"WS Error: {e}")
-        if space_id and user_id: manager.disconnect(space_id, user_id)
+        from app.main import last_error
+        import traceback
+        last_error["error"] = str(e)
+        last_error["trace"] = traceback.format_exc()
+        if space_id and user_id:
+            manager.disconnect(space_id, user_id)
+            await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})
