@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Icons } from '../components/ui/Icons';
-import api, { getTodayMoods, getSpace } from '../services/api';
+import api, { getTodayMoods, getSpace, getNotifications } from '../services/api';
 
 const CORE_QUICK = [
   { to: '/chat',    icon: <Icons.Chat size={32} color="var(--accent)" />, label: 'Secret Chat',  sub: 'Encrypted & Private', full: true },
@@ -20,8 +20,13 @@ export default function Dashboard() {
   const [partner, setPartner] = useState(null);
   const [sharedNotes, setSharedNotes] = useState([]);
   const [suggestion, setSuggestion] = useState(null);
+  const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
+    getNotifications().then(data => {
+      if (data.some(n => !n.read)) setHasUnread(true);
+    }).catch(() => {});
+
     getTodayMoods().then(setMoods).catch(() => {});
     getSpace().then(d => setPartner(d.partner)).catch(() => {});
     
@@ -81,25 +86,38 @@ export default function Dashboard() {
             }}>{user?.name?.split(' ')[0]}</span>
           </h1>
         </div>
-        <button onClick={() => nav('/profile')} style={{ 
-          width: 60, height: 60, borderRadius: '22px', 
-          background: 'rgba(255,255,255,0.05)', 
-          border: '1px solid rgba(255,255,255,0.1)', 
-          cursor: 'pointer', 
-          padding: 3, 
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-          transition: 'all 0.3s ease'
-        }}>
-          <div style={{ 
-            width: '100%', height: '100%', borderRadius: '18px', 
-            background: 'linear-gradient(135deg, var(--accent), var(--purple))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.4rem', fontWeight: 700, color: '#fff'
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button onClick={() => nav('/notifications')} style={{
+            width: 48, height: 48, borderRadius: '16px',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative'
           }}>
-            {user?.name?.[0]?.toUpperCase()}
-          </div>
-        </button>
+            <Icons.Bell size={20} color="var(--text)" />
+            {hasUnread && <div style={{ position: 'absolute', top: 12, right: 12, width: 8, height: 8, background: 'var(--accent)', borderRadius: '50%' }} />}
+          </button>
+
+          <button onClick={() => nav('/profile')} style={{ 
+            width: 48, height: 48, borderRadius: '16px', 
+            background: 'rgba(255,255,255,0.05)', 
+            border: '1px solid rgba(255,255,255,0.1)', 
+            cursor: 'pointer', 
+            padding: 3, 
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+            transition: 'all 0.3s ease'
+          }}>
+            <div style={{ 
+              width: '100%', height: '100%', borderRadius: '14px', 
+              background: 'linear-gradient(135deg, var(--accent), var(--purple))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.2rem', fontWeight: 700, color: '#000'
+            }}>
+              {user?.name?.[0]?.toUpperCase()}
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Mood Sync Status (Premium Glass) */}

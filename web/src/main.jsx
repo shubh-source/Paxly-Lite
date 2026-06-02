@@ -38,6 +38,7 @@ import BucketList     from './pages/bucket/BucketList';
 import LoveShop       from './pages/shop/LoveShop';
 import Checkout       from './pages/shop/Checkout';
 import OrderSuccess   from './pages/shop/OrderSuccess';
+import Notifications  from './pages/Notifications';
 import IconShowcase   from './pages/debug/IconShowcase';
 import Legal          from './pages/Legal';
 
@@ -94,6 +95,8 @@ function AnimatedRoutes() {
         <Route path="/shop/checkout" element={<Guard needsPartner><Layout><Checkout /></Layout></Guard>} />
         <Route path="/voice"         element={<Guard needsPartner><Layout><VoiceNotes /></Layout></Guard>} />
         <Route path="/shop/success"  element={<Guard needsPartner><Layout><OrderSuccess /></Layout></Guard>} />
+        
+        <Route path="/notifications" element={<Guard needsPartner><Layout><Notifications /></Layout></Guard>} />
         
         <Route path="/website/vibe" element={<Guard needsPartner><Layout><VibeEditor /></Layout></Guard>} />
         <Route path="/website/:id"   element={<Guard needsPartner><Layout><VibeViewer /></Layout></Guard>} />

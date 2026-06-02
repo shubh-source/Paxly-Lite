@@ -114,4 +114,11 @@ export const sendAIInterviewMessage = (session_id, message) =>
 export const finishAIInterview = (session_id, pov) =>
   api.post('/ai/session/finish-interview', null, { params: { session_id, pov } }).then(r => r.data);
 
+// Notifications
+export const getNotifications = () =>
+  api.get('/notifications').then(r => r.data);
+
+export const markAllNotificationsRead = () =>
+  api.put('/notifications/read-all').then(r => r.data);
+
 export default api;
