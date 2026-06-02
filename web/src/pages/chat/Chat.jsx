@@ -502,105 +502,82 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div style={{ 
-        position:'fixed', 
-        bottom: 20, 
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 'calc(100% - 40px)',
-        maxWidth: 800,
-        background:'#1a1614', // Solid Charcoal Pill
-        border:'1px solid rgba(179,148,90,0.3)', // Golden/Bronze border
-        borderRadius: 32,
-        padding:'8px 16px', 
-        display:'flex', 
-        alignItems: 'center',
-        gap: 12,
-        boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
-        zIndex: 100
-      }}>
+      <div style={{ padding: '8px 16px 20px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
-        {/* Left Side Icons */}
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setShowingStudio(true)}>
-            <Icons.Camera size={22} color="#b3945a" />
-          </button>
-          <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => fileRef.current?.click()}>
-            <Icons.Gallery size={22} color="#b3945a" />
-          </button>
-        </div>
-        
-        {/* Text Area */}
-        <div style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center' }}>
-          <textarea 
-            className="inp" 
+        <div style={{ 
+          display: 'flex', 
+          gap: 10, 
+          alignItems: 'center', 
+          background: 'rgba(22,22,26,0.65)', 
+          backdropFilter: 'blur(25px) saturate(200%)', 
+          border: '1px solid rgba(255,255,255,0.1)', 
+          borderRadius: 28, 
+          padding: '10px 10px 10px 16px', 
+          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+          maxWidth: 800,
+          margin: '0 auto'
+        }}>
+          
+          {/* Left Side Icons */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setShowingStudio(true)}>
+              <Icons.Camera size={22} color="var(--muted)" />
+            </button>
+            <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => fileRef.current?.click()}>
+              <Icons.Gallery size={22} color="var(--muted)" />
+            </button>
+          </div>
+          
+          {/* Text Area */}
+          <input
             value={text} 
             onChange={handleType} 
-            onKeyDown={e => { if (e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); }}} 
-            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Whisper something..."} 
-            rows={1} 
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Kuch bhi bolo..."} 
             disabled={isRecordingAudio}
             style={{ 
-              width: '100%', 
-              resize:'none', 
-              background:'transparent', 
-              border:'none', 
-              padding:'10px 0', 
-              fontSize:'1.05rem', 
+              flex: 1, 
+              background: 'transparent', 
+              border: 'none', 
               color: isRecordingAudio ? '#ff4b2b' : '#fff', 
-              outline: 'none',
-              fontFamily: 'inherit'
+              fontSize: '1rem', 
+              outline: 'none', 
+              padding: '6px 0',
+              minWidth: 0
             }} 
           />
-        </div>
 
-        {/* Right Side Icons (Mic / Send) */}
-        <div>
-          {text.trim().length > 0 ? (
-            <button 
-              style={{ 
-                padding:'0', 
-                borderRadius:'50%', 
-                background: '#b3945a', 
-                border: 'none',
-                width: 44, 
-                height: 44, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                boxShadow: '0 8px 20px rgba(179,148,90,0.4)',
-                cursor: 'pointer'
-              }} 
-              onClick={send} 
-              disabled={sending}
-            >
+          {/* Right Side Icons (Mic / Send) */}
+          <button 
+            onPointerDown={text.trim().length === 0 ? startVoiceRecord : undefined}
+            onPointerUp={text.trim().length === 0 ? stopVoiceRecord : undefined}
+            onPointerLeave={text.trim().length === 0 ? stopVoiceRecord : undefined}
+            onClick={text.trim().length > 0 ? send : undefined}
+            disabled={sending && text.trim().length > 0}
+            style={{ 
+              width: 44, 
+              height: 44, 
+              borderRadius: '50%', 
+              background: isRecordingAudio ? '#ff4b2b' : (text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.05)'), 
+              border: text.trim() ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              cursor: text.trim() || !sending ? 'pointer' : 'default', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              flexShrink: 0, 
+              transition: 'all 0.2s', 
+              boxShadow: text.trim() ? '0 6px 18px rgba(201,169,110,0.35)' : 'none',
+              transform: isRecordingAudio ? 'scale(1.2)' : 'scale(1)'
+            }} 
+          >
+            {text.trim().length > 0 ? (
               <Icons.Send size={20} color="#000" />
-            </button>
-          ) : (
-            <button 
-              onPointerDown={startVoiceRecord}
-              onPointerUp={stopVoiceRecord}
-              onPointerLeave={stopVoiceRecord} // Safety if they drag off
-              style={{ 
-                padding:'0', 
-                borderRadius:'50%', 
-                background: isRecordingAudio ? '#ff4b2b' : 'rgba(255,255,255,0.05)', 
-                border: '1px solid rgba(255,255,255,0.1)',
-                width: 44, 
-                height: 44, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                transform: isRecordingAudio ? 'scale(1.2)' : 'scale(1)'
-              }} 
-            >
-              <Icons.Mic size={20} color={isRecordingAudio ? '#fff' : '#b3945a'} />
-            </button>
-          )}
+            ) : (
+              <Icons.Mic size={20} color={isRecordingAudio ? '#fff' : 'var(--muted)'} />
+            )}
+          </button>
         </div>
       </div>
       <style>{`@keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}`}</style>
