@@ -39,7 +39,7 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
+                model_name="gemini-1.5-flash",
                 system_instruction=SYSTEM_PROMPT
             )
             chat_history = []
@@ -58,7 +58,7 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
         client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         try:
             response = await client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     *[{"role": m.role, "content": m.content} for m in data.messages]
@@ -68,6 +68,7 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
             )
             return AIResponse(reply=response.choices[0].message.content)
         except Exception as e:
+            print(f"Groq Error: {e}")
             raise HTTPException(500, f"AI service error: {str(e)}")
 
     raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY or GROQ_API_KEY to .env")
