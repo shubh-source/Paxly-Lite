@@ -67,8 +67,9 @@ export default function Chat() {
       localStorage.setItem('cached_space', JSON.stringify(d));
     });
     getMessages().then(data => {
-      setMsgs(data);
-      localStorage.setItem('cached_messages', JSON.stringify(data));
+      const reversed = [...data].reverse();
+      setMsgs(reversed);
+      localStorage.setItem('cached_messages', JSON.stringify(reversed));
     });
 
     const offs = [
@@ -201,7 +202,7 @@ export default function Chat() {
       const isOnceView = mode !== 'standard' && mode !== 'permanent';
       const limit = mode === 'twice' ? 2 : 1;
       
-      const type = targetFile.type.startsWith('video') ? 'video' : 'image';
+      const type = (targetFile.type || '').startsWith('video') ? 'video' : 'image';
       wsService.sendMessage('', type, media_url, isOnceView, limit);
     } catch (err) {
       alert("Upload failed: " + (err.response?.data?.detail || err.message));

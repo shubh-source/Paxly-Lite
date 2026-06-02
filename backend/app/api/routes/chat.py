@@ -74,7 +74,8 @@ async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_cu
 @router.post("/upload-media")
 async def upload_media(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     ensure_space(cu)
-    ext = file.filename.split(".")[-1].lower()
+    filename_str = file.filename if file.filename else "upload.jpg"
+    ext = filename_str.split(".")[-1].lower() if "." in filename_str else "jpg"
     if ext not in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mp3", "m4a", "ogg", "webm", "heic", "mov"]:
         raise HTTPException(400, f"File type {ext} not allowed.")
     
