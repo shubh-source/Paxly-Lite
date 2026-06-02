@@ -67,9 +67,9 @@ export default function Chat() {
       localStorage.setItem('cached_space', JSON.stringify(d));
     });
     getMessages().then(data => {
-      const reversed = [...data].reverse();
-      setMsgs(reversed);
-      localStorage.setItem('cached_messages', JSON.stringify(reversed));
+      const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      setMsgs(sorted);
+      localStorage.setItem('cached_messages', JSON.stringify(sorted));
     });
 
     const offs = [
@@ -618,7 +618,7 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '12px 16px 20px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
+      <div style={{ padding: '12px 16px', background: 'rgba(15,15,18,0.85)', backdropFilter: 'blur(30px)', flexShrink: 0, zIndex: 100, position: 'relative', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
@@ -626,12 +626,9 @@ export default function Chat() {
           display: 'flex', 
           gap: 10, 
           alignItems: 'center', 
-          background: 'rgba(22,22,26,0.65)', 
-          backdropFilter: 'blur(25px) saturate(200%)', 
-          borderRadius: 30, 
+          background: 'rgba(255,255,255,0.06)', 
+          borderRadius: 24, 
           padding: '10px 10px 10px 16px',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
           width: '100%'
         }}>
           
