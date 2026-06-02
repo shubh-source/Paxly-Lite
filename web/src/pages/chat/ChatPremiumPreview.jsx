@@ -195,6 +195,9 @@ export default function ChatPremiumPreview() {
       
       const type = targetFile.type.startsWith('video') ? 'video' : 'image';
       wsService.sendMessage('', type, media_url, isOnceView, limit);
+    } catch (err) {
+      alert("Upload failed: " + (err.response?.data?.detail || err.message));
+      console.error("Media upload error:", err);
     } finally { 
       setSending(false); 
       setPendingFile(null);

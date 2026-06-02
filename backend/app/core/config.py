@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     # Media & Storage
     MEDIA_DIR: str = "./media"
-    MAX_FILE_SIZE_MB: int = 10
+    MAX_FILE_SIZE_MB: int = 50
     STORAGE_MODE: str = "local" # 'local' or 'supabase'
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""

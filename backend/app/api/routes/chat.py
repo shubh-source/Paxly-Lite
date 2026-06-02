@@ -75,8 +75,8 @@ async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_cu
 async def upload_media(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     ensure_space(cu)
     ext = file.filename.split(".")[-1].lower()
-    if ext not in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mp3", "m4a", "ogg"]:
-        raise HTTPException(400, "File type not allowed.")
+    if ext not in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mp3", "m4a", "ogg", "webm", "heic", "mov"]:
+        raise HTTPException(400, f"File type {ext} not allowed.")
     
     content = await file.read()
     size = len(content)
