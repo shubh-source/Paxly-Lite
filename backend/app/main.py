@@ -149,3 +149,21 @@ app.mount("/media", StaticFiles(directory="./media"), name="media")
 async def root():
     return {"status": "Fortress Active", "integrity": "Verified"}
 
+@app.get("/api/debug/db")
+async def debug_db():
+    try:
+        async with AsyncSessionLocal() as db:
+            from app.models.orm import CoupleSpace, User, Message
+            from sqlalchemy.future import select
+            res = await db.execute(select(CoupleSpace).limit(1))
+            res.scalars().first()
+            
+            res2 = await db.execute(select(User).limit(1))
+            res2.scalars().first()
+            
+            res3 = await db.execute(select(Message).limit(1))
+            res3.scalars().first()
+            return {"status": "ok"}
+    except Exception as e:
+        import traceback
+        return {"status": "error", "error": str(e), "trace": traceback.format_exc()}
