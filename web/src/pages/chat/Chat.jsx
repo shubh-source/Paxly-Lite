@@ -19,7 +19,9 @@ export default function Chat() {
   const { user } = useAuth();
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState('');
-  const [partner, setPartner] = useState(null);
+  const [partner, setPartner] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
+  });
   const [typing, setTyping] = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [reactTo, setReactTo] = useState(null);
@@ -56,6 +58,7 @@ export default function Chat() {
   useEffect(() => {
     getSpace().then(d => {
       setPartner(d.partner);
+      localStorage.setItem('cached_partner', JSON.stringify(d.partner));
       setSpace(d.space);
     });
     getMessages().then(setMsgs);
@@ -68,6 +71,11 @@ export default function Chat() {
         if (d.user_id !== user?.id) {
           setPartnerPresence(d.state);
           setPartnerMood(d.mood || 'neutral');
+          if (d.state === 'typing') {
+            setTyping(true);
+          } else {
+            setTyping(false);
+          }
         }
       }),
       wsService.on('reaction', d => setMsgs(prev => prev.map(m => m.id === d.message_id ? { ...m, reactions: { ...m.reactions, [d.user_id]: d.emoji } } : m))),
@@ -356,13 +364,24 @@ export default function Chat() {
             {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : partner?.name?.[0]?.toUpperCase()}
           </div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || 'Partner'}</div>
-            {partnerOnline && (
-              <div style={{ fontSize:'0.75rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }}></span>
-                Online
-              </div>
-            )}
+            <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || 'Loading...'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 18 }}>
+              {typing ? (
+                <div style={{ fontSize:'0.8rem', color: 'var(--accent)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  typing
+                  <div style={{ display: 'flex', gap: 2, paddingBottom: 2 }}>
+                    <span style={{ width: 3, height: 3, background: 'var(--accent)', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                    <span style={{ width: 3, height: 3, background: 'var(--accent)', borderRadius: '50%', animation: 'pulse 1s infinite 0.2s' }} />
+                    <span style={{ width: 3, height: 3, background: 'var(--accent)', borderRadius: '50%', animation: 'pulse 1s infinite 0.4s' }} />
+                  </div>
+                </div>
+              ) : partnerOnline ? (
+                <div style={{ fontSize:'0.75rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }}></span>
+                  Online
+                </div>
+              ) : null}
+            </div>
           </div>
           <Icons.Back size={14} color="var(--muted)" style={{ transform: 'rotate(-90deg)', marginLeft: 8 }} />
         </div>

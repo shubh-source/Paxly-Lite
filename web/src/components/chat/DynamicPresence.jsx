@@ -14,9 +14,8 @@ export default function DynamicPresence({ partner, state, mood }) {
   const activeMood = MOOD_DATA[mood] || null;
 
   const getEmoji = () => {
-    if (state === 'typing') return '💭';
     if (state === 'watching') return '👀';
-    if (activeMood && state !== 'typing') return activeMood.emoji; // Mood emoji if not typing
+    if (activeMood) return activeMood.emoji; 
     return null;
   };
 
@@ -45,13 +44,7 @@ export default function DynamicPresence({ partner, state, mood }) {
           zIndex: 11,
           animation: 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
         }}>
-          {state === 'typing' ? (
-             <div style={{ display: 'flex', gap: 2 }}>
-               <span className="dot" />
-               <span className="dot" style={{ animationDelay: '0.2s' }} />
-               <span className="dot" style={{ animationDelay: '0.4s' }} />
-             </div>
-          ) : getEmoji()}
+          {getEmoji()}
         </div>
       )}
 
