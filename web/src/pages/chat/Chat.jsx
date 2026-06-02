@@ -339,8 +339,7 @@ export default function Chat() {
         flexDirection: 'column', 
         position: 'relative',
         zIndex: 1,
-        overflowY: 'auto',
-        padding: '16px 16px 8px'
+        padding: '0'
       }}>
 
       {/* Theme Picker */}
