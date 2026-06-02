@@ -43,6 +43,19 @@ export const Icons = {
     </IconWrapper>
   ),
 
+  Bell: (props) => (
+    <IconWrapper {...props}>
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </IconWrapper>
+  ),
+
+  Star: (props) => (
+    <IconWrapper {...props}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </IconWrapper>
+  ),
+
   Camera: (props) => (
     <IconWrapper {...props}>
       <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
