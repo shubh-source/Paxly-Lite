@@ -4,6 +4,7 @@ class WSService {
     this.listeners = {};
     this.reconnectTimer = null;
     this.token = null;
+    this.coupleSpaceId = null;
     this._intentionalClose = false;
   }
 
@@ -13,28 +14,30 @@ class WSService {
       console.log('⏸️ WebSocket: no couple space, skipping connection');
       return;
     }
-    this._intentionalClose = false;
+    
+    // Save for reconnections
     this.token = token;
+    this.coupleSpaceId = coupleSpaceId;
+
+    if (this.ws?.readyState === WebSocket.OPEN) return;
     
-    let wsUrl = '';
-    const apiUrl = import.meta.env.VITE_API_URL;
+    this._intentionalClose = false;
     
-    if (apiUrl) {
-      const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
-      const wsHost = apiUrl.replace(/^https?:\/\//, '');
-      wsUrl = `${wsProtocol}//${wsHost}/ws?token=${token}`;
-    } else {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-                   ? 'localhost:8000' 
-                   : window.location.host;
-      wsUrl = `${protocol}//${host}/ws?token=${token}`;
-    }
+    let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    if (apiUrl.endsWith('/api')) apiUrl = apiUrl.slice(0, -4);
+    
+    const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+    const wsHost = apiUrl.replace(/^https?:\/\//, '');
+    const wsUrl = `${wsProtocol}//${wsHost}/ws?token=${token}`;
     
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
       console.log('✅ WebSocket connected');
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
       this.emit('connected', {});
     };
 
