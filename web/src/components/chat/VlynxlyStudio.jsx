@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { CAMERA_FILTERS, FONTS } from '../../data/filterStyles';
+import { Icons } from '../../components/ui/Icons';
 
 export default function VlynxlyStudio({ onCapture, onClose }) {
   const [stream, setStream] = useState(null);
@@ -287,31 +288,67 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
         ))}
 
         {/* UI HUD Overlay */}
-        <div style={{ position: 'absolute', inset: 0, padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
-           <div style={{ display:'flex', justifyContent:'space-between', pointerEvents:'auto' }}>
-              <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'1.5rem', color:'#fff' }}>✕</button>
-              <div style={{ display: 'flex', gap: 20 }}>
+        <div style={{ position: 'absolute', inset: 0, padding: '40px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
+           
+           {/* Top Action Bar (Glassmorphic) */}
+           <div style={{ display:'flex', justifyContent:'space-between', alignItems: 'center', pointerEvents:'auto' }}>
+              <button onClick={onClose} style={{ 
+                background:'rgba(0,0,0,0.4)', backdropFilter:'blur(15px)', WebkitBackdropFilter:'blur(15px)', 
+                border:'1px solid rgba(255,255,255,0.1)', width: 44, height: 44, borderRadius: '50%', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color:'#fff', cursor: 'pointer' 
+              }}>
+                <Icons.Back size={24} style={{ transform: 'rotate(-90deg)' }} />
+              </button>
+              
+              <div style={{ 
+                display: 'flex', gap: 8, background:'rgba(0,0,0,0.4)', backdropFilter:'blur(15px)', WebkitBackdropFilter:'blur(15px)',
+                padding: '6px 8px', borderRadius: 99, border:'1px solid rgba(255,255,255,0.1)'
+              }}>
                 <input type="file" ref={galleryRef} style={{ display:'none' }} accept="image/*,video/*" onChange={(e) => {
                    const file = e.target.files[0];
                    if (file) onCapture(file);
                 }} />
-                <button onClick={() => galleryRef.current?.click()} style={{ background:'none', border:'none', fontSize:'1.5rem', color:'#fff' }}>🖼️</button>
-                <button onClick={addText} style={{ background:'none', border:'none', fontSize:'1.5rem', color:'#fff' }}>Aa</button>
+                <button onClick={() => galleryRef.current?.click()} style={{ 
+                  background:'transparent', border:'none', width: 40, height: 40, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color:'#fff', cursor: 'pointer'
+                }}>
+                  <Icons.Gallery size={20} />
+                </button>
+                <button onClick={addText} style={{ 
+                  background:'transparent', border:'none', width: 40, height: 40, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color:'#fff', cursor: 'pointer',
+                  fontWeight: 700, fontSize: '1.1rem'
+                }}>
+                  Aa
+                </button>
               </div>
            </div>
 
-           <div style={{ display:'flex', flexDirection:'column', gap:20, alignItems:'center', pointerEvents:'auto' }}>
-              {/* Filter Strip */}
-              <div style={{ display:'flex', gap:10, overflowX:'auto', width:'100%', padding: '10px 0' }}>
+           <div style={{ display:'flex', flexDirection:'column', gap: 30, alignItems:'center', pointerEvents:'auto', paddingBottom: 20 }}>
+              
+              {/* Filter Carousel */}
+              <div style={{ 
+                display:'flex', gap: 14, overflowX:'auto', width:'100%', padding: '10px 20px', 
+                scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch',
+                msOverflowStyle: 'none', scrollbarWidth: 'none'
+              }}>
                  {CAMERA_FILTERS.map((f, i) => (
                    <button 
                      key={f.id} 
                      onClick={() => setActiveFilter(i)}
                      style={{ 
-                       flexShrink:0, width:60, height:60, borderRadius:'50%', 
-                       border: activeFilter === i ? '2px solid #fff' : '1px solid rgba(255,255,255,0.3)',
-                       background: f.id === 'none' ? '#333' : 'linear-gradient(45deg, #f09, #09f)',
-                       fontSize: '0.6rem', color:'#fff', overflow:'hidden'
+                       flexShrink:0, width: 64, height: 64, borderRadius: 20, 
+                       border: activeFilter === i ? '3px solid var(--accent)' : '1px solid rgba(255,255,255,0.2)',
+                       background: f.id === 'none' ? 'rgba(0,0,0,0.5)' : 'linear-gradient(135deg, rgba(201,169,110,0.4), rgba(124,111,205,0.4))',
+                       backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                       color: activeFilter === i ? 'var(--accent)' : '#fff', 
+                       fontWeight: activeFilter === i ? 700 : 500,
+                       fontSize: '0.75rem', overflow:'hidden', cursor: 'pointer',
+                       display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8,
+                       boxShadow: activeFilter === i ? '0 8px 20px rgba(201,169,110,0.3)' : 'none',
+                       transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                       transform: activeFilter === i ? 'scale(1.1)' : 'scale(1)',
+                       scrollSnapAlign: 'center'
                      }}
                    >
                      {f.name}
@@ -319,34 +356,44 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
                  ))}
               </div>
 
-              {/* Master Capture */}
-              <div style={{ position:'relative', width:80, height:80 }}>
-                {/* Progress Ring */}
-                <svg style={{ position:'absolute', inset:0, transform:'rotate(-90deg)' }} width="80" height="80">
+              {/* Master Capture Button (iPhone Style) */}
+              <div style={{ position:'relative', width: 88, height: 88, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Outer Ring */}
+                <div style={{ 
+                  position: 'absolute', inset: 0, borderRadius: '50%', 
+                  border: isRecording ? '4px solid rgba(255,59,48,0.5)' : '4px solid rgba(255,255,255,0.8)',
+                  transition: 'all 0.3s'
+                }} />
+                
+                {/* Progress Ring (Only shows when recording) */}
+                <svg style={{ position:'absolute', inset: -4, transform:'rotate(-90deg)', opacity: recordProgress > 0 ? 1 : 0, transition: 'opacity 0.2s' }} width="96" height="96">
                   <circle 
-                    cx="40" cy="40" r="36" 
-                    fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="4" 
-                  />
-                  <circle 
-                    cx="40" cy="40" r="36" 
-                    fill="none" stroke="var(--accent)" strokeWidth="4" 
-                    strokeDasharray="226.19"
-                    strokeDashoffset={226.19 - (226.19 * recordProgress) / 100}
+                    cx="48" cy="48" r="44" 
+                    fill="none" stroke="#FF3B30" strokeWidth="4" 
+                    strokeDasharray="276.46"
+                    strokeDashoffset={276.46 - (276.46 * recordProgress) / 100}
                     style={{ transition: 'stroke-dashoffset 0.1s linear' }}
                   />
                 </svg>
 
+                {/* Inner Shutter Button */}
                 <button 
                   onPointerDown={handlePointerDown}
                   onPointerUp={handlePointerUp}
+                  onPointerLeave={handlePointerUp}
                   style={{ 
-                    position:'absolute', inset:8, borderRadius:'50%', 
-                    background: isRecording ? '#ff4b2b' : '#fff',
-                    border:'none', transition: 'all 0.2s',
-                    transform: recordProgress > 0 ? 'scale(1.1)' : 'scale(1)'
+                    width: isRecording ? 40 : 72, 
+                    height: isRecording ? 40 : 72, 
+                    borderRadius: isRecording ? 8 : '50%', 
+                    background: isRecording ? '#FF3B30' : '#fff',
+                    border:'none', cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                    transform: recordProgress > 0 && !isRecording ? 'scale(0.9)' : 'scale(1)'
                   }}
                 />
               </div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: 1 }}>TAP FOR PHOTO • HOLD FOR VIDEO</div>
            </div>
         </div>
       </div>
