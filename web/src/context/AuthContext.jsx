@@ -36,8 +36,8 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem('cached_partner', JSON.stringify(spaceData.partner));
         }
         if (msgsData && msgsData.length >= 0) {
-          const reversed = [...msgsData].reverse();
-          localStorage.setItem('cached_messages', JSON.stringify(reversed));
+          const sorted = [...msgsData].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          localStorage.setItem('cached_messages', JSON.stringify(sorted));
         }
         
         // Background Notifications (Non-blocking)

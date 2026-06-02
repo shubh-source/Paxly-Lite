@@ -281,45 +281,7 @@ export default function Chat() {
   const activeTheme = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
-      {/* Desktop Sidebar (hidden on mobile via CSS) */}
-      <div className="desktop-sidebar" style={{ 
-        width: 340, 
-        borderRight: '1px solid rgba(255,255,255,0.08)', 
-        flexDirection: 'column', 
-        background: 'rgba(15,15,18,0.95)',
-        flexShrink: 0
-      }}>
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <h2 style={{ fontFamily: 'var(--font-d)', color: 'var(--accent)', fontSize: '1.6rem', fontWeight: 600 }}>Vlynxly Web</h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>Private Space Connected</p>
-        </div>
-        
-        <div style={{ padding: 12 }}>
-          <div style={{ 
-            padding: '16px', 
-            borderRadius: 16, 
-            background: 'rgba(255,255,255,0.04)', 
-            border: '1px solid rgba(255,255,255,0.08)',
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 14,
-            cursor: 'pointer'
-          }}>
-            <div className="avatar" style={{ width: 46, height: 46, fontSize: '1.2rem', overflow: 'hidden' }}>
-              {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (partner?.name?.[0]?.toUpperCase() || 'P')}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: '1.05rem', color: '#fff' }}>{partner?.name || 'Partner'}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }}></span>
-                Active Now
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
       {/* Main Chat Area */}
       <div style={{ 
         flex: 1, 
@@ -332,6 +294,38 @@ export default function Chat() {
         backgroundPosition: 'center',
         overflow: 'hidden'
       }}>
+
+      {/* Header */}
+      <div style={{ 
+        padding: '16px 20px', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 16, 
+        background: 'rgba(15,15,18,0.85)', 
+        backdropFilter: 'blur(30px)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        zIndex: 100,
+        flexShrink: 0
+      }}>
+        <Link to="/home" style={{ color: '#fff' }}><Icons.ChevronLeft size={28} /></Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer' }} onClick={() => setShowThemePicker(true)}>
+          <div className="avatar" style={{ width: 44, height: 44 }}>
+            {partner?.avatar_url ? <img src={partner.avatar_url} /> : (partner?.name?.[0]?.toUpperCase() || 'P')}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{partner?.name || 'Partner'}</div>
+            <div style={{ fontSize: '0.8rem', color: partnerOnline ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {typing ? <><span style={{ color: 'var(--accent)' }}>typing...</span></> : (
+                 <DynamicPresence partnerOnline={partnerOnline} partnerPresence={partnerPresence} partnerMood={partnerMood} />
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 18, color: 'var(--accent)' }}>
+          <Icons.Phone size={24} />
+          <Icons.Video size={24} />
+        </div>
+      </div>
 
       {/* Static Premium Background overlay */}
       {!space?.chat_wallpaper && (
