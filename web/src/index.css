@@ -126,4 +126,9 @@ textarea.inp { resize: vertical; min-height: 80px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
+.desktop-sidebar { display: none; }
+
 @media (max-width: 480px) { .content { padding: 16px; } h1 { font-size: 1.9rem; } }
+@media (min-width: 800px) {
+  .desktop-sidebar { display: flex; }
+}
