@@ -105,6 +105,28 @@ async def summarize_history(messages: list) -> str:
         
     raise Exception("No AI configured")
 
+@router.get("/session/active")
+async def get_active_session(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not cu.couple_space_id: return None
+    res = await db.execute(select(AICounselingSession).filter(
+        AICounselingSession.couple_space_id == cu.couple_space_id
+    ).order_by(desc(AICounselingSession.created_at)).limit(1))
+    
+    session = res.scalars().first()
+    if not session: return None
+    
+    # Determine user's POV status
+    my_pov_done = False
+    if cu.id == session.partner_a_id and session.partner_a_pov: my_pov_done = True
+    elif cu.id == session.partner_b_id and session.partner_b_pov: my_pov_done = True
+    
+    return {
+        "session_id": session.id,
+        "status": session.status,
+        "my_pov_done": my_pov_done,
+        "final_report": session.final_report
+    }
+
 @router.post("/session/start")
 async def start_session(data: AISessionStart, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not cu.couple_space_id: raise HTTPException(400, "Partner connection required.")

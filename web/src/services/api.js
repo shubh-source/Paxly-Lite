@@ -102,6 +102,9 @@ export const getCategories = () =>
 export const askAI = (messages) =>
   api.post('/ai/chat', { messages }).then(r => r.data);
 
+export const getActiveAISession = () =>
+  api.get('/ai/session/active').then(r => r.data);
+
 export const startAISession = (days) =>
   api.post('/ai/session/start', { days }).then(r => r.data);
 

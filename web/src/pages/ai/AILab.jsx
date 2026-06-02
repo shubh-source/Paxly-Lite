@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { startAISession, sendAIInterviewMessage, finishAIInterview } from '../../services/api';
+import { startAISession, sendAIInterviewMessage, finishAIInterview, getActiveAISession } from '../../services/api';
 
 const PHASES = [
   { id: 'start', label: 'Setup', icon: '⚙️' },
@@ -11,7 +11,7 @@ const PHASES = [
 ];
 
 export default function AILab() {
-  const [phase, setPhase] = useState('start'); // start | analyzing | interview | waiting | report
+  const [phase, setPhase] = useState('init'); // init | start | analyzing | join_session | interview | waiting | report
   const [days, setDays] = useState(7);
   const [sessionId, setSessionId] = useState(null);
   const [msgs, setMsgs] = useState([]);
@@ -22,6 +22,24 @@ export default function AILab() {
   const nav = useNavigate();
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }); }, [msgs]);
+
+  useEffect(() => {
+    getActiveAISession().then(active => {
+      if (!active) {
+        setPhase('start');
+        return;
+      }
+      setSessionId(active.session_id);
+      if (active.status === 'completed') {
+        setReport(active.final_report);
+        setPhase('report');
+      } else if (active.my_pov_done) {
+        setPhase('waiting');
+      } else {
+        setPhase('join_session');
+      }
+    }).catch(() => setPhase('start'));
+  }, []);
 
   const start = async () => {
     setLoading(true);
@@ -105,12 +123,26 @@ export default function AILab() {
     </div>
   );
 
-  if (phase === 'analyzing') return (
+  if (phase === 'join_session') return (
+    <div className="page center" style={{ padding: 40, textAlign: 'center' }}>
+      <div style={{ fontSize: '3rem', marginBottom: 20 }}>💬</div>
+      <h2>Your Partner Needs You</h2>
+      <p style={{ lineHeight: 1.8, marginBottom: 32, color: 'var(--muted)' }}>
+        Your partner has requested a Deep Lab session to resolve something important. The AI has analyzed your chat history and is waiting to interview you privately to get your point of view.
+      </p>
+      <button className="btn btn-p btn-full" onClick={() => {
+        setMsgs([{ role: 'assistant', content: "Hello! Your partner requested this session. I've read your recent chats, but I really want to understand your side of the story. How are you feeling about things right now? Be totally honest, this is strictly between us." }]);
+        setPhase('interview');
+      }}>Join Private Interview</button>
+    </div>
+  );
+
+  if (phase === 'init' || phase === 'analyzing') return (
     <div className="page center">
       <div style={{ textAlign: 'center' }}>
         <div className="loader" style={{ marginBottom: 20 }} />
-        <h3>Synthesizing Relationship Context</h3>
-        <p style={{ color: 'var(--muted)' }}>AI is reading and understanding your history...</p>
+        <h3>{phase === 'analyzing' ? 'Synthesizing Relationship Context' : 'Loading Lab...'}</h3>
+        <p style={{ color: 'var(--muted)' }}>{phase === 'analyzing' ? 'AI is reading and understanding your history...' : 'Checking session status'}</p>
       </div>
     </div>
   );
