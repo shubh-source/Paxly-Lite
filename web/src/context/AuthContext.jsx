@@ -6,7 +6,9 @@ import axios from 'axios';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]       = useState(null);
+  const [user, setUser]       = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ros_user')) || null; } catch { return null; }
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
