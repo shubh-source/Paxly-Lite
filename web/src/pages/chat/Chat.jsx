@@ -265,7 +265,8 @@ export default function Chat() {
   return (
     <div style={{ 
       display:'flex', 
-      flexDirection:'column', 
+      justifyContent:'center',
+      alignItems:'center',
       height:'100vh', 
       background: space?.chat_wallpaper ? `url(${space.chat_wallpaper})` : activeTheme.bg,
       backgroundSize: 'cover',
@@ -273,6 +274,18 @@ export default function Chat() {
       position: 'relative',
       overflow: 'hidden'
     }}>
+      <div style={{
+        display:'flex', 
+        flexDirection:'column', 
+        height:'100%',
+        width: '100%',
+        maxWidth: 800,
+        position: 'relative',
+        zIndex: 1,
+        background: 'rgba(0,0,0,0.2)',
+        boxShadow: '0 0 50px rgba(0,0,0,0.5)'
+      }}>
+
       {/* Static Premium Background overlay */}
       {!space?.chat_wallpaper && (
         <div style={{ position: 'absolute', inset: 0, opacity: 0.6, pointerEvents: 'none', zIndex: 0 }}>
@@ -627,6 +640,7 @@ export default function Chat() {
       <style>{`
         @keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}
       `}</style>
+      </div>
     </div>
   );
 }
