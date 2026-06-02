@@ -202,8 +202,21 @@ export default function Chat() {
       const isOnceView = mode !== 'standard' && mode !== 'permanent';
       const limit = mode === 'twice' ? 2 : 1;
       
+      // Fix backend returning localhost URLs when testing via ngrok/vercel
+      let finalUrl = media_url;
+      if (media_url && (media_url.includes('localhost') || media_url.includes('127.0.0.1'))) {
+        try {
+          const pathOnly = new URL(media_url).pathname; // gets /media/chat/...
+          const apiUrl = import.meta.env.VITE_API_URL || '';
+          finalUrl = apiUrl + pathOnly;
+        } catch (e) { console.error("URL parse error", e); }
+      } else if (media_url && media_url.startsWith('/')) {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        finalUrl = apiUrl + media_url;
+      }
+
       const type = (targetFile.type || '').startsWith('video') ? 'video' : 'image';
-      wsService.sendMessage('', type, media_url, isOnceView, limit);
+      wsService.sendMessage('', type, finalUrl, isOnceView, limit);
     } catch (err) {
       alert("Upload failed: " + (err.response?.data?.detail || err.message));
       console.error("Media upload error:", err);
@@ -257,6 +270,11 @@ export default function Chat() {
   };
 
   const isMe = m => m.sender_id === user?.id;
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = 'auto'; };
+  }, []);
+
   const ts = m => m.timestamp ? format(new Date(m.timestamp), 'h:mm a') : '';
 
   const activeThemeId = space?.theme_id || 'classic';
@@ -515,7 +533,13 @@ export default function Chat() {
                   ) : (
                     <div style={{ position: 'relative' }}>
                       <video 
-                        src={msg.media_url} 
+                        src={(() => {
+                          let url = msg.media_url;
+                          if (url && (url.includes('localhost') || url.includes('127.0.0.1'))) {
+                            try { url = (import.meta.env.VITE_API_URL || '') + new URL(url).pathname; } catch(e){}
+                          }
+                          return url;
+                        })()}
                         controls
                         style={{ 
                           width:'100%', 
@@ -545,7 +569,13 @@ export default function Chat() {
                   ) : (
                     <div style={{ position: 'relative' }}>
                       <img 
-                        src={msg.media_url} 
+                        src={(() => {
+                          let url = msg.media_url;
+                          if (url && (url.includes('localhost') || url.includes('127.0.0.1'))) {
+                            try { url = (import.meta.env.VITE_API_URL || '') + new URL(url).pathname; } catch(e){}
+                          }
+                          return url;
+                        })()}
                         style={{ 
                           width:'100%', 
                           maxHeight:400, 
@@ -588,7 +618,7 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '8px 16px 20px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
+      <div style={{ padding: '12px 16px 20px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
@@ -598,12 +628,11 @@ export default function Chat() {
           alignItems: 'center', 
           background: 'rgba(22,22,26,0.65)', 
           backdropFilter: 'blur(25px) saturate(200%)', 
-          border: '1px solid rgba(255,255,255,0.1)', 
-          borderRadius: 28, 
-          padding: '10px 10px 10px 16px', 
-          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-          maxWidth: 800,
-          margin: '0 auto'
+          borderRadius: 30, 
+          padding: '10px 10px 10px 16px',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+          width: '100%'
         }}>
           
           {/* Left Side Icons */}
