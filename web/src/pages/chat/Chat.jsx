@@ -264,9 +264,6 @@ export default function Chat() {
 
   return (
     <div style={{ 
-      display:'flex', 
-      justifyContent:'center',
-      alignItems:'center',
       height:'100vh', 
       background: space?.chat_wallpaper ? `url(${space.chat_wallpaper})` : activeTheme.bg,
       backgroundSize: 'cover',
@@ -280,6 +277,7 @@ export default function Chat() {
         height:'100%',
         width: '100%',
         maxWidth: 800,
+        margin: '0 auto',
         position: 'relative',
         zIndex: 1,
         background: 'rgba(0,0,0,0.2)',
