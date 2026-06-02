@@ -150,7 +150,27 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
 async def get_chat_space(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = ensure_space(cu)
     res = await db.execute(select(CoupleSpace).filter(CoupleSpace.id == space_id))
-    return res.scalars().first()
+    space = res.scalars().first()
+    if not space:
+        raise HTTPException(404, "Space not found")
+        
+    partner_id = space.user1_id if space.user1_id != cu.id else space.user2_id
+    pres = await db.execute(select(User).filter(User.id == partner_id))
+    partner = pres.scalars().first()
+    
+    return {
+        "space": {
+            "id": space.id,
+            "theme_id": getattr(space, "theme_id", "classic"),
+            "chat_wallpaper": getattr(space, "chat_wallpaper", None),
+            "allow_media_save": space.allow_media_save
+        },
+        "partner": {
+            "id": partner.id if partner else None,
+            "name": partner.name if partner else "Unknown",
+            "avatar_url": getattr(partner, "avatar_url", None)
+        }
+    }
 
 @router.patch("/space/theme")
 async def update_theme(data: dict, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
