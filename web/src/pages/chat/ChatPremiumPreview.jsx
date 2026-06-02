@@ -261,12 +261,11 @@ export default function ChatPremiumPreview() {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Animated Mesh Gradient Background */}
+      {/* Static Premium Background overlay */}
       {!space?.chat_wallpaper && (
         <div style={{ position: 'absolute', inset: 0, opacity: 0.6, pointerEvents: 'none', zIndex: 0 }}>
-          <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.15) 0%, transparent 60%)', animation: 'meshFloat 20s infinite alternate ease-in-out' }} />
-          <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.15) 0%, transparent 60%)', animation: 'meshFloat2 25s infinite alternate ease-in-out' }} />
-          <div style={{ position: 'absolute', top: '30%', left: '40%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 60%)', animation: 'meshFloat3 18s infinite alternate ease-in-out' }} />
+          <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.1) 0%, transparent 60%)' }} />
+          <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.1) 0%, transparent 60%)' }} />
           <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(60px)' }} />
         </div>
       )}
@@ -368,7 +367,8 @@ export default function ChatPremiumPreview() {
         padding: '12px 20px',
         boxShadow: '0 16px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
         position: 'relative',
-        zIndex: 10
+        zIndex: 10,
+        flexShrink: 0
       }}>
         <Link to="/dashboard" style={{ color:'var(--muted)', display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}><Icons.Back size={24} /></Link>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -446,8 +446,7 @@ export default function ChatPremiumPreview() {
                   minWidth: isSecure ? 180 : 0,
                   boxShadow: isMe(msg) ? '0 12px 30px rgba(201,169,110,0.25), inset 0 2px 4px rgba(255,255,255,0.4)' : '0 12px 30px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.05)',
                   transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                  transform: 'translateZ(0)',
-                  animation: 'chatSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+                  transform: 'translateZ(0)'
                 }}
               >
                 {msg.message_type === 'video' ? (
@@ -568,7 +567,7 @@ export default function ChatPremiumPreview() {
             value={text} 
             onChange={handleType} 
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Kuch bhi bolo..."} 
+            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Message"} 
             disabled={isRecordingAudio}
             style={{ 
               flex: 1, 
@@ -615,10 +614,6 @@ export default function ChatPremiumPreview() {
       </div>
       <style>{`
         @keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}
-        @keyframes chatSlideUp { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        @keyframes meshFloat { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(50px, 50px) scale(1.1); } }
-        @keyframes meshFloat2 { 0% { transform: translate(0, 0) scale(1.1); } 100% { transform: translate(-50px, -50px) scale(1); } }
-        @keyframes meshFloat3 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(30px, -40px) scale(1.2); } }
       `}</style>
     </div>
   );
