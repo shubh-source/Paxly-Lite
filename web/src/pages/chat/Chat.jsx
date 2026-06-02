@@ -270,14 +270,20 @@ export default function Chat() {
       background: space?.chat_wallpaper ? `url(${space.chat_wallpaper})` : activeTheme.bg,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
-      position: 'relative'
+      position: 'relative',
+      overflow: 'hidden'
     }}>
-      {/* Background Glows */}
-      <div style={{ position: 'fixed', top: '10%', right: '5%', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(201,169,110,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', bottom: '10%', left: '5%', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(124,111,205,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
+      {/* Static Premium Background overlay */}
+      {!space?.chat_wallpaper && (
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.6, pointerEvents: 'none', zIndex: 0 }}>
+          <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.1) 0%, transparent 60%)' }} />
+          <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.1) 0%, transparent 60%)' }} />
+          <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(60px)' }} />
+        </div>
+      )}
 
       {/* Wallpaper Darken Overlay */}
-      {space?.chat_wallpaper && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', pointerEvents: 'none', backdropFilter: 'blur(2px)' }} />}
+      {space?.chat_wallpaper && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', pointerEvents: 'none', backdropFilter: 'blur(4px)' }} />}
       
       {/* Theme Picker */}
       {showThemePicker && (
@@ -360,15 +366,21 @@ export default function Chat() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Glassmorphic Header */}
       <header className="header" onClick={() => setShowThemePicker(true)} style={{ 
         cursor: 'pointer', 
-        background: 'rgba(22, 22, 24, 0.4)', 
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        margin: '20px 20px 12px',
-        borderRadius: '24px',
-        padding: '16px 20px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+        background: 'rgba(25, 25, 28, 0.45)', 
+        backdropFilter: 'blur(30px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(30px) saturate(150%)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderTop: '1px solid rgba(255,255,255,0.15)',
+        margin: '16px 16px 8px',
+        borderRadius: '30px',
+        padding: '12px 20px',
+        boxShadow: '0 16px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+        position: 'relative',
+        zIndex: 10,
+        flexShrink: 0
       }}>
         <Link to="/dashboard" style={{ color:'var(--muted)', display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}><Icons.Back size={24} /></Link>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -430,20 +442,21 @@ export default function Chat() {
                   }
                 }}
                 style={{ 
-                  maxWidth:'78%', 
-                  padding: (msg.message_type === 'image' && !isSecure) ? 0 : '14px 20px', 
+                  maxWidth:'80%', 
+                  padding: (msg.message_type === 'image' && !isSecure) ? 0 : '12px 18px', 
                   borderRadius: 24, 
                   cursor:'pointer', 
-                  borderBottomRightRadius: isMe(msg) ? 6 : 24, 
-                  borderBottomLeftRadius: isMe(msg) ? 24 : 6, 
-                  background: isMe(msg) ? 'var(--accent)' : 'rgba(255, 255, 255, 0.06)', 
-                  color: isMe(msg) ? '#000' : '#fff', 
-                  border: isMe(msg) ? 'none' : '1px solid rgba(255,255,255,0.1)', 
-                  backdropFilter: 'blur(16px)',
+                  borderBottomRightRadius: isMe(msg) ? 4 : 24, 
+                  borderBottomLeftRadius: isMe(msg) ? 24 : 4, 
+                  background: isMe(msg) ? 'linear-gradient(135deg, rgba(220,186,122,0.95), rgba(201,169,110,0.9))' : 'linear-gradient(135deg, rgba(45,45,50,0.8), rgba(35,35,40,0.8))', 
+                  color: isMe(msg) ? '#1a1614' : '#fff', 
+                  border: isMe(msg) ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)', 
+                  borderTop: isMe(msg) ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.12)',
+                  backdropFilter: 'blur(20px)',
                   overflow:'hidden', 
                   position: 'relative',
                   minWidth: isSecure ? 180 : 0,
-                  boxShadow: isMe(msg) ? '0 10px 25px rgba(201,169,110,0.2)' : '0 10px 25px rgba(0,0,0,0.2)',
+                  boxShadow: isMe(msg) ? '0 12px 30px rgba(201,169,110,0.25), inset 0 2px 4px rgba(255,255,255,0.4)' : '0 12px 30px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.05)',
                   transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                   transform: 'translateZ(0)'
                 }}
@@ -566,7 +579,7 @@ export default function Chat() {
             value={text} 
             onChange={handleType} 
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Kuch bhi bolo..."} 
+            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Message"} 
             disabled={isRecordingAudio}
             style={{ 
               flex: 1, 
@@ -611,7 +624,9 @@ export default function Chat() {
           </button>
         </div>
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}`}</style>
+      <style>{`
+        @keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}
+      `}</style>
     </div>
   );
 }

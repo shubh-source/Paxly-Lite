@@ -17,7 +17,6 @@ import SetupLock      from './pages/auth/SetupLock';
 import ForgotPin      from './pages/auth/ForgotPin';
 import Dashboard      from './pages/Dashboard';
 import Chat           from './pages/chat/Chat';
-import ChatPremiumPreview from './pages/chat/ChatPremiumPreview';
 import CallScreen     from './pages/calls/CallScreen';
 import MoodSync       from './pages/mood/MoodSync';
 import MoodHistory    from './pages/mood/MoodHistory';
@@ -75,7 +74,6 @@ function AnimatedRoutes() {
 
         <Route path="/dashboard"  element={<Guard needsPartner><Layout><Dashboard /></Layout></Guard>} />
         <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />
-        <Route path="/chat-preview" element={<Guard needsPartner><Layout><ChatPremiumPreview /></Layout></Guard>} />
         <Route path="/call"       element={<Guard needsPartner><Layout><CallScreen /></Layout></Guard>} />
         <Route path="/mood"       element={<Guard needsPartner><Layout><MoodSync /></Layout></Guard>} />
         <Route path="/mood/history" element={<Guard needsPartner><Layout><MoodHistory /></Layout></Guard>} />
