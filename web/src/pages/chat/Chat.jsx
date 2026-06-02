@@ -281,64 +281,68 @@ export default function Chat() {
   const activeTheme = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
+      
+      {/* Background Layer (Static + Wallpaper) */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+        {space?.chat_wallpaper ? (
+           <div style={{ width: '100%', height: '100%', background: `url(${space.chat_wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
+           </div>
+        ) : (
+           <div style={{ width: '100%', height: '100%', background: activeTheme.bg }}>
+             <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.1) 0%, transparent 60%)' }} />
+             <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.1) 0%, transparent 60%)' }} />
+             <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(60px)' }} />
+           </div>
+        )}
+      </div>
+
+      {/* Floating Header (Aura AI Style) */}
+      <header style={{ 
+        background: 'rgba(22,22,24,0.6)', 
+        backdropFilter: 'blur(20px)', 
+        border: '1px solid rgba(255,255,255,0.05)', 
+        margin: '16px 16px 0', 
+        borderRadius: '24px', 
+        padding: '12px 20px', 
+        boxShadow: '0 10px 30px rgba(0,0,0,0.3)', 
+        flexShrink: 0, 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        position: 'relative',
+        zIndex: 10
+      }}>
+        <Link to="/home" style={{ color: '#fff', display: 'flex', alignItems: 'center' }}><Icons.ChevronLeft size={28} /></Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', marginLeft: 8 }} onClick={() => setShowThemePicker(true)}>
+          <div className="avatar" style={{ width: 40, height: 40, overflow: 'hidden', borderRadius: '50%' }}>
+            {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (partner?.name?.[0]?.toUpperCase() || 'P')}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || 'Partner'}</span>
+            <span style={{ fontSize: '0.75rem', color: partnerOnline ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {typing ? <span style={{ color: 'var(--accent)' }}>typing...</span> : <DynamicPresence partnerOnline={partnerOnline} partnerPresence={partnerPresence} partnerMood={partnerMood} />}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 16, color: 'var(--accent)' }}>
+          <Icons.Phone size={22} />
+          <Icons.Video size={24} />
+        </div>
+      </header>
+
       {/* Main Chat Area */}
       <div style={{ 
         flex: 1, 
         display: 'flex', 
         flexDirection: 'column', 
-        height: '100%', 
         position: 'relative',
-        background: space?.chat_wallpaper ? `url(${space.chat_wallpaper})` : activeTheme.bg,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        overflow: 'hidden'
+        zIndex: 1,
+        overflowY: 'auto',
+        padding: '16px 16px 8px'
       }}>
 
-      {/* Header */}
-      <div style={{ 
-        padding: '16px 20px', 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 16, 
-        background: 'rgba(15,15,18,0.85)', 
-        backdropFilter: 'blur(30px)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        zIndex: 100,
-        flexShrink: 0
-      }}>
-        <Link to="/home" style={{ color: '#fff' }}><Icons.ChevronLeft size={28} /></Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer' }} onClick={() => setShowThemePicker(true)}>
-          <div className="avatar" style={{ width: 44, height: 44 }}>
-            {partner?.avatar_url ? <img src={partner.avatar_url} /> : (partner?.name?.[0]?.toUpperCase() || 'P')}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{partner?.name || 'Partner'}</div>
-            <div style={{ fontSize: '0.8rem', color: partnerOnline ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              {typing ? <><span style={{ color: 'var(--accent)' }}>typing...</span></> : (
-                 <DynamicPresence partnerOnline={partnerOnline} partnerPresence={partnerPresence} partnerMood={partnerMood} />
-              )}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 18, color: 'var(--accent)' }}>
-          <Icons.Phone size={24} />
-          <Icons.Video size={24} />
-        </div>
-      </div>
-
-      {/* Static Premium Background overlay */}
-      {!space?.chat_wallpaper && (
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.6, pointerEvents: 'none', zIndex: 0 }}>
-          <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.1) 0%, transparent 60%)' }} />
-          <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.1) 0%, transparent 60%)' }} />
-          <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(60px)' }} />
-        </div>
-      )}
-
-      {/* Wallpaper Darken Overlay */}
-      {space?.chat_wallpaper && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', pointerEvents: 'none', backdropFilter: 'blur(4px)' }} />}
-      
       {/* Theme Picker */}
       {showThemePicker && (
         <ThemePicker 
@@ -612,7 +616,7 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '12px 16px', background: 'rgba(15,15,18,0.85)', backdropFilter: 'blur(30px)', flexShrink: 0, zIndex: 100, position: 'relative', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ padding: '8px 16px 20px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
@@ -620,9 +624,12 @@ export default function Chat() {
           display: 'flex', 
           gap: 10, 
           alignItems: 'center', 
-          background: 'rgba(255,255,255,0.06)', 
-          borderRadius: 24, 
-          padding: '10px 10px 10px 16px',
+          background: 'rgba(22,22,26,0.65)', 
+          backdropFilter: 'blur(25px) saturate(200%)', 
+          border: '1px solid rgba(255,255,255,0.1)', 
+          borderRadius: 28, 
+          padding: '10px 10px 10px 16px', 
+          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
           width: '100%'
         }}>
           
