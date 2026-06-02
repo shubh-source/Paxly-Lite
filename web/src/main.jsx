@@ -67,7 +67,7 @@ function Guard({ children, needsPartner = false }) {
           initial={{ opacity: 0, filter: 'blur(20px)' }}
           animate={{ opacity: 1, filter: 'blur(0px)' }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
-          style={{ height: '100%', width: '100%' }}
+          style={{ minHeight: '100vh', width: '100%' }}
         >
           <AppGuard>{children}</AppGuard>
         </motion.div>
