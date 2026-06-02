@@ -154,6 +154,16 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
         status="interviewing"
     )
     db.add(session)
+    
+    # Notify partner that session has started
+    from app.models.orm import Notification
+    db.add(Notification(
+        user_id=cu.partner_id,
+        type="ai_report",
+        title="AI Deep Lab Started 🧠",
+        body=f"{cu.name} has initiated a Deep Lab session! Tap to join the interview."
+    ))
+    
     await db.commit()
     return {"session_id": session.id, "synopsis": synopsis}
 
