@@ -28,8 +28,6 @@ async def get_memories(cu: User = Depends(get_current_user), db: AsyncSession = 
     )
     mems = result.scalars().all()
     
-    mems = result.scalars().all()
-    
     # Fetch privacy setting
     space_res = await db.execute(select(CoupleSpace).filter(CoupleSpace.id == space_id))
     space = space_res.scalars().first()
