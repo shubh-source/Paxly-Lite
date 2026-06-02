@@ -57,13 +57,17 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                         media_url=payload.get("media_url"), is_once_view=payload.get("is_once_view", False),
                         view_limit=payload.get("view_limit", 1), timestamp=datetime.utcnow()
                     )
-                    db.add(msg)
-                    await db.commit()
-                    await manager.send_to_space(space_id, {
+                    
+                    broadcast_data = {
                         "type": "chat_message", "id": msg.id, "sender_id": user_id, "sender_name": user_name,
                         "message_type": msg.message_type, "text": raw_text, "media_url": msg.media_url,
                         "is_once_view": msg.is_once_view, "view_limit": msg.view_limit, "timestamp": msg.timestamp.isoformat()
-                    })
+                    }
+                    
+                    db.add(msg)
+                    await db.commit()
+                    
+                    await manager.send_to_space(space_id, broadcast_data)
 
                 elif p_type == "presence_state":
                     await manager.send_to_space(space_id, {
