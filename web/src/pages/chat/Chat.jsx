@@ -281,7 +281,7 @@ export default function Chat() {
   const activeTheme = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', width: '100%', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
       
       {/* Background Layer (Static + Wallpaper) */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
