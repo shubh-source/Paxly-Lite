@@ -344,35 +344,33 @@ export default function Chat() {
           flex-shrink: 0;
           position: relative;
           z-index: 100;
-          padding: 8px 10px 16px;
-          display: flex;
-          justify-content: center;
+          padding: 6px 10px 10px;
         }
         .chat-input-inner {
           display: flex;
-          gap: 8px;
+          gap: 6px;
           align-items: center;
-          background: #1A1311; /* Dark brownish */
-          border: 1px solid #3A2E27;
-          border-radius: 30px;
-          padding: 8px 10px 8px 16px;
+          background: rgba(18,18,22,0.72);
+          backdrop-filter: blur(28px) saturate(200%);
+          -webkit-backdrop-filter: blur(28px) saturate(200%);
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 26px;
+          padding: 7px 7px 7px 12px;
           box-shadow: 0 6px 24px rgba(0,0,0,0.4);
-          width: 100%;
-          max-width: 800px;
         }
         .chat-input-inner input {
           flex: 1;
           background: transparent;
           border: none;
           outline: none;
-          font-size: 0.95rem;
+          font-size: 0.97rem;
           color: #fff;
-          padding: 6px 0;
+          padding: 5px 0;
           min-width: 0;
           /* prevent iOS auto-zoom on focus (font-size must be >= 16px to avoid zoom) */
           font-size: 16px;
         }
-        .chat-input-inner input::placeholder { color: rgba(255,255,255,0.4); font-style: italic; }
+        .chat-input-inner input::placeholder { color: rgba(255,255,255,0.35); }
 
         /* icon buttons in input */
         .chat-icon-btn {
@@ -382,31 +380,20 @@ export default function Chat() {
           display: flex;
           align-items: center;
           justify-content: center;
-          min-width: 34px;
-          min-height: 34px;
+          /* minimum 44px tap target */
+          min-width: 40px;
+          min-height: 40px;
           border-radius: 50%;
           padding: 0;
-          color: var(--accent);
           -webkit-tap-highlight-color: transparent;
         }
-
-        .chat-emoji-btn {
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          font-size: 1.15rem;
-          padding: 4px;
-          transition: transform 0.2s;
-        }
-        .chat-emoji-btn:hover { transform: scale(1.2); }
 
         /* send/mic round button */
         .chat-send-btn {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          background: #241D1A;
-          border: 1px solid #3A2E27;
+          border: none;
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -650,28 +637,18 @@ export default function Chat() {
           <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
 
           <div className="chat-input-inner">
-            
-            {/* Quick Emoji Reactions */}
-            <div style={{ display: 'flex', gap: 4, marginRight: 8 }}>
-              {['😊', '😍', '😩', '😜', '😴'].map(em => (
-                <button key={em} className="chat-emoji-btn" onClick={() => { setText(p => p + em); }}>
-                  {em}
-                </button>
-              ))}
-            </div>
-
             <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
-              <Icons.Camera size={18} />
+              <Icons.Camera size={20} color="var(--muted)" />
             </button>
             <button className="chat-icon-btn" onClick={() => fileRef.current?.click()}>
-              <Icons.Gallery size={18} />
+              <Icons.Gallery size={20} color="var(--muted)" />
             </button>
 
             <input
               value={text}
               onChange={handleType}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-              placeholder={isRecordingAudio ? 'Recording…' : 'Whisper something...'}
+              placeholder={isRecordingAudio ? 'Recording…' : 'Message'}
               disabled={isRecordingAudio}
               style={{ color: isRecordingAudio ? '#ff5a3c' : '#fff' }}
             />
@@ -684,13 +661,15 @@ export default function Chat() {
               onClick={text.trim() ? send : undefined}
               disabled={sending && !!text.trim()}
               style={{
-                background: isRecordingAudio ? '#ff5a3c' : text.trim() ? 'var(--accent)' : '#241D1A',
-                border: text.trim() || isRecordingAudio ? 'none' : '1px solid #3A2E27',
+                background: isRecordingAudio ? '#ff5a3c' : text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
+                border: text.trim() || isRecordingAudio ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                boxShadow: text.trim() ? '0 5px 16px rgba(201,169,110,0.35)' : 'none',
+                transform: isRecordingAudio ? 'scale(1.12)' : 'scale(1)',
               }}
             >
               {text.trim()
-                ? <Icons.Send size={16} color="#000" />
-                : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : 'var(--accent)'} />}
+                ? <Icons.Send size={18} color="#000" />
+                : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : 'var(--muted)'} />}
             </button>
           </div>
         </div>
