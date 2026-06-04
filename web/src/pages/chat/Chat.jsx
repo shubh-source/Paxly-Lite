@@ -234,8 +234,21 @@ export default function Chat() {
     } catch (err) { console.error(err); }
   };
 
-  const updateTheme    = async id => {
-    try { await axios.patch('/api/chat/space/theme', { theme_id: id }); setSpace(p => ({ ...p, theme_id: id, chat_wallpaper: null })); } catch {}
+  const updateTheme = async id => {
+    // Optimistic update — change instantly in UI
+    setSpace(p => ({ ...p, theme_id: id, chat_wallpaper: null }));
+    // Also persist to localStorage so it survives refresh
+    try {
+      const cached = JSON.parse(localStorage.getItem('cached_space') || '{}');
+      cached.space = { ...(cached.space || {}), theme_id: id, chat_wallpaper: null };
+      localStorage.setItem('cached_space', JSON.stringify(cached));
+    } catch {}
+    // Save to server (best-effort)
+    try {
+      await axios.patch('/api/chat/space/theme', { theme_id: id });
+    } catch (err) {
+      console.warn('Theme save to server failed (UI already updated):', err?.response?.data || err.message);
+    }
   };
   const updateWallpaper = url => setSpace(p => ({ ...p, theme_id: 'custom', chat_wallpaper: url }));
 
