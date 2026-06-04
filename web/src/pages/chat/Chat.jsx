@@ -500,7 +500,19 @@ export default function Chat() {
         </div>
 
         {/* ── HEADER ───────────────────────────────────────── */}
-        <div className="chat-header">
+        <div
+          className="chat-header"
+          style={{
+            background: `rgba(0,0,0,0.35)`,
+            backdropFilter: 'blur(32px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+            borderBottom: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.08)'}22`,
+            borderLeft: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.08)'}11`,
+            borderRight: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.08)'}11`,
+            borderTop: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.08)'}18`,
+            boxShadow: `0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px ${activeTheme.accent || '#C9A96E'}15, inset 0 1px 0 ${activeTheme.accent || '#C9A96E'}12`,
+          }}
+        >
           {/* Back */}
           <Link to="/dashboard" style={{ color:'#fff', display:'flex', alignItems:'center', flexShrink:0 }}>
             <Icons.Back size={20} />
@@ -675,7 +687,13 @@ export default function Chat() {
         <div className="chat-input-bar">
           <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
 
-          <div className="chat-input-inner">
+          <div
+            className="chat-input-inner"
+            style={{
+              border: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.09)'}22`,
+              boxShadow: `0 6px 24px rgba(0,0,0,0.4), inset 0 1px 0 ${activeTheme.accent || '#C9A96E'}10`,
+            }}
+          >
             <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
               <Icons.Camera size={20} color="var(--muted)" />
             </button>
