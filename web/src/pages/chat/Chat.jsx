@@ -420,12 +420,14 @@ export default function Chat() {
 
         /* ── Call icon hover ── */
         .chat-icon-btn:hover {
-          background: rgba(201,169,110,0.12);
-          transform: scale(1.1);
-          transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+          background: color-mix(in srgb, var(--theme-accent) 15%, transparent);
+          transform: scale(1.12);
         }
         .chat-icon-btn {
-          transition: background 0.2s ease, transform 0.2s ease;
+          transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .chat-header:hover .chat-icon-btn {
+          color: var(--theme-accent);
         }
         .chat-bubble {
           border-radius: 20px;
@@ -475,7 +477,16 @@ export default function Chat() {
       `}</style>
 
       {/* ── ROOT ────────────────────────────────────────────── */}
-      <div className="chat-root">
+      <div
+        className="chat-root"
+        style={{
+          '--theme-accent': activeTheme.accent || '#C9A96E',
+          '--theme-bubble-me': activeTheme.bubbleMe || '#C9A96E',
+          '--theme-text-me': activeTheme.textMe || '#111',
+          '--theme-bubble-other': activeTheme.bubbleOther || 'rgba(255,255,255,0.07)',
+          '--theme-text-other': activeTheme.textOther || '#fff',
+        }}
+      >
 
         {/* ── BACKGROUND ────────────────────────────────────── */}
         <div style={{ position:'absolute', inset:0, zIndex:0, pointerEvents:'none' }}>
