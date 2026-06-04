@@ -97,12 +97,12 @@ export default function AppGuard({ children }) {
 
   const [pinLoading, setPinLoading] = useState(false);
   
-  const verifyPin = async () => {
-    if (pin.length < 4) return setError('PIN too short');
+  const verifyPin = async (pinToVerify = pin) => {
+    if (pinToVerify.length < 4) return setError('PIN too short');
     setPinLoading(true);
     setError('');
     try {
-      const res = await api.post('/security/pin/verify', { pin });
+      const res = await api.post('/security/pin/verify', { pin: pinToVerify });
       if (res.data.status === 'ok') {
         setIsLocked(false);
         setPin('');
@@ -125,7 +125,13 @@ export default function AppGuard({ children }) {
   };
 
   const handleKey = (num) => {
-    if (pin.length < 4) setPin(prev => prev + num);
+    if (pin.length < 4) {
+      const newPin = pin + num;
+      setPin(newPin);
+      if (newPin.length === 4) {
+        verifyPin(newPin);
+      }
+    }
   };
 
   // Keyboard support for Laptop/Desktop
