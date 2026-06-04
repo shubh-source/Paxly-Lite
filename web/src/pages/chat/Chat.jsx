@@ -582,15 +582,24 @@ export default function Chat() {
                     style={{
                       padding: isMedia ? 4 : '10px 16px',
                       background: isMedia ? 'transparent'
-                        : me ? '#E3BE86' : '#2A2422',
-                      color: me ? '#111' : '#fff',
+                        : me
+                          ? (activeTheme.bubbleMe || '#E3BE86')
+                          : (activeTheme.bubbleOther || '#2A2422'),
+                      color: me
+                        ? (activeTheme.textMe || '#111')
+                        : (activeTheme.textOther || '#fff'),
                       borderBottomRightRadius: me ? 4  : 20,
                       borderBottomLeftRadius:  me ? 20 : 4,
                       boxShadow: isMedia ? 'none' : '0 4px 15px rgba(0,0,0,0.15)',
+                      border: isSecure
+                        ? (me ? '1px solid rgba(0,0,0,0.2)' : `1px solid ${activeTheme.accent || '#b3945a'}`)
+                        : activeTheme.borderMe && me ? activeTheme.borderMe : 'none',
                       cursor: isSecure ? 'pointer' : 'default',
                       minWidth: isSecure ? 160 : 0,
                       position: 'relative',
                       maxWidth: '100%',
+                      backdropFilter: 'blur(16px)',
+                      WebkitBackdropFilter: 'blur(16px)',
                     }}
                   >
                     {/* VIDEO */}
@@ -636,7 +645,7 @@ export default function Chat() {
                   </div>
 
                   {/* Timestamp */}
-                  <span style={{ fontSize:'0.65rem', color: me ? '#E3BE86' : 'var(--muted)', marginTop:4, opacity:.6, fontWeight:500 }}>
+                  <span style={{ fontSize:'0.65rem', color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)', marginTop:4, opacity:.6, fontWeight:500 }}>
                     {ts(msg)}
                   </span>
                 </div>
