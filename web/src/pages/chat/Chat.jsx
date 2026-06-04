@@ -123,12 +123,6 @@ export default function Chat() {
 
   /* ── iOS viewport fix: resize when keyboard appears ─────── */
   useEffect(() => {
-    // Prevent body scroll — let only our scroll area scroll
-    document.body.style.overflow    = 'hidden';
-    document.body.style.position    = 'fixed';
-    document.body.style.width       = '100%';
-    document.body.style.height      = '100%';
-
     const onResize = () => {
       // Force repaint on iOS when keyboard opens/closes
       if (scrollRef.current) {
@@ -142,10 +136,6 @@ export default function Chat() {
     window.visualViewport?.addEventListener('scroll', onResize);
 
     return () => {
-      document.body.style.overflow  = '';
-      document.body.style.position  = '';
-      document.body.style.width     = '';
-      document.body.style.height    = '';
       window.visualViewport?.removeEventListener('resize', onResize);
       window.visualViewport?.removeEventListener('scroll', onResize);
     };
