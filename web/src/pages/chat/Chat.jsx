@@ -361,7 +361,7 @@ export default function Chat() {
 
         /* ── Messages scroll area ── */
         .chat-scroll {
-          flex: 1;
+          flex: 1; display: flex; flex-direction: column;
           min-height: 0;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
@@ -394,7 +394,7 @@ export default function Chat() {
           width: 100%;
         }
         .chat-input-inner input {
-          flex: 1;
+          flex: 1; display: flex; flex-direction: column;
           background: transparent;
           border: none;
           outline: none;
@@ -594,6 +594,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {/* ── MESSAGES ─────────────────────────────────────── */}
         <div className="chat-scroll" ref={scrollRef}>
+          {/* Spacer to push messages to the bottom when there are few */}
+          <div style={{ marginTop: 'auto' }} />
           {msgs.map((msg, i) => {
             const me            = isMe(msg);
             const isSecure      = msg.is_once_view;
