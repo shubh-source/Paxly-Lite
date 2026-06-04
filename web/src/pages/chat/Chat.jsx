@@ -339,7 +339,8 @@ export default function Chat() {
         flexDirection: 'column', 
         position: 'relative',
         zIndex: 1,
-        padding: '0'
+        padding: '0',
+        minHeight: 0
       }}>
 
       {/* Theme Picker */}
@@ -457,7 +458,7 @@ export default function Chat() {
                     borderRadius: 22,
                     borderBottomRightRadius: isMe(msg) ? 6 : 22,
                     borderBottomLeftRadius: isMe(msg) ? 22 : 6,
-                    boxShadow: isMe(msg) ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)',
+                    boxShadow: (msg.message_type === 'image' || msg.message_type === 'video') ? 'none' : (isMe(msg) ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)'),
                     position: 'relative',
                     cursor: isSecure ? 'pointer' : 'default',
                     border: isSecure ? (isMe(msg) ? '1px solid rgba(0,0,0,0.2)' : '1px solid #b3945a') : (msg.message_type === 'image' || msg.message_type === 'video' ? 'none' : (isMe(msg) ? 'none' : '1px solid rgba(255,255,255,0.08)')),
