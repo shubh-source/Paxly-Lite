@@ -565,7 +565,7 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '8px 16px 8px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px 16px 8px', zIndex: 100 }}>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
