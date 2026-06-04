@@ -57,6 +57,22 @@ export default function Chat() {
   const fileRef    = useRef(null);
   const scrollRef  = useRef(null);
 
+  // Prevent body scrolling while in immersive chat
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed'; // absolutely prevents scroll
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, []);
+
   /* ── data + websocket ─────────────────────────────────────── */
   useEffect(() => {
     getSpace().then(d => {
@@ -306,12 +322,16 @@ export default function Chat() {
 
         /* ── Chat outer wrapper ── */
         .chat-root {
-          position: absolute;
-          inset: 0;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
           display: flex;
           flex-direction: column;
           overflow: hidden;
           background: #111;
+          z-index: 100;
         }
 
         /* ── Header ── */
