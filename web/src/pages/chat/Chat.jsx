@@ -304,18 +304,19 @@ export default function Chat() {
           flex-shrink: 0;
           position: relative;
           z-index: 100;
-          margin: 0;
-          background: rgba(20, 16, 15, 0.55);
-          backdrop-filter: blur(24px) saturate(180%);
-          -webkit-backdrop-filter: blur(24px) saturate(180%);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-          padding: 12px 20px;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+          margin: 12px 16px 0;
+          background: rgba(255,255,255,0.04);
+          backdrop-filter: blur(32px) saturate(180%);
+          -webkit-backdrop-filter: blur(32px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 18px;
+          padding: 10px 20px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
           display: flex;
           align-items: center;
           gap: 16px;
-          min-height: 60px;
-          width: 100%;
+          min-height: 58px;
+          width: calc(100% - 32px);
         }
 
         /* ── Messages scroll area ── */
@@ -456,16 +457,13 @@ export default function Chat() {
             </>
           ) : (
             <div style={{ width:'100%', height:'100%', position:'relative', overflow:'hidden',
-              background: 'linear-gradient(135deg, #0D0B10 0%, #13100E 50%, #0D0B10 100%)' }}>
-              {/* Top-left golden glow */}
-              <div style={{ position:'absolute', top:'-5%', left:'-5%', width:'50%', height:'55%',
-                background:'radial-gradient(ellipse, rgba(201,169,110,0.18) 0%, transparent 65%)', borderRadius:'50%' }} />
+              background: '#0E0C11' }}>
+              {/* Subtle top-center golden glow */}
+              <div style={{ position:'absolute', top:'-15%', left:'50%', transform:'translateX(-50%)', width:'60%', height:'50%',
+                background:'radial-gradient(ellipse, rgba(180,140,80,0.12) 0%, transparent 70%)', borderRadius:'50%' }} />
               {/* Bottom-right purple glow */}
-              <div style={{ position:'absolute', bottom:'-10%', right:'-5%', width:'55%', height:'55%',
-                background:'radial-gradient(ellipse, rgba(120,90,180,0.14) 0%, transparent 65%)', borderRadius:'50%' }} />
-              {/* Center warm tint */}
-              <div style={{ position:'absolute', top:'30%', left:'30%', width:'45%', height:'45%',
-                background:'radial-gradient(ellipse, rgba(180,130,80,0.07) 0%, transparent 70%)', borderRadius:'50%' }} />
+              <div style={{ position:'absolute', bottom:'-20%', right:'-10%', width:'50%', height:'55%',
+                background:'radial-gradient(ellipse, rgba(100,70,160,0.10) 0%, transparent 65%)', borderRadius:'50%' }} />
             </div>
           )}
         </div>
