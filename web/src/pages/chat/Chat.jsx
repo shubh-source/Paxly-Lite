@@ -452,11 +452,20 @@ export default function Chat() {
           {space?.chat_wallpaper ? (
             <>
               <div style={{ width:'100%', height:'100%', background:`url(${space.chat_wallpaper}) center/cover` }} />
-              <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)' }} />
+              <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)' }} />
             </>
           ) : (
-            <div style={{ width:'100%', height:'100%', background: '#111', position:'relative' }}>
-              <div style={{ position:'absolute', inset:0, background: 'radial-gradient(circle at 50% -20%, #1a1614, #111 80%)' }} />
+            <div style={{ width:'100%', height:'100%', position:'relative', overflow:'hidden',
+              background: 'linear-gradient(135deg, #0D0B10 0%, #13100E 50%, #0D0B10 100%)' }}>
+              {/* Top-left golden glow */}
+              <div style={{ position:'absolute', top:'-5%', left:'-5%', width:'50%', height:'55%',
+                background:'radial-gradient(ellipse, rgba(201,169,110,0.18) 0%, transparent 65%)', borderRadius:'50%' }} />
+              {/* Bottom-right purple glow */}
+              <div style={{ position:'absolute', bottom:'-10%', right:'-5%', width:'55%', height:'55%',
+                background:'radial-gradient(ellipse, rgba(120,90,180,0.14) 0%, transparent 65%)', borderRadius:'50%' }} />
+              {/* Center warm tint */}
+              <div style={{ position:'absolute', top:'30%', left:'30%', width:'45%', height:'45%',
+                background:'radial-gradient(ellipse, rgba(180,130,80,0.07) 0%, transparent 70%)', borderRadius:'50%' }} />
             </div>
           )}
         </div>
