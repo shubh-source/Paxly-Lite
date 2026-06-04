@@ -8,6 +8,7 @@ import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
 import DynamicPresence from '../../components/chat/DynamicPresence';
 import VlynxlyStudio from '../../components/chat/VlynxlyStudio';
+import ChatBackground from '../../components/chat/ChatBackground';
 import { CHAT_THEMES } from '../../data/chatThemes';
 import axios from 'axios';
 import { Icons } from '../../components/ui/Icons';
@@ -492,6 +493,8 @@ export default function Chat() {
               {/* Bottom-right purple glow */}
               <div style={{ position:'absolute', bottom:'-20%', right:'-10%', width:'50%', height:'55%',
                 background:'radial-gradient(ellipse, rgba(100,70,160,0.10) 0%, transparent 65%)', borderRadius:'50%' }} />
+              {/* Living animated elements */}
+              <ChatBackground elements={activeTheme.elements} theme={activeTheme} />
             </div>
           )}
         </div>

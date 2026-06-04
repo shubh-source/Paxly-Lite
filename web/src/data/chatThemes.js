@@ -6,7 +6,8 @@ export const CHAT_THEMES = {
     textMe: '#0D0D0F',
     bubbleOther: 'rgba(255,255,255,0.06)',
     textOther: '#e8e8e8',
-    accent: '#C9A96E'
+    accent: '#C9A96E',
+    elements: 'bokeh'
   },
 
   lavender: {
@@ -16,7 +17,8 @@ export const CHAT_THEMES = {
     textMe: '#fff',
     bubbleOther: 'rgba(157,141,241,0.1)',
     textOther: '#d4d0f5',
-    accent: '#9d8df1'
+    accent: '#9d8df1',
+    elements: 'fireflies'
   },
 
   rose: {
@@ -26,7 +28,8 @@ export const CHAT_THEMES = {
     textMe: '#2d1b1b',
     bubbleOther: 'rgba(229,179,163,0.1)',
     textOther: '#f5d5cc',
-    accent: '#e5b3a3'
+    accent: '#e5b3a3',
+    elements: 'bokeh'
   },
 
   ocean: {
@@ -36,7 +39,8 @@ export const CHAT_THEMES = {
     textMe: '#020617',
     bubbleOther: 'rgba(56,189,248,0.08)',
     textOther: '#bae6fd',
-    accent: '#38bdf8'
+    accent: '#38bdf8',
+    elements: 'rain'
   },
 
   cyber: {
@@ -47,10 +51,9 @@ export const CHAT_THEMES = {
     bubbleOther: 'rgba(129,140,248,0.1)',
     textOther: '#c7d2fe',
     accent: '#f0abfc',
-    borderMe: '1px solid rgba(240,171,252,0.4)'
+    borderMe: '1px solid rgba(240,171,252,0.4)',
+    elements: 'neon-grid'
   },
-
-  // ── New Premium Themes ──────────────────────────────────
 
   midnight: {
     name: 'Midnight Rose',
@@ -59,7 +62,8 @@ export const CHAT_THEMES = {
     textMe: '#fff',
     bubbleOther: 'rgba(232,81,122,0.1)',
     textOther: '#f9c0d0',
-    accent: '#e8517a'
+    accent: '#e8517a',
+    elements: 'fireflies'
   },
 
   arctic: {
@@ -69,7 +73,8 @@ export const CHAT_THEMES = {
     textMe: '#0a1628',
     bubbleOther: 'rgba(226,240,255,0.07)',
     textOther: '#cfe4ff',
-    accent: '#a8d4ff'
+    accent: '#a8d4ff',
+    elements: 'stars'
   },
 
   sunset: {
@@ -79,7 +84,8 @@ export const CHAT_THEMES = {
     textMe: '#1a0d00',
     bubbleOther: 'rgba(255,140,66,0.1)',
     textOther: '#ffdab9',
-    accent: '#ff8c42'
+    accent: '#ff8c42',
+    elements: 'bokeh'
   },
 
   neon: {
@@ -90,7 +96,8 @@ export const CHAT_THEMES = {
     bubbleOther: 'rgba(0,245,212,0.08)',
     textOther: '#9afff0',
     accent: '#00f5d4',
-    borderMe: '1px solid rgba(0,245,212,0.5)'
+    borderMe: '1px solid rgba(0,245,212,0.5)',
+    elements: 'neon-grid'
   },
 
   velvet: {
@@ -100,7 +107,8 @@ export const CHAT_THEMES = {
     textMe: '#120a06',
     bubbleOther: 'rgba(192,125,74,0.1)',
     textOther: '#e8c9a0',
-    accent: '#c07d4a'
+    accent: '#c07d4a',
+    elements: 'bokeh'
   },
 
   galaxy: {
@@ -111,7 +119,8 @@ export const CHAT_THEMES = {
     bubbleOther: 'rgba(102,126,234,0.1)',
     textOther: '#c4b5fd',
     accent: '#a78bfa',
-    borderMe: '1px solid rgba(102,126,234,0.4)'
+    borderMe: '1px solid rgba(102,126,234,0.4)',
+    elements: 'stars'
   },
 
   // ── Love & Romantic Themes ──────────────────────────────
@@ -123,19 +132,10 @@ export const CHAT_THEMES = {
     textMe: '#fff',
     bubbleOther: 'rgba(255,107,157,0.12)',
     textOther: '#ffd6e7',
-    accent: '#ff6b9d'
+    accent: '#ff6b9d',
+    elements: 'petals'
   },
 
-  starlight: {
-    name: 'Starlight',
-    bg: 'linear-gradient(160deg, #070b1a 0%, #0c1030 50%, #070b1a 100%)',
-    bubbleMe: '#ffd700',
-    textMe: '#0c1030',
-    bubbleOther: 'rgba(255,215,0,0.08)',
-    textOther: '#fff8d4',
-    accent: '#ffd700',
-    borderMe: '1px solid rgba(255,215,0,0.35)'
-  },
 
   heartbeat: {
     name: 'Heartbeat',
@@ -145,7 +145,8 @@ export const CHAT_THEMES = {
     bubbleOther: 'rgba(255,61,107,0.1)',
     textOther: '#ffc2cc',
     accent: '#ff3d6b',
-    borderMe: '1px solid rgba(255,61,107,0.4)'
+    borderMe: '1px solid rgba(255,61,107,0.4)',
+    elements: 'hearts'
   },
 
   pastel: {
@@ -155,7 +156,8 @@ export const CHAT_THEMES = {
     textMe: '#1a1228',
     bubbleOther: 'rgba(255,179,222,0.1)',
     textOther: '#f5d0ea',
-    accent: '#ffb3de'
+    accent: '#ffb3de',
+    elements: 'hearts'
   },
 
   moonlit: {
@@ -165,7 +167,8 @@ export const CHAT_THEMES = {
     textMe: '#0a0a18',
     bubbleOther: 'rgba(200,182,255,0.1)',
     textOther: '#e8e0ff',
-    accent: '#c8b6ff'
+    accent: '#c8b6ff',
+    elements: 'fireflies'
   },
 
   loveblush: {
@@ -175,17 +178,8 @@ export const CHAT_THEMES = {
     textMe: '#1c0e16',
     bubbleOther: 'rgba(244,167,185,0.1)',
     textOther: '#fde8ef',
-    accent: '#f4a7b9'
+    accent: '#f4a7b9',
+    elements: 'petals'
   },
 
-  coupleglow: {
-    name: 'Couple Glow',
-    bg: 'linear-gradient(160deg, #1a1000 0%, #2a1a00 50%, #1a1000 100%)',
-    bubbleMe: '#ffaa00',
-    textMe: '#1a1000',
-    bubbleOther: 'rgba(255,170,0,0.08)',
-    textOther: '#ffe5a0',
-    accent: '#ffaa00',
-    borderMe: '1px solid rgba(255,170,0,0.4)'
-  }
 };
