@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { wsService } from '../../services/websocket';
 import { getMessages, getSpace, uploadMedia } from '../../services/api';
@@ -14,6 +14,7 @@ import { Icons } from '../../components/ui/Icons';
 
 export default function Chat() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [msgs, setMsgs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cached_messages')) || []; } catch { return []; }
   });
@@ -498,10 +499,20 @@ export default function Chat() {
 
           {/* Call icons */}
           <div style={{ display:'flex', gap:14, flexShrink:0, alignItems: 'center' }}>
-            <button className="chat-icon-btn" style={{ color:'var(--accent)' }}>
+            <button
+              className="chat-icon-btn"
+              style={{ color:'var(--accent)' }}
+              onClick={() => navigate('/call?type=audio')}
+              title="Voice Call"
+            >
               <Icons.Phone size={18} />
             </button>
-            <button className="chat-icon-btn" style={{ color:'var(--accent)' }}>
+            <button
+              className="chat-icon-btn"
+              style={{ color:'var(--accent)' }}
+              onClick={() => navigate('/call?type=video')}
+              title="Video Call"
+            >
               <Icons.Video size={20} />
             </button>
           </div>
