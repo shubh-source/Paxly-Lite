@@ -433,13 +433,13 @@ export default function Chat() {
           const isCompromised = msg.is_compromised;
           
           return (
-            <div key={msg.id} style={{ marginBottom:10, display:'flex', gap: 8, flexDirection: isMe(msg) ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
+             <div key={msg.id} style={{ marginBottom: 12, display: 'flex', gap: 8, justifyContent: isMe(msg) ? 'flex-end' : 'flex-start', animation: 'fadeInUp 0.3s ease-out' }}>
               {!isMe(msg) && (
-                 <div className="avatar" style={{ width: 28, height: 28, fontSize: '0.7rem', overflow: 'hidden', flexShrink: 0, marginTop: 4 }}>
+                 <div className="avatar" style={{ width: 30, height: 30, fontSize: '0.8rem', overflow: 'hidden', flexShrink: 0, alignSelf: 'flex-end', border: '1px solid rgba(255,255,255,0.08)' }}>
                    {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : partner?.name?.[0]?.toUpperCase()}
                  </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe(msg) ? 'flex-end' : 'flex-start', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe(msg) ? 'flex-end' : 'flex-start', maxWidth: '78%' }}>
                 <div
                   onClick={(e) => {
                   if (isSecure && !isMe(msg) && !isSpent && !isCompromised) {
@@ -447,29 +447,25 @@ export default function Chat() {
                   } else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id]) {
                     setUnblurred(prev => ({ ...prev, [msg.id]: true }));
                   } else {
-                    setReactTo(reactTo === msg.id ? null : msg.id);
+                    onReplyTarget?.(msg);
                   }
-                }}
-                style={{ 
-                  maxWidth:'80%', 
-                  padding: (msg.message_type === 'image' && !isSecure) ? 0 : '12px 18px', 
-                  borderRadius: 24, 
-                  cursor:'pointer', 
-                  borderBottomRightRadius: isMe(msg) ? 4 : 24, 
-                  borderBottomLeftRadius: isMe(msg) ? 24 : 4, 
-                  background: isMe(msg) ? 'linear-gradient(135deg, rgba(220,186,122,0.95), rgba(201,169,110,0.9))' : 'linear-gradient(135deg, rgba(45,45,50,0.8), rgba(35,35,40,0.8))', 
-                  color: isMe(msg) ? '#1a1614' : '#fff', 
-                  border: isMe(msg) ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)', 
-                  borderTop: isMe(msg) ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.12)',
-                  backdropFilter: 'blur(20px)',
-                  overflow:'hidden', 
-                  position: 'relative',
-                  minWidth: isSecure ? 180 : 0,
-                  boxShadow: isMe(msg) ? '0 12px 30px rgba(201,169,110,0.25), inset 0 2px 4px rgba(255,255,255,0.4)' : '0 12px 30px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.05)',
-                  transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                  transform: 'translateZ(0)'
-                }}
-              >
+                  }}
+                  style={{ 
+                    padding: msg.message_type === 'image' || msg.message_type === 'video' ? '4px' : '12px 18px', 
+                    background: msg.message_type === 'image' || msg.message_type === 'video' ? 'transparent' : (isMe(msg) ? 'var(--accent)' : 'rgba(255,255,255,0.06)'), 
+                    color: isMe(msg) ? '#000' : '#fff', 
+                    borderRadius: 22,
+                    borderBottomRightRadius: isMe(msg) ? 6 : 22,
+                    borderBottomLeftRadius: isMe(msg) ? 22 : 6,
+                    boxShadow: isMe(msg) ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)',
+                    position: 'relative',
+                    cursor: isSecure ? 'pointer' : 'default',
+                    border: isSecure ? (isMe(msg) ? '1px solid rgba(0,0,0,0.2)' : '1px solid #b3945a') : (msg.message_type === 'image' || msg.message_type === 'video' ? 'none' : (isMe(msg) ? 'none' : '1px solid rgba(255,255,255,0.08)')),
+                    overflow: 'hidden',
+                    backdropFilter: 'blur(16px)',
+                    minWidth: isSecure ? 180 : 0
+                  }}
+                >
                 {msg.message_type === 'video' ? (
                   isSecure ? (
                     <div style={{ display:'flex', alignItems:'center', gap:12 }}>
