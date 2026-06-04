@@ -15,9 +15,11 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('ros_token');
     const cachedUser = localStorage.getItem('ros_user');
     
+    let isCached = false;
     if (cachedUser) {
       try { 
         setUser(JSON.parse(cachedUser)); 
+        isCached = true;
         // 3s artificial delay so the premium splash screen animation can fully complete
         setTimeout(() => setLoading(false), 3000);
       } catch (e) {}
@@ -59,10 +61,10 @@ export const AuthProvider = ({ children }) => {
         }
       })
       .finally(() => {
-        setLoading(false);
+        if (!isCached) setLoading(false);
       });
     } else {
-      setLoading(false);
+      if (!isCached) setLoading(false);
     }
   }, []);
 
