@@ -66,7 +66,7 @@ export default function Chat() {
       setSpace(d.space);
       localStorage.setItem('cached_space', JSON.stringify(d));
     });
-    getMessages().then(data => {
+    getMessages(0, 500).then(data => {
       const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       setMsgs(sorted);
       localStorage.setItem('cached_messages', JSON.stringify(sorted));
