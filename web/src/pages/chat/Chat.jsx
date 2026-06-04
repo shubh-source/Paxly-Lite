@@ -487,16 +487,17 @@ export default function Chat() {
           ) : (
             <div style={{ width:'100%', height:'100%', position:'relative', overflow:'hidden',
               background: activeTheme.bg || '#0E0C11' }}>
-              {/* Subtle top-center golden glow */}
+              {/* Subtle top-center glow */}
               <div style={{ position:'absolute', top:'-15%', left:'50%', transform:'translateX(-50%)', width:'60%', height:'50%',
                 background:'radial-gradient(ellipse, rgba(180,140,80,0.12) 0%, transparent 70%)', borderRadius:'50%' }} />
-              {/* Bottom-right purple glow */}
+              {/* Bottom-right glow */}
               <div style={{ position:'absolute', bottom:'-20%', right:'-10%', width:'50%', height:'55%',
                 background:'radial-gradient(ellipse, rgba(100,70,160,0.10) 0%, transparent 65%)', borderRadius:'50%' }} />
-              {/* Living animated elements */}
-              <ChatBackground elements={activeTheme.elements} theme={activeTheme} />
             </div>
           )}
+
+          {/* Living animated elements — outside overflow:hidden so they aren't clipped */}
+          <ChatBackground elements={activeTheme.elements} theme={activeTheme} />
         </div>
 
         {/* ── HEADER ───────────────────────────────────────── */}
