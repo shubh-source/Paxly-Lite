@@ -159,8 +159,15 @@ export default function AppGuard({ children }) {
     return children;
   }
 
-  if (!loading && user?.has_pin && isLocked) {
-    return (
+  const showLock = !loading && user?.has_pin && isLocked;
+
+  return (
+    <>
+      <div style={{ display: showLock ? 'none' : 'contents' }}>
+        {children}
+      </div>
+
+      {showLock && (
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#0D0D0F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{ marginBottom: 16 }}>
@@ -208,12 +215,8 @@ export default function AppGuard({ children }) {
           .pin-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.1); }
         `}</style>
       </div>
-    );
-  }
+      )}
 
-  return (
-    <>
-      {children}
       {incomingCall && (
         <div style={{
           position: 'fixed',
