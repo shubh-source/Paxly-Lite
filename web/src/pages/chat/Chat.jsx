@@ -305,8 +305,10 @@ export default function Chat() {
           position: relative;
           z-index: 100;
           margin: 0;
-          background: #1A1615; /* Dark brown/grey */
-          border-bottom: 1px solid rgba(255,255,255,0.03);
+          background: rgba(20, 16, 15, 0.55);
+          backdrop-filter: blur(24px) saturate(180%);
+          -webkit-backdrop-filter: blur(24px) saturate(180%);
+          border-bottom: 1px solid rgba(255,255,255,0.06);
           padding: 12px 20px;
           box-shadow: 0 4px 20px rgba(0,0,0,0.5);
           display: flex;
@@ -340,10 +342,10 @@ export default function Chat() {
           display: flex;
           gap: 6px;
           align-items: center;
-          background: rgba(18,18,22,0.72);
+          background: rgba(26, 20, 18, 0.55);
           backdrop-filter: blur(28px) saturate(200%);
           -webkit-backdrop-filter: blur(28px) saturate(200%);
-          border: 1px solid rgba(255,255,255,0.09);
+          border: 1px solid rgba(255,255,255,0.08);
           border-radius: 26px;
           padding: 7px 7px 7px 12px;
           box-shadow: 0 6px 24px rgba(0,0,0,0.4);
