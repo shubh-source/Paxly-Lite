@@ -69,7 +69,7 @@ function Guard({ children, needsPartner = false }) {
           transition={{ duration: 0.8, ease: 'easeOut' }}
           style={{ minHeight: '100vh', width: '100%' }}
         >
-          <AppGuard>{children}</AppGuard>
+          {children}
         </motion.div>
       )}
     </AnimatePresence>
