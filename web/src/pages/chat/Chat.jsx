@@ -340,7 +340,8 @@ export default function Chat() {
         position: 'relative',
         zIndex: 1,
         padding: '0',
-        minHeight: 0
+        minHeight: 0,
+        height: '100%'
       }}>
 
       {/* Theme Picker */}
@@ -426,7 +427,7 @@ export default function Chat() {
 
 
       {/* Messages */}
-      <div style={{ flex:1, overflowY:'auto', padding:'12px 16px', paddingBottom:80, position: 'relative' }}>
+      <div style={{ flex:1, overflowY:'auto', padding:'12px 16px', paddingBottom:80, position: 'relative', minHeight: 0 }}>
         <DynamicPresence partner={partner} state={partnerPresence} mood={partnerMood} />
         {msgs.map(msg => {
           const isSecure = msg.is_once_view;
