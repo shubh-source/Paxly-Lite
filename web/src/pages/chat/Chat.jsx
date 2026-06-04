@@ -322,7 +322,7 @@ export default function Chat() {
 
         /* ── Chat outer wrapper ── */
         .chat-root {
-          position: fixed;
+          position: absolute;
           top: 0;
           left: 0;
           right: 0;
@@ -339,7 +339,7 @@ export default function Chat() {
           flex-shrink: 0;
           position: relative;
           z-index: 100;
-          margin: 12px 16px 0;
+          margin: 25px 16px 0;
           background: rgba(255,255,255,0.04);
           backdrop-filter: blur(32px) saturate(180%);
           -webkit-backdrop-filter: blur(32px) saturate(180%);
@@ -533,17 +533,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         </div>
 
         {/* ── HEADER ───────────────────────────────────────── */}
+        <div style={{ height: 60, width: '100%', background: 'red', flexShrink: 0, zIndex: 999 }} />
         <div
           className="chat-header"
           style={{
-            background: `rgba(255,255,255,0.06)`,
-            backdropFilter: 'blur(32px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-            borderBottom: `1px solid rgba(255,255,255,0.08)`,
-            borderLeft: `1px solid rgba(255,255,255,0.08)`,
-            borderRight: `1px solid rgba(255,255,255,0.08)`,
-            borderTop: `1px solid rgba(255,255,255,0.08)`,
-            boxShadow: `0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)`,
+            background: '#1a1a20',
+            borderBottom: `1px solid rgba(255,255,255,0.1)`,
+            boxShadow: `0 8px 32px rgba(0,0,0,0.5)`,
           }}
         >
           {/* Back */}
