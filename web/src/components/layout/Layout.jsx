@@ -9,7 +9,7 @@ export default function Layout({ children }) {
       <main style={{ 
         flex: 1, 
         minHeight: '100dvh', 
-        position: 'relative'
+        position: 'relative', overflow: 'hidden'
       }}>
         {isImmersive ? children : <div className="content">{children}</div>}
       </main>
