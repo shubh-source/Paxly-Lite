@@ -7,13 +7,10 @@ import { format } from 'date-fns';
 import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
 import DynamicPresence from '../../components/chat/DynamicPresence';
-import ReactionPicker from '../../components/chat/ReactionPicker';
 import VlynxlyStudio from '../../components/chat/VlynxlyStudio';
 import { CHAT_THEMES } from '../../data/chatThemes';
 import axios from 'axios';
 import { Icons } from '../../components/ui/Icons';
-
-const EMOJIS = ['❤️','😂','😮','😢','🔥','👏'];
 
 export default function Chat() {
   const { user } = useAuth();
@@ -24,41 +21,41 @@ export default function Chat() {
   const [partner, setPartner] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
   });
-  const [typing, setTyping] = useState(false);
+  const [typing, setTyping]           = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
-  const [reactTo, setReactTo] = useState(null);
-  const [sending, setSending] = useState(false);
-  
-  // Voice Recording State
-  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
-  const [audioRecorder, setAudioRecorder] = useState(null);
-  const audioChunks = useRef([]);
-  
-// Security State
-  const [pendingFile, setPendingFile] = useState(null);
-  const [showGallerySecureModal, setShowGallerySecureModal] = useState(false);
-  const [unblurred, setUnblurred] = useState({}); // Tracking unblurred msgs manually
+  const [sending, setSending]         = useState(false);
 
-  // Presence & Theme State
-  const [viewingSecureMsg, setViewingSecureMsg] = useState(null);
+  // Voice
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [audioRecorder, setAudioRecorder]       = useState(null);
+  const audioChunks = useRef([]);
+
+  // Security / media
+  const [pendingFile, setPendingFile]                   = useState(null);
+  const [showGallerySecureModal, setShowGallerySecureModal] = useState(false);
+  const [unblurred, setUnblurred]                       = useState({});
+  const [viewingSecureMsg, setViewingSecureMsg]         = useState(null);
+
+  // Presence / theme
   const [space, setSpace] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cached_space'))?.space || null; } catch { return null; }
   });
-  const [showThemePicker, setShowThemePicker] = useState(false);
-  const [partnerPresence, setPartnerPresence] = useState('idle'); // idle | peeking | typing | watching
-  const [partnerMood, setPartnerMood] = useState('neutral');
-  const [selfMood, setSelfMood] = useState('neutral');
-  const [showingStudio, setShowingStudio] = useState(false);
+  const [showThemePicker, setShowThemePicker]   = useState(false);
+  const [partnerPresence, setPartnerPresence]   = useState('idle');
+  const [partnerMood, setPartnerMood]           = useState('neutral');
+  const [selfMood]                              = useState('neutral');
+  const [showingStudio, setShowingStudio]       = useState(false);
 
-  // Media Permissions State
-  const [saveRequest, setSaveRequest] = useState(null); // { from, mediaUrl, messageId }
+  // Save requests
+  const [saveRequest, setSaveRequest]   = useState(null);
   const [requestingSave, setRequestingSave] = useState(false);
-  const [saveAllowed, setSaveAllowed] = useState(null); // { messageId, allowed }
 
-  const bottomRef = useRef(null);
+  const bottomRef  = useRef(null);
   const typingTimer = useRef(null);
-  const fileRef = useRef(null);
+  const fileRef    = useRef(null);
+  const scrollRef  = useRef(null);
 
+  /* ── data + websocket ─────────────────────────────────────── */
   useEffect(() => {
     getSpace().then(d => {
       setPartner(d.partner);
@@ -73,78 +70,96 @@ export default function Chat() {
     });
 
     const offs = [
-      wsService.on('chat_message', msg => setMsgs(prev => [...prev, msg])),
+      wsService.on('chat_message', msg => setMsgs(p => [...p, msg])),
       wsService.on('typing', d => { if (d.user_id !== user?.id) setTyping(d.is_typing); }),
       wsService.on('presence', d => { if (d.user_id !== user?.id) setPartnerOnline(d.online); }),
-      wsService.on('presence_state', d => { 
+      wsService.on('presence_state', d => {
         if (d.user_id !== user?.id) {
           setPartnerPresence(d.state);
           setPartnerMood(d.mood || 'neutral');
-          if (d.state === 'typing') {
-            setTyping(true);
-          } else {
-            setTyping(false);
-          }
+          setTyping(d.state === 'typing');
         }
       }),
-      wsService.on('reaction', d => setMsgs(prev => prev.map(m => m.id === d.message_id ? { ...m, reactions: { ...m.reactions, [d.user_id]: d.emoji } } : m))),
+      wsService.on('reaction', d =>
+        setMsgs(p => p.map(m => m.id === d.message_id
+          ? { ...m, reactions: { ...m.reactions, [d.user_id]: d.emoji } } : m))
+      ),
       wsService.on('media_save_request', d => {
-        if (d.sender_id !== user?.id) setSaveRequest({ from: partner?.name || 'Partner', ...d });
+        if (d.sender_id !== user?.id)
+          setSaveRequest({ from: partner?.name || 'Partner', ...d });
       }),
       wsService.on('media_save_response', d => {
         if (d.sender_id !== user?.id) {
           setRequestingSave(false);
-          setSaveAllowed({ messageId: d.message_id, allowed: d.allowed });
           if (d.allowed) {
-            // Trigger download if allowed
-            const link = document.createElement('a');
-            link.href = d.media_url;
-            link.download = `vlynxly_${Date.now()}`;
-            link.click();
-          } else {
-            alert("Save request denied by partner.");
-          }
+            const a = document.createElement('a');
+            a.href = d.media_url;
+            a.download = `vlynxly_${Date.now()}`;
+            a.click();
+          } else alert('Save request denied by partner.');
         }
       }),
     ];
-    return () => offs.forEach(off => off());
+    return () => offs.forEach(f => f());
   }, [user?.id]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }); }, [msgs]);
+  /* ── auto scroll ──────────────────────────────────────────── */
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
-  // Self Presence Emission
+  /* ── self presence ────────────────────────────────────────── */
   useEffect(() => {
-    const sendPulse = (st) => {
-      wsService.send({ type: 'presence_state', state: st, mood: selfMood });
-    };
-
-    const handleFocus = () => sendPulse('peeking');
-    const handleBlur = () => sendPulse('idle');
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    sendPulse('peeking');
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      sendPulse('idle');
-    };
+    const pulse = st => wsService.send({ type: 'presence_state', state: st, mood: selfMood });
+    const onFocus = () => pulse('peeking');
+    const onBlur  = () => pulse('idle');
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    pulse('peeking');
+    return () => { window.removeEventListener('focus', onFocus); window.removeEventListener('blur', onBlur); pulse('idle'); };
   }, [selfMood]);
 
   useEffect(() => {
-    const st = viewingSecureMsg ? 'watching' : 'peeking';
-    wsService.send({ type: 'presence_state', state: st, mood: selfMood });
-  }, [viewingSecureMsg, selfMood]);
+    wsService.send({ type: 'presence_state', state: viewingSecureMsg ? 'watching' : 'peeking', mood: selfMood });
+  }, [viewingSecureMsg]);
 
+  /* ── iOS viewport fix: resize when keyboard appears ─────── */
+  useEffect(() => {
+    // Prevent body scroll — let only our scroll area scroll
+    document.body.style.overflow    = 'hidden';
+    document.body.style.position    = 'fixed';
+    document.body.style.width       = '100%';
+    document.body.style.height      = '100%';
+
+    const onResize = () => {
+      // Force repaint on iOS when keyboard opens/closes
+      if (scrollRef.current) {
+        scrollRef.current.style.maxHeight = '';
+        requestAnimationFrame(() => {
+          bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+        });
+      }
+    };
+    window.visualViewport?.addEventListener('resize', onResize);
+    window.visualViewport?.addEventListener('scroll', onResize);
+
+    return () => {
+      document.body.style.overflow  = '';
+      document.body.style.position  = '';
+      document.body.style.width     = '';
+      document.body.style.height    = '';
+      window.visualViewport?.removeEventListener('resize', onResize);
+      window.visualViewport?.removeEventListener('scroll', onResize);
+    };
+  }, []);
+
+  /* ── handlers ─────────────────────────────────────────────── */
   const handleType = e => {
     setText(e.target.value);
-    wsService.send({ type: 'presence_state', state: e.target.value.length > 0 ? 'typing' : 'peeking', mood: selfMood });
+    wsService.send({ type: 'presence_state', state: e.target.value ? 'typing' : 'peeking', mood: selfMood });
     wsService.sendTyping(true);
     clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => {
-       wsService.sendTyping(false);
-       wsService.send({ type: 'presence_state', state: 'peeking', mood: selfMood });
+      wsService.sendTyping(false);
+      wsService.send({ type: 'presence_state', state: 'peeking', mood: selfMood });
     }, 1500);
   };
 
@@ -160,18 +175,18 @@ export default function Chat() {
     const file = e.target.files[0];
     if (!file) return;
     setPendingFile(file);
-    setShowGallerySecureModal(true); // Show gallery secure modal instead
+    setShowGallerySecureModal(true);
   };
 
   const startVoiceRecord = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunks.current = [];
       recorder.ondataavailable = e => audioChunks.current.push(e.data);
       recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
-        const file = new File([audioBlob], 'voice_note.webm', { type: 'audio/webm' });
+        const blob = new Blob(audioChunks.current, { type: 'audio/webm' });
+        const file = new File([blob], 'voice_note.webm', { type: 'audio/webm' });
         const { media_url } = await uploadMedia(file);
         wsService.sendMessage('', 'audio', media_url, false, 0);
         stream.getTracks().forEach(t => t.stop());
@@ -179,473 +194,631 @@ export default function Chat() {
       recorder.start();
       setAudioRecorder(recorder);
       setIsRecordingAudio(true);
-    } catch (err) {
-      console.error("Audio recording failed", err);
-    }
+    } catch (err) { console.error('Audio recording failed', err); }
   };
 
   const stopVoiceRecord = () => {
-    if (audioRecorder && isRecordingAudio) {
-      audioRecorder.stop();
-      setIsRecordingAudio(false);
-    }
+    if (audioRecorder && isRecordingAudio) { audioRecorder.stop(); setIsRecordingAudio(false); }
   };
 
-  const sendMedia = async (fileToSync, mode = 'standard') => {
-    const targetFile = fileToSync || pendingFile;
-    if (!targetFile) return;
+  const sendMedia = async (fileToUse, mode = 'standard') => {
+    const f = fileToUse || pendingFile;
+    if (!f) return;
     setSending(true);
     setShowGallerySecureModal(false);
-    
     try {
-      const { media_url } = await uploadMedia(targetFile);
+      const { media_url } = await uploadMedia(f);
       const isOnceView = mode !== 'standard' && mode !== 'permanent';
-      const limit = mode === 'twice' ? 2 : 1;
-      
-      // Fix backend returning localhost URLs when testing via ngrok/vercel
-      let finalUrl = media_url;
-      if (media_url && (media_url.includes('localhost') || media_url.includes('127.0.0.1'))) {
-        try {
-          const pathOnly = new URL(media_url).pathname; // gets /media/chat/...
-          const apiUrl = import.meta.env.VITE_API_URL || '';
-          finalUrl = apiUrl + pathOnly;
-        } catch (e) { console.error("URL parse error", e); }
-      } else if (media_url && media_url.startsWith('/')) {
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        finalUrl = apiUrl + media_url;
+      const limit      = mode === 'twice' ? 2 : 1;
+      let finalUrl     = media_url;
+      if (media_url?.includes('localhost') || media_url?.includes('127.0.0.1')) {
+        try { finalUrl = (import.meta.env.VITE_API_URL || '') + new URL(media_url).pathname; } catch {}
+      } else if (media_url?.startsWith('/')) {
+        finalUrl = (import.meta.env.VITE_API_URL || '') + media_url;
       }
-
-      const type = (targetFile.type || '').startsWith('video') ? 'video' : 'image';
+      const type = f.type?.startsWith('video') ? 'video' : 'image';
       wsService.sendMessage('', type, finalUrl, isOnceView, limit);
     } catch (err) {
-      alert("Upload failed: " + (err.response?.data?.detail || err.message));
-      console.error("Media upload error:", err);
-    } finally { 
-      setSending(false); 
+      alert('Upload failed: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setSending(false);
       setPendingFile(null);
-      if (fileRef.current) fileRef.current.value = ''; 
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
-  const handleSecureView = (msg) => {
-    if (msg.sender_id === user?.id) return; // Sender can't view securely (it's for the recipient)
-    if (msg.views_used >= msg.view_limit) return;
+  const handleSecureView = msg => {
+    if (msg.sender_id === user?.id || msg.views_used >= msg.view_limit) return;
     setViewingSecureMsg(msg);
   };
 
-  const onSecurityEvent = async (action) => {
+  const onSecurityEvent = async action => {
     if (!viewingSecureMsg) return;
     try {
       await axios.post(`/api/chat/messages/${viewingSecureMsg.id}/secure-event?action=${action}`);
-      if (action === 'view') {
-        // Refresh local state
-        setMsgs(prev => prev.map(m => m.id === viewingSecureMsg.id ? { ...m, views_used: m.views_used + 1 } : m));
-      } else if (action === 'compromise') {
-        setMsgs(prev => prev.map(m => m.id === viewingSecureMsg.id ? { ...m, is_compromised: true, media_url: null } : m));
-      }
+      if (action === 'view')
+        setMsgs(p => p.map(m => m.id === viewingSecureMsg.id ? { ...m, views_used: m.views_used + 1 } : m));
+      else if (action === 'compromise')
+        setMsgs(p => p.map(m => m.id === viewingSecureMsg.id ? { ...m, is_compromised: true, media_url: null } : m));
     } catch (err) { console.error(err); }
   };
 
-  const updateTheme = async (theme_id) => {
-    try {
-      await axios.patch('/api/chat/space/theme', { theme_id });
-      setSpace(prev => ({ ...prev, theme_id, chat_wallpaper: null })); // Reset wallpaper when theme picks
-    } catch {}
+  const updateTheme    = async id => {
+    try { await axios.patch('/api/chat/space/theme', { theme_id: id }); setSpace(p => ({ ...p, theme_id: id, chat_wallpaper: null })); } catch {}
   };
+  const updateWallpaper = url => setSpace(p => ({ ...p, theme_id: 'custom', chat_wallpaper: url }));
 
-  const updateWallpaper = (url) => {
-    setSpace(prev => ({ ...prev, theme_id: 'custom', chat_wallpaper: url }));
-  };
-
-  const requestSave = (msg) => {
+  const requestSave = msg => {
     if (msg.sender_id === user?.id) return;
     setRequestingSave(true);
     wsService.sendMediaSaveRequest(msg.media_url, msg.id);
   };
-
-  const respondSave = (allowed) => {
+  const respondSave = allowed => {
     if (!saveRequest) return;
     wsService.sendMediaSaveResponse(saveRequest.sender_id, allowed, saveRequest.message_id);
     setSaveRequest(null);
   };
 
-  const isMe = m => m.sender_id === user?.id;
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = 'auto'; };
-  }, []);
-
-  const ts = m => m.timestamp ? format(new Date(m.timestamp), 'h:mm a') : '';
+  const isMe      = m => m.sender_id === user?.id;
+  const ts        = m => m.timestamp ? format(new Date(m.timestamp), 'h:mm a') : '';
+  const fixUrl    = url => {
+    if (!url) return url;
+    if (url.includes('localhost') || url.includes('127.0.0.1'))
+      try { return (import.meta.env.VITE_API_URL || '') + new URL(url).pathname; } catch {}
+    if (url.startsWith('/')) return (import.meta.env.VITE_API_URL || '') + url;
+    return url;
+  };
 
   const activeThemeId = space?.theme_id || 'classic';
-  const activeTheme = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
+  const activeTheme   = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
 
+  /* ── render ───────────────────────────────────────────────── */
   return (
-    <div style={{ height: '100dvh', width: '100%', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
-      
-      {/* Background Layer (Static + Wallpaper) */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
-        {space?.chat_wallpaper ? (
-           <div style={{ width: '100%', height: '100%', background: `url(${space.chat_wallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
-           </div>
-        ) : (
-           <div style={{ width: '100%', height: '100%', background: activeTheme.bg }}>
-             <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.1) 0%, transparent 60%)' }} />
-             <div style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.1) 0%, transparent 60%)' }} />
-             <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(60px)' }} />
-           </div>
-        )}
-      </div>
+    <>
+      <style>{`
+        /* ── Reset ── */
+        *, *::before, *::after { box-sizing: border-box; }
 
-      {/* Floating Header (Aura AI Style) */}
-      <div id="chat-top-card" style={{ 
-        background: 'rgba(22,22,24,0.6)', 
-        backdropFilter: 'blur(20px)', 
-        border: '1px solid rgba(255,255,255,0.05)', 
-        margin: '16px 16px 0', 
-        borderRadius: '24px', 
-        padding: '12px 20px', 
-        boxShadow: '0 10px 30px rgba(0,0,0,0.3)', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 1000
-      }}>
-        <Link to="/dashboard" style={{ color: '#fff', display: 'flex', alignItems: 'center' }}><Icons.Back size={28} /></Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', marginLeft: 8 }} onClick={() => setShowThemePicker(true)}>
-          <div className="avatar" style={{ width: 40, height: 40, overflow: 'hidden', borderRadius: '50%' }}>
-            {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (partner?.name?.[0]?.toUpperCase() || 'P')}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{partner?.name || 'Partner'}</span>
-            <span style={{ fontSize: '0.75rem', color: partnerOnline ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              {typing ? <span style={{ color: 'var(--accent)' }}>typing...</span> : <DynamicPresence partnerOnline={partnerOnline} partnerPresence={partnerPresence} partnerMood={partnerMood} />}
-            </span>
-          </div>
+        /* ── Scrollbar hide ── */
+        .chat-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+        .chat-scroll::-webkit-scrollbar { display: none; }
+
+        /* ── Animations ── */
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes typingDot {
+          0%,80%,100% { transform: scale(0.55); opacity: .35; }
+          40%         { transform: scale(1);    opacity: 1;   }
+        }
+        @keyframes recPulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(255,90,60,0.5); }
+          50%     { box-shadow: 0 0 0 8px rgba(255,90,60,0);  }
+        }
+        .chat-msg { animation: fadeInUp 0.22s ease-out both; }
+        .rec-btn  { animation: recPulse 1s ease-in-out infinite; }
+
+        /* ── Chat outer wrapper ── */
+        .chat-root {
+          position: fixed;
+          inset: 0;
+          /* respect iOS notch / home bar */
+          padding-top:    env(safe-area-inset-top,    0px);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+          padding-left:   env(safe-area-inset-left,   0px);
+          padding-right:  env(safe-area-inset-right,  0px);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        /* ── Header ── */
+        .chat-header {
+          flex-shrink: 0;
+          position: relative;
+          z-index: 100;
+          margin: 10px 10px 0;
+          background: rgba(18,18,20,0.78);
+          backdrop-filter: blur(24px) saturate(180%);
+          -webkit-backdrop-filter: blur(24px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 20px;
+          padding: 10px 16px;
+          box-shadow: 0 6px 28px rgba(0,0,0,0.35);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 60px;
+        }
+
+        /* ── Messages scroll area ── */
+        .chat-scroll {
+          flex: 1;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+          padding: 10px 12px 6px;
+          position: relative;
+          z-index: 1;
+        }
+
+        /* ── Input bar ── */
+        .chat-input-bar {
+          flex-shrink: 0;
+          position: relative;
+          z-index: 100;
+          padding: 6px 10px 10px;
+        }
+        .chat-input-inner {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+          background: rgba(18,18,22,0.72);
+          backdrop-filter: blur(28px) saturate(200%);
+          -webkit-backdrop-filter: blur(28px) saturate(200%);
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 26px;
+          padding: 7px 7px 7px 12px;
+          box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+        }
+        .chat-input-inner input {
+          flex: 1;
+          background: transparent;
+          border: none;
+          outline: none;
+          font-size: 0.97rem;
+          color: #fff;
+          padding: 5px 0;
+          min-width: 0;
+          /* prevent iOS auto-zoom on focus (font-size must be >= 16px to avoid zoom) */
+          font-size: 16px;
+        }
+        .chat-input-inner input::placeholder { color: rgba(255,255,255,0.35); }
+
+        /* icon buttons in input */
+        .chat-icon-btn {
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          /* minimum 44px tap target */
+          min-width: 40px;
+          min-height: 40px;
+          border-radius: 50%;
+          padding: 0;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        /* send/mic round button */
+        .chat-send-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: transform 0.18s, background 0.18s, box-shadow 0.18s;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Bubble */
+        .chat-bubble {
+          border-radius: 20px;
+          overflow: hidden;
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          word-break: break-word;
+        }
+
+        /* ── PC-specific tweaks (sidebar-style, wider bubbles) ── */
+        @media (min-width: 768px) {
+          .chat-root {
+            /* On PC, center the chat in a max-width column */
+            align-items: center;
+          }
+          .chat-header,
+          .chat-scroll,
+          .chat-input-bar {
+            width: 100%;
+            max-width: 720px;
+          }
+          .chat-header { margin: 14px auto 0; border-radius: 22px; }
+          .chat-input-bar { padding: 8px 0 14px; }
+          .chat-scroll { padding: 12px 16px 8px; }
+          .chat-bubble { max-width: 65%; }
+        }
+
+        /* ── Mobile tweaks ── */
+        @media (max-width: 767px) {
+          .chat-header { margin: 8px 8px 0; padding: 8px 14px; min-height: 56px; }
+          .chat-input-bar { padding: 5px 8px 8px; }
+          .chat-bubble { max-width: 80%; }
+          .chat-input-inner input { font-size: 16px; } /* prevent iOS zoom */
+        }
+
+        /* ── Modal ── */
+        .chat-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.88);
+          z-index: 400;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+        }
+        .chat-modal-card {
+          max-width: 340px;
+          width: 100%;
+          text-align: center;
+          background: #1a1614;
+          padding: 28px 24px;
+          border-radius: 22px;
+          box-shadow: 0 20px 48px rgba(0,0,0,0.6);
+        }
+      `}</style>
+
+      {/* ── ROOT ────────────────────────────────────────────── */}
+      <div className="chat-root">
+
+        {/* ── BACKGROUND ────────────────────────────────────── */}
+        <div style={{ position:'absolute', inset:0, zIndex:0, pointerEvents:'none' }}>
+          {space?.chat_wallpaper ? (
+            <>
+              <div style={{ width:'100%', height:'100%', background:`url(${space.chat_wallpaper}) center/cover` }} />
+              <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)' }} />
+            </>
+          ) : (
+            <div style={{ width:'100%', height:'100%', background: activeTheme.bg, position:'relative' }}>
+              <div style={{ position:'absolute', top:'-10%', left:'-10%', width:'55%', height:'55%', background:'radial-gradient(circle, rgba(201,169,110,0.13) 0%, transparent 65%)' }} />
+              <div style={{ position:'absolute', bottom:'-15%', right:'-10%', width:'60%', height:'60%', background:'radial-gradient(circle, rgba(124,111,205,0.1) 0%, transparent 65%)' }} />
+              <div style={{ position:'absolute', inset:0, backdropFilter:'blur(60px)', WebkitBackdropFilter:'blur(60px)' }} />
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', gap: 16, color: 'var(--accent)' }}>
-          <Icons.Phone size={22} />
-          <Icons.Video size={24} />
-        </div>
-      </div>
 
-      {/* Main Chat Area */}
-      <div style={{ 
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 1
-      }}>
+        {/* ── HEADER ───────────────────────────────────────── */}
+        <div className="chat-header">
+          {/* Back */}
+          <Link to="/dashboard" style={{ color:'#fff', display:'flex', alignItems:'center', flexShrink:0, minWidth:36, minHeight:36, justifyContent:'center' }}>
+            <Icons.Back size={24} />
+          </Link>
 
-      {/* Theme Picker */}
-      {showThemePicker && (
-        <ThemePicker 
-          currentTheme={activeThemeId}
-          isPremium={user?.is_premium}
-          onSelect={(id) => { updateTheme(id); setShowThemePicker(false); }}
-          onWallpaperUpdate={(url) => { updateWallpaper(url); setShowThemePicker(false); }}
-          onClose={() => setShowThemePicker(false)}
-        />
-      )}
-      
-      {showingStudio && (
-        <VlynxlyStudio 
-          onCapture={(file, mode) => { 
-            setShowingStudio(false); 
-            sendMedia(file, mode); 
-          }}
-          onClose={() => setShowingStudio(false)}
-        />
-      )}
+          {/* Avatar + name */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, flex:1, cursor:'pointer', minWidth:0 }} onClick={() => setShowThemePicker(true)}>
+            <div style={{
+              width:40, height:40, borderRadius:'50%', overflow:'hidden', flexShrink:0,
+              border:'2px solid rgba(201,169,110,0.4)',
+              background:'rgba(255,255,255,0.07)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'1rem', fontWeight:700, color:'var(--accent)',
+            }}>
+              {partner?.avatar_url
+                ? <img src={partner.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                : (partner?.name?.[0]?.toUpperCase() || 'P')}
+            </div>
 
-      {/* Gallery Secure Send Modal */}
-      {showGallerySecureModal && (
-        <div className="modal-overlay" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(10px)' }}>
-          <div className="card" style={{ maxWidth:360, width:'100%', textAlign:'center', border: '1px solid #b3945a', background: '#1a1614', padding: 30, borderRadius: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
-            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={48} color="#b3945a" /></div>
-            <h3 style={{ marginBottom:10, color: '#fff' }}>Secure Media Transfer</h3>
-            <p style={{ fontSize:'0.95rem', color:'var(--muted)', marginBottom:24 }}>
-              How would you like to send this file from your gallery?
-            </p>
-            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-              <button onClick={() => sendMedia(pendingFile, 'once')} style={{ padding: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(179,148,90,0.3)', borderRadius: 14, color: '#b3945a', fontWeight: 600, cursor: 'pointer' }}>Once View</button>
-              <button onClick={() => sendMedia(pendingFile, 'twice')} style={{ padding: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(179,148,90,0.3)', borderRadius: 14, color: '#b3945a', fontWeight: 600, cursor: 'pointer' }}>Twice View</button>
-              <button onClick={() => sendMedia(pendingFile, 'permanent')} style={{ padding: 14, background: '#b3945a', border: 'none', borderRadius: 14, color: '#000', fontWeight: 700, cursor: 'pointer' }}>Permanent Keep</button>
-              <button onClick={() => { setShowGallerySecureModal(false); setPendingFile(null); }} style={{ padding: 14, background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', marginTop: 8 }}>Cancel</button>
+            <div style={{ display:'flex', flexDirection:'column', minWidth:0 }}>
+              <span style={{ fontWeight:600, fontSize:'0.98rem', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                {partner?.name || 'Partner'}
+              </span>
+              <span style={{ fontSize:'0.7rem', marginTop:1, display:'flex', alignItems:'center', gap:3 }}>
+                {typing ? (
+                  <>
+                    <span style={{ color:'var(--accent)' }}>typing</span>
+                    {[0,160,320].map(d => (
+                      <span key={d} style={{ display:'inline-block', width:3.5, height:3.5, borderRadius:'50%', background:'var(--accent)', animation:`typingDot 1s ${d}ms infinite` }} />
+                    ))}
+                  </>
+                ) : (
+                  <DynamicPresence partnerOnline={partnerOnline} partnerPresence={partnerPresence} partnerMood={partnerMood} />
+                )}
+              </span>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Secure Viewer Overlay */}
-      {viewingSecureMsg && (
-        <SecureViewer 
-          mediaUrl={viewingSecureMsg.media_url}
-          messageId={viewingSecureMsg.id}
-          type={viewingSecureMsg.message_type}
-          onClosed={() => {
-            onSecurityEvent('view');
-            setViewingSecureMsg(null);
-          }}
-          onCompromised={() => {
-            onSecurityEvent('compromise');
-            setViewingSecureMsg(null);
-          }}
-        />
-      )}
-
-      {/* Media Save Request Modal (Partner View) */}
-      {saveRequest && (
-        <div className="modal-overlay" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(10px)' }}>
-          <div className="card" style={{ maxWidth:360, width:'100%', textAlign:'center', border: '1px solid var(--accent)', padding: 30 }}>
-            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={48} color="var(--accent)" /></div>
-            <h3 style={{ marginBottom:10 }}>Save Request</h3>
-            <p style={{ fontSize:'0.95rem', color:'#fff', marginBottom:24 }}>
-              <b>{saveRequest.from}</b> wants to save a photo to their phone gallery. Do you allow this?
-            </p>
-            <div style={{ display:'flex', gap:12 }}>
-              <button className="btn btn-g" onClick={() => respondSave(false)} style={{ flex: 1, padding: 14 }}>Deny</button>
-              <button className="btn btn-p" onClick={() => respondSave(true)} style={{ flex: 1, padding: 14, color: '#000', fontWeight: 700 }}>Allow Save</button>
-            </div>
+          {/* Call icons — 44px tap targets */}
+          <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+            <button className="chat-icon-btn" style={{ color:'var(--accent)' }}>
+              <Icons.Phone size={20} />
+            </button>
+            <button className="chat-icon-btn" style={{ color:'var(--accent)' }}>
+              <Icons.Video size={22} />
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Requesting Status (User View) */}
-      {requestingSave && (
-        <div style={{ position: 'fixed', top: 100, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', padding: '12px 24px', borderRadius: 99, fontWeight: 700, zIndex: 100, boxShadow: '0 10px 30px rgba(201,169,110,0.3)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div className="spinner-small" style={{ borderTopColor: '#000' }} /> Requesting Permission...
-        </div>
-      )}
+        {/* ── MESSAGES ─────────────────────────────────────── */}
+        <div className="chat-scroll" ref={scrollRef}>
+          {msgs.map((msg, i) => {
+            const me            = isMe(msg);
+            const isSecure      = msg.is_once_view;
+            const isSpent       = isSecure && msg.views_used >= msg.view_limit;
+            const isCompromised = msg.is_compromised;
+            const isMedia       = msg.message_type === 'image' || msg.message_type === 'video';
 
-
-      {/* Messages */}
-      <div style={{ height: '100%', overflowY:'auto', padding:'100px 16px 80px', position: 'relative' }}>
-        <DynamicPresence partner={partner} state={partnerPresence} mood={partnerMood} />
-        {msgs.map(msg => {
-          const isSecure = msg.is_once_view;
-          const isSpent = isSecure && msg.views_used >= msg.view_limit;
-          const isCompromised = msg.is_compromised;
-          
-          return (
-             <div key={msg.id} style={{ marginBottom: 12, display: 'flex', gap: 8, justifyContent: isMe(msg) ? 'flex-end' : 'flex-start', animation: 'fadeInUp 0.3s ease-out' }}>
-              {!isMe(msg) && (
-                 <div className="avatar" style={{ width: 30, height: 30, fontSize: '0.8rem', overflow: 'hidden', flexShrink: 0, alignSelf: 'flex-end', border: '1px solid rgba(255,255,255,0.08)' }}>
-                   {partner?.avatar_url ? <img src={partner.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : partner?.name?.[0]?.toUpperCase()}
-                 </div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe(msg) ? 'flex-end' : 'flex-start', maxWidth: '78%' }}>
-                <div
-                  onClick={(e) => {
-                  if (isSecure && !isMe(msg) && !isSpent && !isCompromised) {
-                    handleSecureView(msg);
-                  } else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id]) {
-                    setUnblurred(prev => ({ ...prev, [msg.id]: true }));
-                  } else {
-                    onReplyTarget?.(msg);
-                  }
-                  }}
-                  style={{ 
-                    padding: msg.message_type === 'image' || msg.message_type === 'video' ? '4px' : '12px 18px', 
-                    background: msg.message_type === 'image' || msg.message_type === 'video' ? 'transparent' : (isMe(msg) ? 'var(--accent)' : 'rgba(255,255,255,0.06)'), 
-                    color: isMe(msg) ? '#000' : '#fff', 
-                    borderRadius: 22,
-                    borderBottomRightRadius: isMe(msg) ? 6 : 22,
-                    borderBottomLeftRadius: isMe(msg) ? 22 : 6,
-                    boxShadow: (msg.message_type === 'image' || msg.message_type === 'video') ? 'none' : (isMe(msg) ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)'),
-                    position: 'relative',
-                    cursor: isSecure ? 'pointer' : 'default',
-                    border: isSecure ? (isMe(msg) ? '1px solid rgba(0,0,0,0.2)' : '1px solid #b3945a') : (msg.message_type === 'image' || msg.message_type === 'video' ? 'none' : (isMe(msg) ? 'none' : '1px solid rgba(255,255,255,0.08)')),
-                    overflow: 'hidden',
-                    backdropFilter: 'blur(16px)',
-                    minWidth: isSecure ? 180 : 0
-                  }}
-                >
-                {msg.message_type === 'video' ? (
-                  isSecure ? (
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                      {isCompromised ? <Icons.Shield size={24} color="#FF3B30" /> : isSpent ? <Icons.Vault size={24} color="var(--muted)" /> : <Icons.Video size={24} color="var(--accent)" />}
-                      <div style={{ fontSize:'0.9rem' }}>
-                        <div style={{ fontWeight:600 }}>{isCompromised ? 'Compromised' : isSpent ? 'Viewed' : 'Ephemeral Video'}</div>
-                        {!isSpent && !isCompromised && <div style={{ fontSize:'0.75rem', opacity:0.6 }}>Tap to scan & play</div>}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ position: 'relative' }}>
-                      <video 
-                        src={(() => {
-                          let url = msg.media_url;
-                          if (url && (url.includes('localhost') || url.includes('127.0.0.1'))) {
-                            try { url = (import.meta.env.VITE_API_URL || '') + new URL(url).pathname; } catch(e){}
-                          }
-                          return url;
-                        })()}
-                        controls
-                        style={{ 
-                          width:'100%', 
-                          maxHeight:400, 
-                          display:'block', 
-                          borderRadius:14,
-                          filter: (user?.blur_sensitive && !unblurred[msg.id]) ? 'blur(25px)' : 'none',
-                          transition: 'filter 0.3s ease'
-                        }} 
-                      />
-                      {user?.blur_sensitive && !unblurred[msg.id] && (
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.75rem', fontWeight: 600, background: 'rgba(0,0,0,0.2)', pointerEvents: 'none' }}>
-                          TAP TO REVEAL
-                        </div>
-                      )}
-                    </div>
-                  )
-                ) : msg.message_type === 'image' ? (
-                  isSecure ? (
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                      {isCompromised ? <Icons.Shield size={24} color="#FF3B30" /> : isSpent ? <Icons.Vault size={24} color="var(--muted)" /> : <Icons.Vault size={24} color="var(--accent)" />}
-                      <div style={{ fontSize:'0.9rem' }}>
-                        <div style={{ fontWeight:600 }}>{isCompromised ? 'Compromised' : isSpent ? 'Viewed' : 'Ephemeral Media'}</div>
-                        {!isSpent && !isCompromised && <div style={{ fontSize:'0.75rem', opacity:0.6 }}>Tap to scan & reveal</div>}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ position: 'relative' }}>
-                      <img 
-                        src={(() => {
-                          let url = msg.media_url;
-                          if (url && (url.includes('localhost') || url.includes('127.0.0.1'))) {
-                            try { url = (import.meta.env.VITE_API_URL || '') + new URL(url).pathname; } catch(e){}
-                          }
-                          return url;
-                        })()}
-                        style={{ 
-                          width:'100%', 
-                          maxHeight:400, 
-                          display:'block', 
-                          borderRadius:14,
-                          filter: (user?.blur_sensitive && !unblurred[msg.id]) ? 'blur(25px)' : 'none',
-                          transition: 'filter 0.3s ease'
-                        }} 
-                      />
-                      {user?.blur_sensitive && !unblurred[msg.id] && (
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.75rem', fontWeight: 600, background: 'rgba(0,0,0,0.2)' }}>
-                          TAP TO REVEAL
-                        </div>
-                      )}
-                      {!isMe(msg) && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); requestSave(msg); }}
-                          style={{ position: 'absolute', bottom: 10, right: 10, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: 10, padding: '6px 10px', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, backdropFilter: 'blur(10px)' }}
-                        >
-                          <Icons.Download size={12} /> SAVE
-                        </button>
-                      )}
-                    </div>
-                  )
-                ) : msg.message_type === 'audio' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: isMe(msg) ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icons.Mic size={18} color={isMe(msg) ? '#000' : '#b3945a'} />
-                    </div>
-                    <audio src={msg.media_url} controls style={{ height: 36, width: 200 }} />
+            return (
+              <div
+                key={msg.id}
+                className="chat-msg"
+                style={{
+                  marginBottom: 9,
+                  display:'flex', gap:7,
+                  justifyContent: me ? 'flex-end' : 'flex-start',
+                  animationDelay: `${Math.min(i * 0.025, 0.25)}s`,
+                }}
+              >
+                {/* Partner avatar */}
+                {!me && (
+                  <div style={{
+                    width:28, height:28, borderRadius:'50%', overflow:'hidden',
+                    flexShrink:0, alignSelf:'flex-end',
+                    border:'1px solid rgba(255,255,255,0.08)',
+                    background:'rgba(255,255,255,0.07)',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:'0.7rem', fontWeight:700, color:'var(--accent)',
+                  }}>
+                    {partner?.avatar_url
+                      ? <img src={partner.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                      : partner?.name?.[0]?.toUpperCase()}
                   </div>
-                ) : <span style={{ fontSize:'1rem', whiteSpace:'pre-wrap', lineHeight: 1.5 }}>{msg.text}</span>}
+                )}
+
+                <div style={{ display:'flex', flexDirection:'column', alignItems: me ? 'flex-end' : 'flex-start' }}
+                  className="chat-bubble-col">
+
+                  {/* Bubble */}
+                  <div
+                    className="chat-bubble"
+                    onClick={() => {
+                      if (isSecure && !me && !isSpent && !isCompromised) handleSecureView(msg);
+                      else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id])
+                        setUnblurred(p => ({ ...p, [msg.id]: true }));
+                    }}
+                    style={{
+                      padding: isMedia ? 4 : '10px 15px',
+                      background: isMedia ? 'transparent'
+                        : me ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
+                      color: me ? '#000' : '#fff',
+                      borderBottomRightRadius: me ? 5  : 20,
+                      borderBottomLeftRadius:  me ? 20 : 5,
+                      boxShadow: isMedia ? 'none'
+                        : me ? '0 4px 16px rgba(201,169,110,0.2)'
+                             : '0 3px 10px rgba(0,0,0,0.2)',
+                      border: isSecure
+                        ? (me ? '1px solid rgba(0,0,0,0.2)' : '1px solid #b3945a')
+                        : isMedia ? 'none'
+                        : me ? 'none' : '1px solid rgba(255,255,255,0.07)',
+                      cursor: isSecure ? 'pointer' : 'default',
+                      minWidth: isSecure ? 160 : 0,
+                      position: 'relative',
+                      // max-width handled by CSS class per breakpoint
+                      maxWidth: '100%',
+                    }}
+                  >
+                    {/* VIDEO */}
+                    {msg.message_type === 'video' && (isSecure ? (
+                      <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
+                    ) : (
+                      <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
+                        <video src={fixUrl(msg.media_url)} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                      </MediaWrap>
+                    ))}
+
+                    {/* IMAGE */}
+                    {msg.message_type === 'image' && (isSecure ? (
+                      <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
+                    ) : (
+                      <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
+                        <img src={fixUrl(msg.media_url)} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                        {!me && (
+                          <button
+                            onClick={e => { e.stopPropagation(); requestSave(msg); }}
+                            style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
+                          >
+                            <Icons.Download size={11} /> SAVE
+                          </button>
+                        )}
+                      </MediaWrap>
+                    ))}
+
+                    {/* AUDIO */}
+                    {msg.message_type === 'audio' && (
+                      <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+                        <div style={{ width:34, height:34, borderRadius:'50%', background: me ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <Icons.Mic size={15} color={me ? '#000' : '#b3945a'} />
+                        </div>
+                        <audio src={msg.media_url} controls style={{ height:32, minWidth:160, maxWidth:220 }} />
+                      </div>
+                    )}
+
+                    {/* TEXT */}
+                    {(!msg.message_type || msg.message_type === 'text') && (
+                      <span style={{ fontSize:'0.96rem', whiteSpace:'pre-wrap', lineHeight:1.55 }}>{msg.text}</span>
+                    )}
+                  </div>
+
+                  {/* Timestamp */}
+                  <span style={{ fontSize:'0.65rem', color: me ? 'var(--accent)' : 'var(--muted)', marginTop:3, opacity:.7, fontWeight:500 }}>
+                    {ts(msg)}
+                  </span>
                 </div>
-                <span style={{ fontSize:'0.7rem', color: isMe(msg) ? 'var(--accent)' : 'var(--muted)', marginTop:4, opacity: 0.8, fontWeight: 500 }}>{ts(msg)}</span>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} style={{ height:1 }} />
+        </div>
+
+        {/* ── INPUT BAR ─────────────────────────────────────── */}
+        <div className="chat-input-bar">
+          <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
+
+          <div className="chat-input-inner">
+            <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
+              <Icons.Camera size={20} color="var(--muted)" />
+            </button>
+            <button className="chat-icon-btn" onClick={() => fileRef.current?.click()}>
+              <Icons.Gallery size={20} color="var(--muted)" />
+            </button>
+
+            <input
+              value={text}
+              onChange={handleType}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+              placeholder={isRecordingAudio ? 'Recording…' : 'Message'}
+              disabled={isRecordingAudio}
+              style={{ color: isRecordingAudio ? '#ff5a3c' : '#fff' }}
+            />
+
+            <button
+              className={`chat-send-btn${isRecordingAudio ? ' rec-btn' : ''}`}
+              onPointerDown={!text.trim() ? startVoiceRecord : undefined}
+              onPointerUp={!text.trim() ? stopVoiceRecord : undefined}
+              onPointerLeave={!text.trim() ? stopVoiceRecord : undefined}
+              onClick={text.trim() ? send : undefined}
+              disabled={sending && !!text.trim()}
+              style={{
+                background: isRecordingAudio ? '#ff5a3c' : text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
+                border: text.trim() || isRecordingAudio ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                boxShadow: text.trim() ? '0 5px 16px rgba(201,169,110,0.35)' : 'none',
+                transform: isRecordingAudio ? 'scale(1.12)' : 'scale(1)',
+              }}
+            >
+              {text.trim()
+                ? <Icons.Send size={18} color="#000" />
+                : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : 'var(--muted)'} />}
+            </button>
+          </div>
+        </div>
+
+        {/* ── OVERLAYS ─────────────────────────────────────── */}
+
+        {showThemePicker && (
+          <ThemePicker
+            currentTheme={activeThemeId}
+            isPremium={user?.is_premium}
+            onSelect={id => { updateTheme(id); setShowThemePicker(false); }}
+            onWallpaperUpdate={url => { updateWallpaper(url); setShowThemePicker(false); }}
+            onClose={() => setShowThemePicker(false)}
+          />
+        )}
+
+        {showingStudio && (
+          <VlynxlyStudio
+            onCapture={(f, mode) => { setShowingStudio(false); sendMedia(f, mode); }}
+            onClose={() => setShowingStudio(false)}
+          />
+        )}
+
+        {viewingSecureMsg && (
+          <SecureViewer
+            mediaUrl={viewingSecureMsg.media_url}
+            messageId={viewingSecureMsg.id}
+            type={viewingSecureMsg.message_type}
+            onClosed={() => { onSecurityEvent('view'); setViewingSecureMsg(null); }}
+            onCompromised={() => { onSecurityEvent('compromise'); setViewingSecureMsg(null); }}
+          />
+        )}
+
+        {/* Gallery secure send */}
+        {showGallerySecureModal && (
+          <div className="chat-modal-overlay">
+            <div className="chat-modal-card" style={{ border:'1px solid #b3945a' }}>
+              <div style={{ marginBottom:16, display:'flex', justifyContent:'center' }}><Icons.Vault size={42} color="#b3945a" /></div>
+              <h3 style={{ marginBottom:6, color:'#fff', fontSize:'1.05rem' }}>Secure Media Transfer</h3>
+              <p style={{ fontSize:'0.85rem', color:'var(--muted)', marginBottom:20 }}>How would you like to send this?</p>
+              <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+                {[['once','Once View'],['twice','Twice View']].map(([m,l]) => (
+                  <button key={m} onClick={() => sendMedia(pendingFile, m)}
+                    style={{ padding:12, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(179,148,90,0.3)', borderRadius:13, color:'#b3945a', fontWeight:600, cursor:'pointer', fontSize:'0.9rem' }}>
+                    {l}
+                  </button>
+                ))}
+                <button onClick={() => sendMedia(pendingFile, 'permanent')}
+                  style={{ padding:12, background:'#b3945a', border:'none', borderRadius:13, color:'#000', fontWeight:700, cursor:'pointer', fontSize:'0.9rem' }}>
+                  Permanent Keep
+                </button>
+                <button onClick={() => { setShowGallerySecureModal(false); setPendingFile(null); }}
+                  style={{ padding:12, background:'transparent', border:'none', color:'rgba(255,255,255,0.5)', cursor:'pointer', fontSize:'0.85rem' }}>
+                  Cancel
+                </button>
               </div>
             </div>
-          );
-        })}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '8px 16px 8px', zIndex: 1000 }}>
-        
-        <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
-        
-        <div style={{ 
-          display: 'flex', 
-          gap: 10, 
-          alignItems: 'center', 
-          background: 'rgba(22,22,26,0.65)', 
-          backdropFilter: 'blur(25px) saturate(200%)', 
-          border: '1px solid rgba(255,255,255,0.1)', 
-          borderRadius: 28, 
-          padding: '10px 10px 10px 16px', 
-          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-          width: '100%'
-        }}>
-          
-          {/* Left Side Icons */}
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setShowingStudio(true)}>
-              <Icons.Camera size={22} color="var(--muted)" />
-            </button>
-            <button style={{ padding: '8px', background:'transparent', border:'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => fileRef.current?.click()}>
-              <Icons.Gallery size={22} color="var(--muted)" />
-            </button>
           </div>
-          
-          {/* Text Area */}
-          <input
-            value={text} 
-            onChange={handleType} 
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder={isRecordingAudio ? "Recording Voice Note..." : "Message"} 
-            disabled={isRecordingAudio}
-            style={{ 
-              flex: 1, 
-              background: 'transparent', 
-              border: 'none', 
-              color: isRecordingAudio ? '#ff4b2b' : '#fff', 
-              fontSize: '1rem', 
-              outline: 'none', 
-              padding: '6px 0',
-              minWidth: 0
-            }} 
-          />
+        )}
 
-          {/* Right Side Icons (Mic / Send) */}
-          <button 
-            onPointerDown={text.trim().length === 0 ? startVoiceRecord : undefined}
-            onPointerUp={text.trim().length === 0 ? stopVoiceRecord : undefined}
-            onPointerLeave={text.trim().length === 0 ? stopVoiceRecord : undefined}
-            onClick={text.trim().length > 0 ? send : undefined}
-            disabled={sending && text.trim().length > 0}
-            style={{ 
-              width: 44, 
-              height: 44, 
-              borderRadius: '50%', 
-              background: isRecordingAudio ? '#ff4b2b' : (text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.05)'), 
-              border: text.trim() ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              cursor: text.trim() || !sending ? 'pointer' : 'default', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              flexShrink: 0, 
-              transition: 'all 0.2s', 
-              boxShadow: text.trim() ? '0 6px 18px rgba(201,169,110,0.35)' : 'none',
-              transform: isRecordingAudio ? 'scale(1.2)' : 'scale(1)'
-            }} 
-          >
-            {text.trim().length > 0 ? (
-              <Icons.Send size={20} color="#000" />
-            ) : (
-              <Icons.Mic size={20} color={isRecordingAudio ? '#fff' : 'var(--muted)'} />
-            )}
-          </button>
+        {/* Save request */}
+        {saveRequest && (
+          <div className="chat-modal-overlay">
+            <div className="chat-modal-card" style={{ border:'1px solid var(--accent)' }}>
+              <div style={{ marginBottom:16, display:'flex', justifyContent:'center' }}><Icons.Vault size={42} color="var(--accent)" /></div>
+              <h3 style={{ marginBottom:6, color:'#fff' }}>Save Request</h3>
+              <p style={{ fontSize:'0.88rem', color:'#fff', marginBottom:20 }}>
+                <b>{saveRequest.from}</b> wants to save a photo. Allow?
+              </p>
+              <div style={{ display:'flex', gap:10 }}>
+                <button className="btn btn-g" onClick={() => respondSave(false)} style={{ flex:1, padding:12, borderRadius:12, cursor:'pointer' }}>Deny</button>
+                <button className="btn btn-p" onClick={() => respondSave(true)}  style={{ flex:1, padding:12, borderRadius:12, color:'#000', fontWeight:700, cursor:'pointer' }}>Allow</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Requesting save banner */}
+        {requestingSave && (
+          <div style={{ position:'fixed', top:80, left:'50%', transform:'translateX(-50%)', background:'var(--accent)', color:'#000', padding:'10px 20px', borderRadius:99, fontWeight:700, zIndex:500, boxShadow:'0 8px 22px rgba(201,169,110,0.3)', display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap', fontSize:'0.88rem' }}>
+            <div className="spinner-small" style={{ borderTopColor:'#000' }} /> Requesting Permission…
+          </div>
+        )}
+
+      </div>
+    </>
+  );
+}
+
+/* ── Small helper components (no extra files needed) ────────── */
+
+function SecureChip({ isCompromised, isSpent, isVideo, Icons }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:10, padding:'4px 6px' }}>
+      {isCompromised
+        ? <Icons.Shield size={21} color="#FF3B30" />
+        : isSpent
+          ? <Icons.Vault size={21} color="var(--muted)" />
+          : isVideo
+            ? <Icons.Video size={21} color="var(--accent)" />
+            : <Icons.Vault size={21} color="var(--accent)" />}
+      <div style={{ fontSize:'0.86rem' }}>
+        <div style={{ fontWeight:600 }}>
+          {isCompromised ? 'Compromised' : isSpent ? 'Viewed' : isVideo ? 'Ephemeral Video' : 'Ephemeral Media'}
         </div>
+        {!isSpent && !isCompromised && (
+          <div style={{ fontSize:'0.7rem', opacity:.6 }}>Tap to {isVideo ? 'scan & play' : 'scan & reveal'}</div>
+        )}
       </div>
-      <style>{`
-        @keyframes pulse{0%,100%{opacity:0.3}50%{opacity:1}}
-      `}</style>
+    </div>
+  );
+}
+
+function MediaWrap({ blurred, children }) {
+  return (
+    <div style={{ position:'relative' }}>
+      <div style={{ filter: blurred ? 'blur(22px)' : 'none', transition:'filter 0.3s ease' }}>
+        {children}
       </div>
+      {blurred && (
+        <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:'0.7rem', fontWeight:700, background:'rgba(0,0,0,0.2)', pointerEvents:'none', borderRadius:12 }}>
+          TAP TO REVEAL
+        </div>
+      )}
     </div>
   );
 }
