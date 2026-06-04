@@ -301,16 +301,12 @@ export default function Chat() {
 
         /* ── Chat outer wrapper ── */
         .chat-root {
-          position: fixed;
+          position: absolute;
           inset: 0;
-          /* respect iOS notch / home bar */
-          padding-top:    env(safe-area-inset-top,    0px);
-          padding-bottom: env(safe-area-inset-bottom, 0px);
-          padding-left:   env(safe-area-inset-left,   0px);
-          padding-right:  env(safe-area-inset-right,  0px);
           display: flex;
           flex-direction: column;
           overflow: hidden;
+          background: #111;
         }
 
         /* ── Header ── */
@@ -318,18 +314,18 @@ export default function Chat() {
           flex-shrink: 0;
           position: relative;
           z-index: 100;
-          margin: 10px 10px 0;
-          background: rgba(18,18,20,0.78);
-          backdrop-filter: blur(24px) saturate(180%);
-          -webkit-backdrop-filter: blur(24px) saturate(180%);
-          border: 1px solid rgba(255,255,255,0.07);
+          margin: 16px auto 0;
+          background: #1A1615; /* Dark brown/grey */
+          border: 1px solid rgba(255,255,255,0.03);
           border-radius: 20px;
-          padding: 10px 16px;
-          box-shadow: 0 6px 28px rgba(0,0,0,0.35);
+          padding: 8px 16px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
           display: flex;
           align-items: center;
-          gap: 10px;
-          min-height: 60px;
+          gap: 16px;
+          min-height: 54px;
+          width: 92%;
+          max-width: 600px;
         }
 
         /* ── Messages scroll area ── */
@@ -338,7 +334,7 @@ export default function Chat() {
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
-          padding: 10px 12px 6px;
+          padding: 16px 12px 10px;
           position: relative;
           z-index: 1;
         }
@@ -348,33 +344,35 @@ export default function Chat() {
           flex-shrink: 0;
           position: relative;
           z-index: 100;
-          padding: 6px 10px 10px;
+          padding: 8px 10px 16px;
+          display: flex;
+          justify-content: center;
         }
         .chat-input-inner {
           display: flex;
-          gap: 6px;
+          gap: 8px;
           align-items: center;
-          background: rgba(18,18,22,0.72);
-          backdrop-filter: blur(28px) saturate(200%);
-          -webkit-backdrop-filter: blur(28px) saturate(200%);
-          border: 1px solid rgba(255,255,255,0.09);
-          border-radius: 26px;
-          padding: 7px 7px 7px 12px;
+          background: #1A1311; /* Dark brownish */
+          border: 1px solid #3A2E27;
+          border-radius: 30px;
+          padding: 8px 10px 8px 16px;
           box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+          width: 100%;
+          max-width: 800px;
         }
         .chat-input-inner input {
           flex: 1;
           background: transparent;
           border: none;
           outline: none;
-          font-size: 0.97rem;
+          font-size: 0.95rem;
           color: #fff;
-          padding: 5px 0;
+          padding: 6px 0;
           min-width: 0;
           /* prevent iOS auto-zoom on focus (font-size must be >= 16px to avoid zoom) */
           font-size: 16px;
         }
-        .chat-input-inner input::placeholder { color: rgba(255,255,255,0.35); }
+        .chat-input-inner input::placeholder { color: rgba(255,255,255,0.4); font-style: italic; }
 
         /* icon buttons in input */
         .chat-icon-btn {
@@ -384,20 +382,31 @@ export default function Chat() {
           display: flex;
           align-items: center;
           justify-content: center;
-          /* minimum 44px tap target */
-          min-width: 40px;
-          min-height: 40px;
+          min-width: 34px;
+          min-height: 34px;
           border-radius: 50%;
           padding: 0;
+          color: var(--accent);
           -webkit-tap-highlight-color: transparent;
         }
+
+        .chat-emoji-btn {
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 1.15rem;
+          padding: 4px;
+          transition: transform 0.2s;
+        }
+        .chat-emoji-btn:hover { transform: scale(1.2); }
 
         /* send/mic round button */
         .chat-send-btn {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          border: none;
+          background: #241D1A;
+          border: 1px solid #3A2E27;
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -436,7 +445,7 @@ export default function Chat() {
 
         /* ── Mobile tweaks ── */
         @media (max-width: 767px) {
-          .chat-header { margin: 8px 8px 0; padding: 8px 14px; min-height: 56px; }
+          .chat-header { margin: 8px auto 0; width: 96%; }
           .chat-input-bar { padding: 5px 8px 8px; }
           .chat-bubble { max-width: 80%; }
           .chat-input-inner input { font-size: 16px; } /* prevent iOS zoom */
@@ -477,10 +486,8 @@ export default function Chat() {
               <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)' }} />
             </>
           ) : (
-            <div style={{ width:'100%', height:'100%', background: activeTheme.bg, position:'relative' }}>
-              <div style={{ position:'absolute', top:'-10%', left:'-10%', width:'55%', height:'55%', background:'radial-gradient(circle, rgba(201,169,110,0.13) 0%, transparent 65%)' }} />
-              <div style={{ position:'absolute', bottom:'-15%', right:'-10%', width:'60%', height:'60%', background:'radial-gradient(circle, rgba(124,111,205,0.1) 0%, transparent 65%)' }} />
-              <div style={{ position:'absolute', inset:0, backdropFilter:'blur(60px)', WebkitBackdropFilter:'blur(60px)' }} />
+            <div style={{ width:'100%', height:'100%', background: '#111', position:'relative' }}>
+              <div style={{ position:'absolute', inset:0, background: 'radial-gradient(circle at 50% -20%, #1a1614, #111 80%)' }} />
             </div>
           )}
         </div>
@@ -488,50 +495,38 @@ export default function Chat() {
         {/* ── HEADER ───────────────────────────────────────── */}
         <div className="chat-header">
           {/* Back */}
-          <Link to="/dashboard" style={{ color:'#fff', display:'flex', alignItems:'center', flexShrink:0, minWidth:36, minHeight:36, justifyContent:'center' }}>
-            <Icons.Back size={24} />
+          <Link to="/dashboard" style={{ color:'#fff', display:'flex', alignItems:'center', flexShrink:0 }}>
+            <Icons.Back size={20} />
           </Link>
 
           {/* Avatar + name */}
-          <div style={{ display:'flex', alignItems:'center', gap:10, flex:1, cursor:'pointer', minWidth:0 }} onClick={() => setShowThemePicker(true)}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, flex:1, cursor:'pointer', minWidth:0, justifyContent: 'center' }} onClick={() => setShowThemePicker(true)}>
             <div style={{
-              width:40, height:40, borderRadius:'50%', overflow:'hidden', flexShrink:0,
-              border:'2px solid rgba(201,169,110,0.4)',
-              background:'rgba(255,255,255,0.07)',
+              width:34, height:34, borderRadius:'50%', overflow:'hidden', flexShrink:0,
+              background:'linear-gradient(135deg, #a484c2, #7a5f96)',
               display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:'1rem', fontWeight:700, color:'var(--accent)',
+              fontSize:'1rem', fontWeight:600, color:'#fff',
             }}>
               {partner?.avatar_url
                 ? <img src={partner.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                : (partner?.name?.[0]?.toUpperCase() || 'P')}
+                : (partner?.name?.[0]?.toUpperCase() || 'S')}
             </div>
 
-            <div style={{ display:'flex', flexDirection:'column', minWidth:0 }}>
-              <span style={{ fontWeight:600, fontSize:'0.98rem', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {partner?.name || 'Partner'}
+            <div style={{ display:'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight:600, fontSize:'1rem', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                {partner?.name || 'Sneha'}
               </span>
-              <span style={{ fontSize:'0.7rem', marginTop:1, display:'flex', alignItems:'center', gap:3 }}>
-                {typing ? (
-                  <>
-                    <span style={{ color:'var(--accent)' }}>typing</span>
-                    {[0,160,320].map(d => (
-                      <span key={d} style={{ display:'inline-block', width:3.5, height:3.5, borderRadius:'50%', background:'var(--accent)', animation:`typingDot 1s ${d}ms infinite` }} />
-                    ))}
-                  </>
-                ) : (
-                  <DynamicPresence partnerOnline={partnerOnline} partnerPresence={partnerPresence} partnerMood={partnerMood} />
-                )}
-              </span>
+              <Icons.Back size={12} style={{ transform: 'rotate(180deg)', opacity: 0.5, color: '#fff' }} />
             </div>
           </div>
 
-          {/* Call icons — 44px tap targets */}
-          <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+          {/* Call icons */}
+          <div style={{ display:'flex', gap:14, flexShrink:0, alignItems: 'center' }}>
             <button className="chat-icon-btn" style={{ color:'var(--accent)' }}>
-              <Icons.Phone size={20} />
+              <Icons.Phone size={18} />
             </button>
             <button className="chat-icon-btn" style={{ color:'var(--accent)' }}>
-              <Icons.Video size={22} />
+              <Icons.Video size={20} />
             </button>
           </div>
         </div>
@@ -584,23 +579,16 @@ export default function Chat() {
                         setUnblurred(p => ({ ...p, [msg.id]: true }));
                     }}
                     style={{
-                      padding: isMedia ? 4 : '10px 15px',
+                      padding: isMedia ? 4 : '10px 16px',
                       background: isMedia ? 'transparent'
-                        : me ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
-                      color: me ? '#000' : '#fff',
-                      borderBottomRightRadius: me ? 5  : 20,
-                      borderBottomLeftRadius:  me ? 20 : 5,
-                      boxShadow: isMedia ? 'none'
-                        : me ? '0 4px 16px rgba(201,169,110,0.2)'
-                             : '0 3px 10px rgba(0,0,0,0.2)',
-                      border: isSecure
-                        ? (me ? '1px solid rgba(0,0,0,0.2)' : '1px solid #b3945a')
-                        : isMedia ? 'none'
-                        : me ? 'none' : '1px solid rgba(255,255,255,0.07)',
+                        : me ? '#E3BE86' : '#2A2422',
+                      color: me ? '#111' : '#fff',
+                      borderBottomRightRadius: me ? 4  : 20,
+                      borderBottomLeftRadius:  me ? 20 : 4,
+                      boxShadow: isMedia ? 'none' : '0 4px 15px rgba(0,0,0,0.15)',
                       cursor: isSecure ? 'pointer' : 'default',
                       minWidth: isSecure ? 160 : 0,
                       position: 'relative',
-                      // max-width handled by CSS class per breakpoint
                       maxWidth: '100%',
                     }}
                   >
@@ -647,7 +635,7 @@ export default function Chat() {
                   </div>
 
                   {/* Timestamp */}
-                  <span style={{ fontSize:'0.65rem', color: me ? 'var(--accent)' : 'var(--muted)', marginTop:3, opacity:.7, fontWeight:500 }}>
+                  <span style={{ fontSize:'0.65rem', color: me ? '#E3BE86' : 'var(--muted)', marginTop:4, opacity:.6, fontWeight:500 }}>
                     {ts(msg)}
                   </span>
                 </div>
@@ -662,18 +650,28 @@ export default function Chat() {
           <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
 
           <div className="chat-input-inner">
+            
+            {/* Quick Emoji Reactions */}
+            <div style={{ display: 'flex', gap: 4, marginRight: 8 }}>
+              {['😊', '😍', '😩', '😜', '😴'].map(em => (
+                <button key={em} className="chat-emoji-btn" onClick={() => { setText(p => p + em); }}>
+                  {em}
+                </button>
+              ))}
+            </div>
+
             <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
-              <Icons.Camera size={20} color="var(--muted)" />
+              <Icons.Camera size={18} />
             </button>
             <button className="chat-icon-btn" onClick={() => fileRef.current?.click()}>
-              <Icons.Gallery size={20} color="var(--muted)" />
+              <Icons.Gallery size={18} />
             </button>
 
             <input
               value={text}
               onChange={handleType}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-              placeholder={isRecordingAudio ? 'Recording…' : 'Message'}
+              placeholder={isRecordingAudio ? 'Recording…' : 'Whisper something...'}
               disabled={isRecordingAudio}
               style={{ color: isRecordingAudio ? '#ff5a3c' : '#fff' }}
             />
@@ -686,15 +684,13 @@ export default function Chat() {
               onClick={text.trim() ? send : undefined}
               disabled={sending && !!text.trim()}
               style={{
-                background: isRecordingAudio ? '#ff5a3c' : text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
-                border: text.trim() || isRecordingAudio ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                boxShadow: text.trim() ? '0 5px 16px rgba(201,169,110,0.35)' : 'none',
-                transform: isRecordingAudio ? 'scale(1.12)' : 'scale(1)',
+                background: isRecordingAudio ? '#ff5a3c' : text.trim() ? 'var(--accent)' : '#241D1A',
+                border: text.trim() || isRecordingAudio ? 'none' : '1px solid #3A2E27',
               }}
             >
               {text.trim()
-                ? <Icons.Send size={18} color="#000" />
-                : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : 'var(--muted)'} />}
+                ? <Icons.Send size={16} color="#000" />
+                : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : 'var(--accent)'} />}
             </button>
           </div>
         </div>
