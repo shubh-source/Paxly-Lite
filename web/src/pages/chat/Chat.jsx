@@ -522,21 +522,25 @@ export default function Chat() {
           {/* Avatar + name */}
           <div style={{ display:'flex', alignItems:'center', gap:12, flex:1, cursor:'pointer', minWidth:0, justifyContent: 'center' }} onClick={() => setShowThemePicker(true)}>
             <div style={{
-              width:34, height:34, borderRadius:'50%', overflow:'hidden', flexShrink:0,
-              background:'linear-gradient(135deg, #a484c2, #7a5f96)',
+              width:36, height:36, borderRadius:'50%', overflow:'hidden', flexShrink:0,
+              background: `linear-gradient(135deg, ${activeTheme.accent || '#a484c2'}88, ${activeTheme.accent || '#7a5f96'}55)`,
+              border: `2px solid ${activeTheme.accent || '#C9A96E'}55`,
               display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:'1rem', fontWeight:600, color:'#fff',
+              fontSize:'1rem', fontWeight:700, color:'#fff',
+              boxShadow: `0 0 12px ${activeTheme.accent || '#C9A96E'}33`,
             }}>
               {partner?.avatar_url
                 ? <img src={partner.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                 : (partner?.name?.[0]?.toUpperCase() || 'S')}
             </div>
 
-            <div style={{ display:'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontWeight:600, fontSize:'1rem', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap: 1 }}>
+              <span style={{ fontWeight:700, fontSize:'1rem', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                 {partner?.name || 'Sneha'}
               </span>
-              <Icons.Back size={12} style={{ transform: 'rotate(180deg)', opacity: 0.5, color: '#fff' }} />
+              <span style={{ fontSize:'0.68rem', color: activeTheme.accent || '#C9A96E', opacity: 0.8, letterSpacing: '0.3px' }}>
+                {typing ? 'typing...' : partnerOnline ? 'online' : 'tap to change theme'}
+              </span>
             </div>
           </div>
 
@@ -544,7 +548,7 @@ export default function Chat() {
           <div style={{ display:'flex', gap:14, flexShrink:0, alignItems: 'center' }}>
             <button
               className="chat-icon-btn"
-              style={{ color:'var(--accent)' }}
+              style={{ color: activeTheme.accent || 'var(--accent)' }}
               onClick={() => navigate('/call?type=audio')}
               title="Voice Call"
             >
@@ -552,7 +556,7 @@ export default function Chat() {
             </button>
             <button
               className="chat-icon-btn"
-              style={{ color:'var(--accent)' }}
+              style={{ color: activeTheme.accent || 'var(--accent)' }}
               onClick={() => navigate('/call?type=video')}
               title="Video Call"
             >
@@ -613,13 +617,16 @@ export default function Chat() {
                       background: isMedia ? 'transparent'
                         : me
                           ? (activeTheme.bubbleMe || '#E3BE86')
-                          : (activeTheme.bubbleOther || '#2A2422'),
+                          : (activeTheme.bubbleOther || 'rgba(255,255,255,0.07)'),
                       color: me
                         ? (activeTheme.textMe || '#111')
                         : (activeTheme.textOther || '#fff'),
                       borderBottomRightRadius: me ? 4  : 20,
                       borderBottomLeftRadius:  me ? 20 : 4,
-                      boxShadow: isMedia ? 'none' : '0 4px 15px rgba(0,0,0,0.15)',
+                      boxShadow: isMedia ? 'none'
+                        : me
+                          ? `0 4px 18px ${activeTheme.accent || '#C9A96E'}40`
+                          : `0 2px 10px rgba(0,0,0,0.25)`,
                       border: isSecure
                         ? (me ? '1px solid rgba(0,0,0,0.2)' : `1px solid ${activeTheme.accent || '#b3945a'}`)
                         : activeTheme.borderMe && me ? activeTheme.borderMe : 'none',
@@ -627,8 +634,8 @@ export default function Chat() {
                       minWidth: isSecure ? 160 : 0,
                       position: 'relative',
                       maxWidth: '100%',
-                      backdropFilter: 'blur(16px)',
-                      WebkitBackdropFilter: 'blur(16px)',
+                      backdropFilter: 'blur(12px)',
+                      WebkitBackdropFilter: 'blur(12px)',
                     }}
                   >
                     {/* VIDEO */}
@@ -691,15 +698,16 @@ export default function Chat() {
           <div
             className="chat-input-inner"
             style={{
-              border: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.09)'}22`,
-              boxShadow: `0 6px 24px rgba(0,0,0,0.4), inset 0 1px 0 ${activeTheme.accent || '#C9A96E'}10`,
+              background: `${activeTheme.accent || '#C9A96E'}0D`,
+              border: `1px solid ${activeTheme.accent || '#C9A96E'}28`,
+              boxShadow: `0 6px 24px rgba(0,0,0,0.45), inset 0 1px 0 ${activeTheme.accent || '#C9A96E'}15`,
             }}
           >
             <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
-              <Icons.Camera size={20} color="var(--muted)" />
+              <Icons.Camera size={20} color={activeTheme.accent || 'var(--muted)'} />
             </button>
             <button className="chat-icon-btn" onClick={() => fileRef.current?.click()}>
-              <Icons.Gallery size={20} color="var(--muted)" />
+              <Icons.Gallery size={20} color={activeTheme.accent || 'var(--muted)'} />
             </button>
 
             <input
@@ -719,15 +727,19 @@ export default function Chat() {
               onClick={text.trim() ? send : undefined}
               disabled={sending && !!text.trim()}
               style={{
-                background: isRecordingAudio ? '#ff5a3c' : text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
-                border: text.trim() || isRecordingAudio ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                boxShadow: text.trim() ? '0 5px 16px rgba(201,169,110,0.35)' : 'none',
+                background: isRecordingAudio
+                  ? '#ff5a3c'
+                  : text.trim()
+                    ? activeTheme.accent || 'var(--accent)'
+                    : `${activeTheme.accent || '#C9A96E'}18`,
+                border: text.trim() || isRecordingAudio ? 'none' : `1px solid ${activeTheme.accent || '#C9A96E'}33`,
+                boxShadow: text.trim() ? `0 5px 16px ${activeTheme.accent || '#C9A96E'}55` : 'none',
                 transform: isRecordingAudio ? 'scale(1.12)' : 'scale(1)',
               }}
             >
               {text.trim()
-                ? <Icons.Send size={18} color="#000" />
-                : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : 'var(--muted)'} />}
+                ? <Icons.Send size={18} color={activeTheme.textMe || '#000'} />
+                : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : (activeTheme.accent || 'var(--muted)')} />}
             </button>
           </div>
         </div>
