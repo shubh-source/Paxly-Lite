@@ -517,7 +517,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)' }} />
             </>
           ) : (
-            <div style={{ width:'100%', height:'100%', position:'relative', overflow:'hidden',
+            <div style={{ width:'100%', height:'100%', position:'absolute', inset:0, zIndex:0, overflow:'hidden',
               background: activeTheme.bg || '#0E0C11' }}>
               {/* Subtle top-center glow */}
               <div style={{ position:'absolute', top:'-15%', left:'50%', transform:'translateX(-50%)', width:'60%', height:'50%',
