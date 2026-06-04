@@ -64,8 +64,8 @@ function Guard({ children, needsPartner = false }) {
       ) : (
         <motion.div 
           key="app"
-          initial={{ opacity: 0, filter: 'blur(20px)' }}
-          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
           style={{ minHeight: '100vh', width: '100%' }}
         >

@@ -281,7 +281,7 @@ export default function Chat() {
   const activeTheme = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', width: '100%', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
+    <div style={{ height: '100dvh', width: '100%', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
       
       {/* Background Layer (Static + Wallpaper) */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
@@ -307,11 +307,13 @@ export default function Chat() {
         borderRadius: '24px', 
         padding: '12px 20px', 
         boxShadow: '0 10px 30px rgba(0,0,0,0.3)', 
-        flexShrink: 0, 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        position: 'relative',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
         zIndex: 1000
       }}>
         <Link to="/dashboard" style={{ color: '#fff', display: 'flex', alignItems: 'center' }}><Icons.Back size={28} /></Link>
@@ -334,14 +336,12 @@ export default function Chat() {
 
       {/* Main Chat Area */}
       <div style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        position: 'relative',
-        zIndex: 1,
-        padding: '0',
-        minHeight: 0,
-        height: '100%'
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1
       }}>
 
       {/* Theme Picker */}
@@ -427,7 +427,7 @@ export default function Chat() {
 
 
       {/* Messages */}
-      <div style={{ flex:1, overflowY:'auto', padding:'12px 16px', paddingBottom:80, position: 'relative', minHeight: 0 }}>
+      <div style={{ height: '100%', overflowY:'auto', padding:'100px 16px 80px', position: 'relative' }}>
         <DynamicPresence partner={partner} state={partnerPresence} mood={partnerMood} />
         {msgs.map(msg => {
           const isSecure = msg.is_once_view;
@@ -565,7 +565,7 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px 16px 8px', zIndex: 100 }}>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '8px 16px 8px', zIndex: 1000 }}>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
