@@ -60,14 +60,14 @@ export default function Chat() {
   // Prevent body scrolling while in immersive chat
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
-    const originalPosition = document.body.style.position;
+    
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed'; // absolutely prevents scroll
+    
     document.body.style.width = '100%';
     document.body.style.height = '100%';
     return () => {
       document.body.style.overflow = originalOverflow;
-      document.body.style.position = originalPosition;
+      
       document.body.style.width = '';
       document.body.style.height = '';
     };
@@ -322,7 +322,7 @@ export default function Chat() {
 
         /* ── Chat outer wrapper ── */
         .chat-root {
-          position: absolute;
+          position: fixed;
           top: 0;
           left: 0;
           right: 0;
@@ -533,7 +533,6 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         </div>
 
         {/* ── HEADER ───────────────────────────────────────── */}
-        <div style={{ height: 60, width: '100%', background: 'red', flexShrink: 0, zIndex: 999 }} />
         <div
           className="chat-header"
           style={{
