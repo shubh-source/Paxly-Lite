@@ -217,33 +217,31 @@ function NeonGridBackground({ color = '#f0abfc' }) {
 
 /* ─── BOKEH ORBS ─── */
 function BokehBackground({ color1 = '#C9A96E', color2 = '#a78bfa' }) {
-  const orbs = useMemo(() => seededRands(15, 333), []);
-  const delays = useMemo(() => seededRands(15, 444), []);
+  const orbs = useMemo(() => seededRands(10, 333), []);
+  const delays = useMemo(() => seededRands(10, 444), []);
   return (
     <>
       <style>{`
         @keyframes bokehFloat {
-          0%,100% { transform: translate(0, 0) scale(1); opacity: var(--op); }
-          33%      { transform: translate(20px, -30px) scale(1.1); opacity: calc(var(--op) * 0.6); }
-          66%      { transform: translate(-15px, 20px) scale(0.9); opacity: calc(var(--op) * 1.2); }
+          0%,100% { transform: translate(0, 0) scale(1); }
+          33%      { transform: translate(15px, -25px) scale(1.05); }
+          66%      { transform: translate(-10px, 15px) scale(0.95); }
         }
       `}</style>
       {orbs.map((r, i) => {
-        const size = 40 + delays[i] * 120;
+        const size = 80 + delays[i] * 160;
         const col  = i % 2 === 0 ? color1 : color2;
         return (
           <div key={i} style={{
             position: 'absolute',
-            left: `${r * 90}%`,
-            top: `${delays[i] * 90}%`,
+            left: `${r * 85}%`,
+            top: `${delays[i] * 85}%`,
             width: size, height: size,
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${col}30 0%, ${col}08 50%, transparent 70%)`,
-            '--op': 0.6 + delays[i] * 0.4,
-            opacity: 0.6,
-            animation: `bokehFloat ${5 + delays[i] * 8}s ${r * 6}s ease-in-out infinite`,
+            background: `radial-gradient(circle, ${col}18 0%, ${col}05 50%, transparent 70%)`,
+            animation: `bokehFloat ${8 + delays[i] * 10}s ${r * 5}s ease-in-out infinite`,
             pointerEvents: 'none',
-            filter: 'blur(8px)',
+            filter: 'blur(18px)',
           }} />
         );
       })}
