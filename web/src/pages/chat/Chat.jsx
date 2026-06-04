@@ -299,7 +299,7 @@ export default function Chat() {
       </div>
 
       {/* Floating Header (Aura AI Style) */}
-      <header style={{ 
+      <div id="chat-top-card" style={{ 
         background: 'rgba(22,22,24,0.6)', 
         backdropFilter: 'blur(20px)', 
         border: '1px solid rgba(255,255,255,0.05)', 
@@ -312,7 +312,7 @@ export default function Chat() {
         justifyContent: 'space-between', 
         alignItems: 'center',
         position: 'relative',
-        zIndex: 10
+        zIndex: 1000
       }}>
         <Link to="/dashboard" style={{ color: '#fff', display: 'flex', alignItems: 'center' }}><Icons.Back size={28} /></Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', marginLeft: 8 }} onClick={() => setShowThemePicker(true)}>
@@ -330,7 +330,7 @@ export default function Chat() {
           <Icons.Phone size={22} />
           <Icons.Video size={24} />
         </div>
-      </header>
+      </div>
 
       {/* Main Chat Area */}
       <div style={{ 
@@ -565,7 +565,7 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '8px 16px 20px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
+      <div style={{ padding: '8px 16px 8px', flexShrink: 0, zIndex: 100, position: 'relative' }}>
         
         <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
         
