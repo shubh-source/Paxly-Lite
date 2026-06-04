@@ -304,18 +304,16 @@ export default function Chat() {
           flex-shrink: 0;
           position: relative;
           z-index: 100;
-          margin: 16px auto 0;
+          margin: 0;
           background: #1A1615; /* Dark brown/grey */
-          border: 1px solid rgba(255,255,255,0.03);
-          border-radius: 20px;
-          padding: 8px 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.03);
+          padding: 12px 20px;
           box-shadow: 0 4px 20px rgba(0,0,0,0.5);
           display: flex;
           align-items: center;
           gap: 16px;
-          min-height: 54px;
-          width: 92%;
-          max-width: 600px;
+          min-height: 60px;
+          width: 100%;
         }
 
         /* ── Messages scroll area ── */
@@ -334,7 +332,9 @@ export default function Chat() {
           flex-shrink: 0;
           position: relative;
           z-index: 100;
-          padding: 6px 10px 10px;
+          padding: 8px 16px 16px;
+          display: flex;
+          justify-content: center;
         }
         .chat-input-inner {
           display: flex;
@@ -347,6 +347,7 @@ export default function Chat() {
           border-radius: 26px;
           padding: 7px 7px 7px 12px;
           box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+          width: 100%;
         }
         .chat-input-inner input {
           flex: 1;
@@ -402,27 +403,16 @@ export default function Chat() {
           word-break: break-word;
         }
 
-        /* ── PC-specific tweaks (sidebar-style, wider bubbles) ── */
+        /* ── PC-specific tweaks ── */
         @media (min-width: 768px) {
-          .chat-root {
-            /* On PC, center the chat in a max-width column */
-            align-items: center;
-          }
-          .chat-header,
-          .chat-scroll,
-          .chat-input-bar {
-            width: 100%;
-            max-width: 720px;
-          }
-          .chat-header { margin: 14px auto 0; border-radius: 22px; }
-          .chat-input-bar { padding: 8px 0 14px; }
-          .chat-scroll { padding: 12px 16px 8px; }
+          .chat-input-bar { padding: 12px 24px 24px; }
+          .chat-scroll { padding: 20px 24px 10px; }
           .chat-bubble { max-width: 65%; }
         }
 
         /* ── Mobile tweaks ── */
         @media (max-width: 767px) {
-          .chat-header { margin: 8px auto 0; width: 96%; }
+          .chat-header { margin: 0; width: 100%; border-radius: 0; }
           .chat-input-bar { padding: 5px 8px 8px; }
           .chat-bubble { max-width: 80%; }
           .chat-input-inner input { font-size: 16px; } /* prevent iOS zoom */
