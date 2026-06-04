@@ -88,18 +88,6 @@ export const CHAT_THEMES = {
     elements: 'bokeh'
   },
 
-  neon: {
-    name: 'Neon Tokyo',
-    bg: '#060610',
-    bubbleMe: '#00f5d4',
-    textMe: '#060610',
-    bubbleOther: 'rgba(0,245,212,0.08)',
-    textOther: '#9afff0',
-    accent: '#00f5d4',
-    borderMe: '1px solid rgba(0,245,212,0.5)',
-    elements: 'neon-grid'
-  },
-
   velvet: {
     name: 'Velvet Cocoa',
     bg: 'linear-gradient(160deg, #120a06 0%, #1c1008 100%)',

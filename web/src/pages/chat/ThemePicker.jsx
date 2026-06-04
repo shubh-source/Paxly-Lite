@@ -11,7 +11,6 @@ const THEME_ICONS = {
   midnight:   { emoji: '🌸', desc: 'Dark romance' },
   arctic:     { emoji: '❄️', desc: 'Icy blue cool' },
   sunset:     { emoji: '🌅', desc: 'Warm amber dusk' },
-  neon:       { emoji: '🟢', desc: 'Neon glow city' },
   velvet:     { emoji: '☕', desc: 'Cocoa warmth' },
   galaxy:     { emoji: '🌌', desc: 'Deep space vibes' },
   // Love themes
