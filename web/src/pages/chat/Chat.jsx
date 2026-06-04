@@ -318,6 +318,12 @@ export default function Chat() {
           gap: 16px;
           min-height: 58px;
           width: calc(100% - 32px);
+          transition: box-shadow 0.3s ease, background 0.3s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .chat-header:hover {
+          background: rgba(255,255,255,0.07);
+          box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,169,110,0.15), inset 0 1px 0 rgba(255,255,255,0.1);
+          transform: translateY(-1px) scale(1.008);
         }
 
         /* ── Messages scroll area ── */
@@ -398,7 +404,15 @@ export default function Chat() {
           -webkit-tap-highlight-color: transparent;
         }
 
-        /* Bubble */
+        /* ── Call icon hover ── */
+        .chat-icon-btn:hover {
+          background: rgba(201,169,110,0.12);
+          transform: scale(1.1);
+          transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .chat-icon-btn {
+          transition: background 0.2s ease, transform 0.2s ease;
+        }
         .chat-bubble {
           border-radius: 20px;
           overflow: hidden;
@@ -458,7 +472,7 @@ export default function Chat() {
             </>
           ) : (
             <div style={{ width:'100%', height:'100%', position:'relative', overflow:'hidden',
-              background: '#0E0C11' }}>
+              background: activeTheme.bg || '#0E0C11' }}>
               {/* Subtle top-center golden glow */}
               <div style={{ position:'absolute', top:'-15%', left:'50%', transform:'translateX(-50%)', width:'60%', height:'50%',
                 background:'radial-gradient(ellipse, rgba(180,140,80,0.12) 0%, transparent 70%)', borderRadius:'50%' }} />
