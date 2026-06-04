@@ -352,12 +352,11 @@ export default function Chat() {
           gap: 16px;
           min-height: 58px;
           width: calc(100% - 32px);
-          transition: box-shadow 0.3s ease, background 0.3s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+          transition: box-shadow 0.3s ease, background 0.3s ease;
         }
         .chat-header:hover {
           background: rgba(255,255,255,0.07);
           box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,169,110,0.15), inset 0 1px 0 rgba(255,255,255,0.1);
-          transform: translateY(-1px) scale(1.008);
         }
 
         /* ── Messages scroll area ── */
