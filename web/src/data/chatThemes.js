@@ -112,5 +112,80 @@ export const CHAT_THEMES = {
     textOther: '#c4b5fd',
     accent: '#a78bfa',
     borderMe: '1px solid rgba(102,126,234,0.4)'
+  },
+
+  // ── Love & Romantic Themes ──────────────────────────────
+
+  cherry: {
+    name: 'Cherry Blossom',
+    bg: 'linear-gradient(160deg, #1a0a12 0%, #2d0f1f 40%, #1a0814 100%)',
+    bubbleMe: '#ff6b9d',
+    textMe: '#fff',
+    bubbleOther: 'rgba(255,107,157,0.12)',
+    textOther: '#ffd6e7',
+    accent: '#ff6b9d'
+  },
+
+  starlight: {
+    name: 'Starlight',
+    bg: 'linear-gradient(160deg, #070b1a 0%, #0c1030 50%, #070b1a 100%)',
+    bubbleMe: '#ffd700',
+    textMe: '#0c1030',
+    bubbleOther: 'rgba(255,215,0,0.08)',
+    textOther: '#fff8d4',
+    accent: '#ffd700',
+    borderMe: '1px solid rgba(255,215,0,0.35)'
+  },
+
+  heartbeat: {
+    name: 'Heartbeat',
+    bg: 'linear-gradient(160deg, #1a0508 0%, #2d0a10 50%, #1a0508 100%)',
+    bubbleMe: '#ff3d6b',
+    textMe: '#fff',
+    bubbleOther: 'rgba(255,61,107,0.1)',
+    textOther: '#ffc2cc',
+    accent: '#ff3d6b',
+    borderMe: '1px solid rgba(255,61,107,0.4)'
+  },
+
+  pastel: {
+    name: 'Pastel Love',
+    bg: 'linear-gradient(160deg, #1a1228 0%, #221530 50%, #1a1228 100%)',
+    bubbleMe: '#ffb3de',
+    textMe: '#1a1228',
+    bubbleOther: 'rgba(255,179,222,0.1)',
+    textOther: '#f5d0ea',
+    accent: '#ffb3de'
+  },
+
+  moonlit: {
+    name: 'Moonlit',
+    bg: 'linear-gradient(160deg, #0a0a18 0%, #12103a 50%, #0a0a18 100%)',
+    bubbleMe: '#c8b6ff',
+    textMe: '#0a0a18',
+    bubbleOther: 'rgba(200,182,255,0.1)',
+    textOther: '#e8e0ff',
+    accent: '#c8b6ff'
+  },
+
+  loveblush: {
+    name: 'Love Blush',
+    bg: 'linear-gradient(160deg, #1c0e16 0%, #280d1e 50%, #1c0e16 100%)',
+    bubbleMe: '#f4a7b9',
+    textMe: '#1c0e16',
+    bubbleOther: 'rgba(244,167,185,0.1)',
+    textOther: '#fde8ef',
+    accent: '#f4a7b9'
+  },
+
+  coupleglow: {
+    name: 'Couple Glow',
+    bg: 'linear-gradient(160deg, #1a1000 0%, #2a1a00 50%, #1a1000 100%)',
+    bubbleMe: '#ffaa00',
+    textMe: '#1a1000',
+    bubbleOther: 'rgba(255,170,0,0.08)',
+    textOther: '#ffe5a0',
+    accent: '#ffaa00',
+    borderMe: '1px solid rgba(255,170,0,0.4)'
   }
 };

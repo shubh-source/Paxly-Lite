@@ -3,17 +3,25 @@ import { CHAT_THEMES } from '../../data/chatThemes';
 import axios from 'axios';
 
 const THEME_ICONS = {
-  classic:   { emoji: '✨', desc: 'Timeless gold' },
-  lavender:  { emoji: '💜', desc: 'Soft purple haze' },
-  rose:      { emoji: '🌹', desc: 'Warm rose glow' },
-  ocean:     { emoji: '🌊', desc: 'Deep blue calm' },
-  cyber:     { emoji: '⚡', desc: 'Electric vibes' },
-  midnight:  { emoji: '🌸', desc: 'Dark romance' },
-  arctic:    { emoji: '❄️', desc: 'Icy blue cool' },
-  sunset:    { emoji: '🌅', desc: 'Warm amber dusk' },
-  neon:      { emoji: '🟢', desc: 'Neon glow city' },
-  velvet:    { emoji: '☕', desc: 'Cocoa warmth' },
-  galaxy:    { emoji: '🌌', desc: 'Deep space vibes' },
+  classic:    { emoji: '✨', desc: 'Timeless gold' },
+  lavender:   { emoji: '💜', desc: 'Soft purple haze' },
+  rose:       { emoji: '🌹', desc: 'Warm rose glow' },
+  ocean:      { emoji: '🌊', desc: 'Deep blue calm' },
+  cyber:      { emoji: '⚡', desc: 'Electric vibes' },
+  midnight:   { emoji: '🌸', desc: 'Dark romance' },
+  arctic:     { emoji: '❄️', desc: 'Icy blue cool' },
+  sunset:     { emoji: '🌅', desc: 'Warm amber dusk' },
+  neon:       { emoji: '🟢', desc: 'Neon glow city' },
+  velvet:     { emoji: '☕', desc: 'Cocoa warmth' },
+  galaxy:     { emoji: '🌌', desc: 'Deep space vibes' },
+  // Love themes
+  cherry:     { emoji: '🌸', desc: 'Cherry blossom love' },
+  starlight:  { emoji: '⭐', desc: 'Stars for two' },
+  heartbeat:  { emoji: '❤️', desc: 'Heartbeat rush' },
+  pastel:     { emoji: '🎀', desc: 'Soft pastel love' },
+  moonlit:    { emoji: '🌙', desc: 'Moonlit romance' },
+  loveblush:  { emoji: '💕', desc: 'Sweet blush' },
+  coupleglow: { emoji: '💛', desc: 'Golden together' },
 };
 
 export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate, isPremium, onClose }) {
