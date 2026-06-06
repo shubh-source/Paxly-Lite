@@ -322,11 +322,9 @@ export default function Chat() {
 
         /* ── Chat outer wrapper ── */
         .chat-root {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          top: 0;
+          width: 100%;
+          height: 100%;
+          position: relative;
           display: flex;
           flex-direction: column;
           overflow: hidden;
@@ -336,8 +334,10 @@ export default function Chat() {
 
         /* ── Header ── */
         .chat-header {
-          flex-shrink: 0;
-          position: relative;
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
           z-index: 100;
           margin: 25px 16px 0;
           background: rgba(255,255,255,0.04);
@@ -366,17 +366,19 @@ export default function Chat() {
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
-          padding: 16px 12px 10px;
+          padding: 95px 12px 90px;
           position: relative;
           z-index: 1;
         }
 
         /* ── Input bar ── */
         .chat-input-bar {
-          flex-shrink: 0;
-          position: relative;
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
           z-index: 100;
-          padding: 8px 16px 16px;
+          padding: 8px 16px;
           display: flex;
           justify-content: center;
         }
@@ -461,7 +463,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         /* ── PC-specific tweaks ── */
         @media (min-width: 768px) {
           .chat-input-bar { padding: 12px 24px 24px; }
-          .chat-scroll { padding: 20px 24px 10px; }
+          .chat-scroll { padding: 105px 24px 100px; }
           .chat-bubble { max-width: 65%; }
         }
 
