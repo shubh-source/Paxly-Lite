@@ -324,7 +324,7 @@ export default function Chat() {
         .chat-root {
           width: 100%;
           height: 100%;
-          position: absolute; inset: 0;
+          position: fixed; inset: 0;
           display: flex;
           flex-direction: column;
           overflow: hidden;
@@ -334,7 +334,7 @@ export default function Chat() {
 
         /* ── Header ── */
         .chat-header {
-          position: absolute;
+          position: fixed;
           top: 0;
           left: 0;
           right: 0;
@@ -361,7 +361,7 @@ export default function Chat() {
 
         /* ── Messages scroll area ── */
         .chat-scroll {
-          position: absolute; inset: 0; display: flex; flex-direction: column-reverse; justify-content: flex-start;
+          position: fixed; inset: 0; display: flex; flex-direction: column-reverse; justify-content: flex-start;
           min-height: 0;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
@@ -372,7 +372,7 @@ export default function Chat() {
 
         /* ── Input bar ── */
         .chat-input-bar {
-          position: absolute;
+          position: fixed;
           bottom: 0;
           left: 0;
           right: 0;
