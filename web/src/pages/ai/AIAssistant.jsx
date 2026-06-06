@@ -10,7 +10,7 @@ export default function AIAssistant() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
-  const inputRef = useRef(null);
+  const inputRef = useRef(null); useEffect(() => { const originalOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.body.style.position = 'fixed'; document.body.style.inset = '0px'; return () => { document.body.style.overflow = originalOverflow; document.body.style.position = ''; document.body.style.inset = ''; }; }, []);
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -154,11 +154,14 @@ export default function AIAssistant() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
 
       {/* Header */}
       <header className="header" style={{ background: 'rgba(22,22,24,0.6)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '16px 16px 0', borderRadius: '24px', padding: '14px 20px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button onClick={() => setIsDrawerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><Icons.Menu size={24} /></button>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <Link to="/dashboard" style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', textDecoration: 'none' }}><Icons.Back size={20} /></Link>
+          <button onClick={() => setIsDrawerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><Icons.Menu size={24} /></button>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Icons.Aura size={20} color="var(--accent)" /> Aura
