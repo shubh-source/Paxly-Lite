@@ -61,14 +61,14 @@ export default function Chat() {
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
     
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden'; document.body.style.position = 'fixed'; document.body.style.inset = '0px';
     
     document.body.style.width = '100%';
     document.body.style.height = '100%';
     return () => {
       document.body.style.overflow = originalOverflow;
       
-      document.body.style.width = '';
+      document.body.style.width = ''; document.body.style.position = ''; document.body.style.inset = '';
       document.body.style.height = '';
     };
   }, []);
@@ -150,8 +150,8 @@ export default function Chat() {
         });
       }
     };
-    window.visualViewport?.addEventListener('resize', onResize);
-    window.visualViewport?.addEventListener('scroll', onResize);
+    // window.visualViewport?.addEventListener('resize', onResize);
+    // window.visualViewport?.addEventListener('scroll', onResize);
 
     return () => {
       window.visualViewport?.removeEventListener('resize', onResize);
@@ -326,7 +326,7 @@ export default function Chat() {
           bottom: 0;
           left: 0;
           right: 0;
-          height: 100dvh;
+          top: 0;
           display: flex;
           flex-direction: column;
           overflow: hidden;
