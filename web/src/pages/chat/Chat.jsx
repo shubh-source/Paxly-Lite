@@ -324,7 +324,7 @@ export default function Chat() {
         .chat-root {
           width: 100%;
           height: 100%;
-          position: relative;
+          position: absolute; inset: 0;
           display: flex;
           flex-direction: column;
           overflow: hidden;
@@ -361,13 +361,12 @@ export default function Chat() {
 
         /* ── Messages scroll area ── */
         .chat-scroll {
-          flex: 1; display: flex; flex-direction: column-reverse;
+          position: absolute; inset: 0; display: flex; flex-direction: column-reverse; justify-content: flex-start;
           min-height: 0;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
           padding: 95px 12px 90px;
-          position: relative;
           z-index: 1;
         }
 
