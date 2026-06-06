@@ -122,7 +122,7 @@ export default function Chat() {
   }, [user?.id]);
 
   /* ── auto scroll ──────────────────────────────────────────── */
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+  useEffect(() => { // bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
   /* ── self presence ────────────────────────────────────────── */
   useEffect(() => {
@@ -146,7 +146,7 @@ export default function Chat() {
       if (scrollRef.current) {
         scrollRef.current.style.maxHeight = '';
         requestAnimationFrame(() => {
-          bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+          // bottomRef.current?.scrollIntoView({ behavior: 'auto' });
         });
       }
     };
@@ -323,10 +323,10 @@ export default function Chat() {
         /* ── Chat outer wrapper ── */
         .chat-root {
           position: fixed;
-          top: 0;
+          bottom: 0;
           left: 0;
           right: 0;
-          bottom: 0;
+          height: 100dvh;
           display: flex;
           flex-direction: column;
           overflow: hidden;
@@ -361,7 +361,7 @@ export default function Chat() {
 
         /* ── Messages scroll area ── */
         .chat-scroll {
-          flex: 1; display: flex; flex-direction: column;
+          flex: 1; display: flex; flex-direction: column-reverse;
           min-height: 0;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
@@ -594,9 +594,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {/* ── MESSAGES ─────────────────────────────────────── */}
         <div className="chat-scroll" ref={scrollRef}>
-          {/* Spacer to push messages to the bottom when there are few */}
-          <div style={{ marginTop: 'auto' }} />
-          {msgs.map((msg, i) => {
+          {[...msgs].reverse().map((msg, i) => {
             const me            = isMe(msg);
             const isSecure      = msg.is_once_view;
             const isSpent       = isSecure && msg.views_used >= msg.view_limit;
