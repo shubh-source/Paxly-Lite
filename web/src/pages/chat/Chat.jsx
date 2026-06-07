@@ -312,8 +312,8 @@ export default function Chat() {
           to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes typingDot {
-          0%,80%,100% { transform: scale(0.55); opacity: .35; }
-          40%         { transform: scale(1);    opacity: 1;   }
+          0%, 60%, 100% { transform: translateY(0) scale(0.6); opacity: 0.35; }
+          30%           { transform: translateY(-5px) scale(1); opacity: 1;   }
         }
         @keyframes recPulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(255,90,60,0.5); }
