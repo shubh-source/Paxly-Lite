@@ -108,7 +108,7 @@ export default function AIAssistant() {
     e.target.value = '';
   };
 
-  const AI_FREE_LIMIT = 5;
+  const AI_FREE_LIMIT = 15;
 
   const send = async (msg) => {
     const content = (msg || text).trim();
