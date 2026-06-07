@@ -38,10 +38,10 @@ function VelvetPetalsBackground() {
         const size = 20 + sizes[i] * 35;
         return (
           <div key={i} className="petal-3d" style={{
-            left: \`\${r * 100}%\`,
+            left: `${r * 100}%`,
             width: size, height: size,
-            animation: \`floatPetal \${12 + delays[i] * 10}s ease-in-out infinite\`,
-            animationDelay: \`-\${delays[i] * 12}s\`
+            animation: `floatPetal ${12 + delays[i] * 10}s ease-in-out infinite`,
+            animationDelay: `-${delays[i] * 12}s`
           }} />
         );
       })}
@@ -99,10 +99,10 @@ function CrystalHeartsBackground() {
         const size = 40 + sizes[i] * 60;
         return (
           <div key={i} className="heart-3d-container" style={{
-            left: \`\${r * 90}%\`,
+            left: `${r * 90}%`,
             width: size, height: size,
-            animation: \`floatHeart3D \${18 + delays[i] * 12}s linear infinite\`,
-            animationDelay: \`-\${delays[i] * 20}s\`
+            animation: `floatHeart3D ${18 + delays[i] * 12}s linear infinite`,
+            animationDelay: `-${delays[i] * 20}s`
           }}>
             <div className="heart-3d" />
           </div>
@@ -143,10 +143,10 @@ function GoldenRingsBackground() {
         const size = 60 + sizes[i] * 80;
         return (
           <div key={i} className="ring-3d" style={{
-            left: \`\${r * 85}%\`,
+            left: `${r * 85}%`,
             width: size, height: size,
-            animation: \`floatRing \${20 + delays[i] * 15}s linear infinite\`,
-            animationDelay: \`-\${delays[i] * 10}s\`
+            animation: `floatRing ${20 + delays[i] * 15}s linear infinite`,
+            animationDelay: `-${delays[i] * 10}s`
           }} />
         );
       })}
