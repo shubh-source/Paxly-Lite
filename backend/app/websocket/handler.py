@@ -126,6 +126,37 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                         "mood_type": payload.get("mood_type"), "note": payload.get("note")
                     }, exclude_user=user_id)
 
+                elif p_type == "media_save_request":
+                    payload["from"] = user_name
+                    payload["sender_id"] = user_id
+                    await manager.send_to_user(partner_id, payload)
+
+                elif p_type == "media_save_response":
+                    allowed = payload.get("allowed", False)
+                    request_id = payload.get("request_id")
+                    msg_id = payload.get("message_id")
+                    
+                    payload["partner_name"] = user_name
+                    await manager.send_to_user(request_id, payload)
+                    
+                    if allowed and msg_id:
+                        msg = await db.execute(select(Message).filter(Message.id == msg_id))
+                        msg = msg.scalars().first()
+                        if msg and msg.media_url:
+                            from app.models.orm import Memory
+                            mem = Memory(
+                                id=str(uuid.uuid4()),
+                                couple_space_id=space_id,
+                                title="Saved from Secure Chat",
+                                description=f"Saved with permission from {user_name}",
+                                date=datetime.utcnow().strftime("%Y-%m-%d"),
+                                image_url=msg.media_url,
+                                created_by=request_id,
+                                created_at=datetime.utcnow()
+                            )
+                            db.add(mem)
+                            await db.commit()
+
                 elif p_type in ["webrtc_offer", "webrtc_answer", "webrtc_ice", "webrtc_reject", "webrtc_end"]:
                     # Relay to partner
                     payload["from_id"] = user_id
