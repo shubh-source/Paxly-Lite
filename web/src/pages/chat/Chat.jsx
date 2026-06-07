@@ -122,7 +122,7 @@ export default function Chat() {
   }, [user?.id]);
 
   /* ── auto scroll ──────────────────────────────────────────── */
-  useEffect(() => { // bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+  // useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
   /* ── self presence ────────────────────────────────────────── */
   useEffect(() => {
