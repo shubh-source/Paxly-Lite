@@ -18,11 +18,18 @@ export default function ChatDraft() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [msgs, setMsgs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cached_messages')) || []; } catch { return []; }
+    try { 
+      const cached = JSON.parse(localStorage.getItem('cached_messages'));
+      if (cached && cached.length > 0) return cached;
+    } catch {}
+    return [
+      { id: '1', sender_id: 'partner', text: 'Hey, I wanted to show you the new themes! 😊', timestamp: new Date(Date.now() - 60000).toISOString() },
+      { id: '2', sender_id: user?.id || 'me', text: 'Wow, this looks amazing! The animated background is so cool.', timestamp: new Date().toISOString() }
+    ];
   });
   const [text, setText] = useState('');
   const [partner, setPartner] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
+    try { return JSON.parse(localStorage.getItem('cached_partner')) || { name: 'Sneha (Preview)' }; } catch { return { name: 'Sneha (Preview)' }; }
   });
   const [typing, setTyping]           = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
@@ -282,7 +289,7 @@ export default function ChatDraft() {
     setSaveRequest(null);
   };
 
-  const isMe      = m => m.sender_id === user?.id;
+  const isMe      = m => m.sender_id === user?.id || m.sender_id === 'me';
   const ts        = m => m.timestamp ? format(new Date(m.timestamp), 'h:mm a') : '';
   const fixUrl    = url => {
     if (!url) return url;

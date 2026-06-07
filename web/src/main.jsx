@@ -114,7 +114,7 @@ function AnimatedRoutes() {
 
         {/* Core Couple Features */}
         <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />
-        <Route path="/chat-draft" element={<Guard needsPartner><Layout><ChatDraft /></Layout></Guard>} />
+        <Route path="/chat-draft" element={<ChatDraft />} />
         <Route path="/call"       element={<Guard needsPartner><Layout><CallScreen /></Layout></Guard>} />
         <Route path="/dates"      element={<Guard needsPartner><Layout><AnniversaryTracker /></Layout></Guard>} />
         <Route path="/bucket"     element={<Guard needsPartner><Layout><BucketList /></Layout></Guard>} />
