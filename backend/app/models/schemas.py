@@ -53,6 +53,7 @@ class InviteAccept(BaseModel):
 class MessageCreate(BaseModel):
     text: Optional[str] = ""
     message_type: str = "text"  # text | image | voice
+    reply_to_id: Optional[str] = None
 
 class MessageOut(BaseModel):
     id: str
@@ -66,6 +67,7 @@ class MessageOut(BaseModel):
     view_limit: int = 1
     views_used: int = 0
     is_compromised: bool = False
+    reply_to_id: Optional[str] = None
     timestamp: datetime
 
 class ReactionAdd(BaseModel):

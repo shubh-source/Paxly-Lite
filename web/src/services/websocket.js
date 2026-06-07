@@ -98,14 +98,15 @@ class WSService {
   }
 
   // Chat
-  sendMessage(text, messageType = 'text', mediaUrl = null, isOnceView = false, viewLimit = 1) {
+  sendMessage(text, messageType = 'text', mediaUrl = null, isOnceView = false, viewLimit = 1, replyToId = null) {
     this.send({ 
       type: 'chat_message', 
       text, 
       message_type: messageType, 
       media_url: mediaUrl,
       is_once_view: isOnceView,
-      view_limit: viewLimit
+      view_limit: viewLimit,
+      reply_to_id: replyToId
     });
   }
 

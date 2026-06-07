@@ -90,6 +90,7 @@ class Message(Base):
     view_limit = Column(Integer, default=1)
     views_used = Column(Integer, default=0)
     is_compromised = Column(Boolean, default=False)
+    reply_to_id = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 

@@ -54,6 +54,13 @@ export default function Chat() {
   const [partnerMood, setPartnerMood]           = useState('neutral');
   const [selfMood]                              = useState('neutral');
   const [showingStudio, setShowingStudio]       = useState(false);
+  
+  // Gestures & Reactions
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [floatingHeart, setFloatingHeart] = useState(null);
+  const touchStartX = useRef(0);
+  const lastTapTime = useRef(0);
+  const daysTogether = space?.created_at ? Math.max(1, Math.floor((Date.now() - new Date(space.created_at)) / (1000 * 60 * 60 * 24))) : 0;
 
   // Save requests
   const [saveRequest, setSaveRequest]   = useState(null);
@@ -181,8 +188,9 @@ export default function Chat() {
   const send = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
-    wsService.sendMessage(text.trim());
+    wsService.sendMessage(text.trim(), 'text', null, false, 1, replyingTo?.id);
     setText('');
+    setReplyingTo(null);
     setSending(false);
   };
 
@@ -271,7 +279,8 @@ export default function Chat() {
         finalUrl = (import.meta.env.VITE_API_URL || '') + media_url;
       }
       const type = f.type?.startsWith('video') ? 'video' : 'image';
-      wsService.sendMessage('', type, finalUrl, isOnceView, limit);
+      wsService.sendMessage('', type, finalUrl, isOnceView, limit, replyingTo?.id);
+      setReplyingTo(null);
     } catch (err) {
       alert('Upload failed: ' + (err.response?.data?.detail || err.message));
     } finally {
@@ -358,6 +367,12 @@ export default function Chat() {
         @keyframes typingDot {
           0%, 60%, 100% { transform: translateY(0) scale(0.6); opacity: 0.35; }
           30%           { transform: translateY(-5px) scale(1); opacity: 1;   }
+        }
+        @keyframes floatHeart {
+          0% { transform: scale(0.5) translateY(0); opacity: 0; }
+          20% { transform: scale(1.5) translateY(-20px); opacity: 1; }
+          80% { transform: scale(1.2) translateY(-40px); opacity: 1; }
+          100% { transform: scale(1) translateY(-60px); opacity: 0; }
         }
         @keyframes audioWave {
           0%, 100% { transform: scaleY(0.2); }
@@ -690,6 +705,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   {/* Bubble */}
                   <div
                     className="chat-bubble"
+                    onTouchStart={handleMsgTouchStart}
+                    onTouchEnd={e => handleMsgTouchEnd(e, msg)}
                     onClick={() => {
                       if (isSecure && !me && !isSpent && !isCompromised) handleSecureView(msg);
                       else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id])
@@ -721,6 +738,36 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       WebkitBackdropFilter: 'blur(12px)',
                     }}
                   >
+                    {/* Floating Heart */}
+                    {floatingHeart === msg.id && (
+                      <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', fontSize:'3rem', animation:'floatHeart 1s forwards', zIndex:10 }}>❤️</div>
+                    )}
+
+                    {/* Quote Box */}
+                    {msg.reply_to_id && (
+                      (() => {
+                        const quoteMsg = msgs.find(m => m.id === msg.reply_to_id);
+                        if (!quoteMsg) return null;
+                        return (
+                          <div style={{
+                            background: 'rgba(0,0,0,0.15)',
+                            borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            marginBottom: '6px',
+                            fontSize: '0.8rem',
+                            color: 'rgba(255,255,255,0.8)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            <div style={{ color: activeTheme.accent || '#C9A96E', fontWeight: 700, marginBottom: 2 }}>{quoteMsg.sender_id === user?.id ? 'You' : (partner?.name || 'Partner')}</div>
+                            {quoteMsg.message_type === 'image' ? '📷 Image' : quoteMsg.message_type === 'video' ? '🎥 Video' : quoteMsg.message_type === 'audio' ? '🎵 Voice Note' : quoteMsg.text}
+                          </div>
+                        );
+                      })()
+                    )}
+
                     {/* VIDEO */}
                     {msg.message_type === 'video' && (isSecure ? (
                       <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
@@ -794,6 +841,35 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         {/* ── INPUT BAR ─────────────────────────────────────── */}
         <div className="chat-input-bar">
           <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
+
+          {/* Reply Banner */}
+          {replyingTo && (
+            <div style={{
+              background: 'rgba(20,20,20,0.85)',
+              backdropFilter: 'blur(12px)',
+              borderTopLeftRadius: '16px',
+              borderTopRightRadius: '16px',
+              padding: '10px 16px',
+              marginBottom: '-10px',
+              paddingBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              border: `1px solid ${activeTheme.accent || '#C9A96E'}40`,
+              borderBottom: 'none',
+              transform: 'scale(0.89) translateY(10px)',
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <span style={{ color: activeTheme.accent || '#C9A96E', fontSize: '0.8rem', fontWeight: 600 }}>Replying to {replyingTo.sender_id === user?.id ? 'Yourself' : partner?.name || 'Partner'}</span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {replyingTo.message_type === 'image' ? '📷 Image' : replyingTo.message_type === 'video' ? '🎥 Video' : replyingTo.message_type === 'audio' ? '🎵 Voice Note' : replyingTo.text}
+                </span>
+              </div>
+              <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 4 }}>
+                <Icons.Close size={18} />
+              </button>
+            </div>
+          )}
 
           <div
             className="chat-input-inner"

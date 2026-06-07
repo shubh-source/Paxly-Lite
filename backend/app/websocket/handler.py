@@ -62,7 +62,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                         id=str(uuid.uuid4()), couple_space_id=space_id, sender_id=user_id,
                         message_type=payload.get("message_type", "text"), text=encrypted_text,
                         media_url=payload.get("media_url"), is_once_view=payload.get("is_once_view", False),
-                        view_limit=payload.get("view_limit", 1), timestamp=datetime.utcnow()
+                        view_limit=payload.get("view_limit", 1), timestamp=datetime.utcnow(),
+                        reply_to_id=payload.get("reply_to_id")
                     )
                     
                     # Auto-save image to memory vault if not once-view
@@ -98,7 +99,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                     broadcast_data = {
                         "type": "chat_message", "id": msg.id, "sender_id": user_id, "sender_name": user_name,
                         "message_type": msg.message_type, "text": raw_text, "media_url": msg.media_url,
-                        "is_once_view": msg.is_once_view, "view_limit": msg.view_limit, 
+                        "reactions": msg.reactions,
+                        "is_once_view": msg.is_once_view,
+                        "view_limit": msg.view_limit,
+                        "views_used": msg.views_used,
+                        "reply_to_id": msg.reply_to_id,
                         "timestamp": msg.timestamp.isoformat() + "Z"
                     }
                     
