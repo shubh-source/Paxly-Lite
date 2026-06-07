@@ -3,10 +3,10 @@ import { CHAT_THEMES } from '../../data/chatThemesDraft';
 import axios from 'axios';
 
 const THEME_ICONS = {
-  neumorphic_3d:  { emoji: '🧊', desc: 'Neumorphic 3D' },
-  glass_3d:       { emoji: '🔮', desc: '3D Frost Glass' },
-  metal_3d:       { emoji: '🏆', desc: 'Solid Gold 3D' },
-  classic:        { emoji: '✨', desc: 'Timeless gold' },
+  velvet_rose:        { emoji: '🌹', desc: 'Velvet Rose' },
+  crystal_love:       { emoji: '💖', desc: 'Crystal Love' },
+  golden_anniversary: { emoji: '💍', desc: 'Diamond Gold' },
+  classic:            { emoji: '✨', desc: 'Timeless Gold' },
 };
 
 export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate, isPremium, onClose, onPremiumRequired }) {
