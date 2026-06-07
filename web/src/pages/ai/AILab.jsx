@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { startAISession, sendAIInterviewMessage, finishAIInterview, getActiveAISession, getAIHistory } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
+import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 
 const PHASES = [
   { id: 'start', label: 'Setup', icon: '⚙️' },
@@ -21,6 +22,7 @@ export default function AILab() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState(null);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const bottomRef = useRef(null);
   const nav = useNavigate();
   const { user } = useAuth();
@@ -121,6 +123,36 @@ export default function AILab() {
     }
     setLoading(false);
   };
+
+  if (!user?.is_premium) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
+        <header className="header" style={{ padding: '20px', display: 'flex', alignItems: 'center' }}>
+          <Link to="/ai" style={{ color: 'var(--text)', textDecoration: 'none' }}><Icons.Back size={24} /></Link>
+          <span style={{ fontWeight: 600, fontSize: '1.2rem', marginLeft: 16 }}>Deep Lab</span>
+        </header>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+          <Icons.Aura size={64} color="var(--accent)" />
+          <h2 style={{ marginTop: 24, marginBottom: 12, color: 'var(--accent)' }}>Premium Feature</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.95rem', maxWidth: 300, lineHeight: 1.6 }}>
+            Deep Lab analyzes your chat history to resolve complex relationship issues. Upgrade to Paxly Premium to unlock this feature.
+          </p>
+          <button onClick={() => setShowPremiumModal(true)} style={{ marginTop: 32, padding: '14px 32px', borderRadius: 24, background: 'var(--accent)', color: '#000', border: 'none', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', boxShadow: '0 8px 24px rgba(201,169,110,0.3)' }}>
+            Upgrade Now
+          </button>
+        </div>
+        {showPremiumModal && (
+          <PremiumUpgrade 
+            onCancel={() => setShowPremiumModal(false)}
+            onUpgradeSuccess={() => {
+              setShowPremiumModal(false);
+              window.location.reload();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (phase === 'start') return (
     <div className="page center">

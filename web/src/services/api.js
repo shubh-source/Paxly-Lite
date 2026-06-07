@@ -122,4 +122,10 @@ export const getNotifications = () =>
 export const markAllNotificationsRead = () =>
   api.put('/notifications/read-all').then(r => r.data);
 
+// Payments
+export const createPremiumOrder = () => 
+  api.post('/payments/create-premium-order', { amount: 149 }).then(r => r.data);
+export const verifyPremiumPayment = (payload) => 
+  api.post('/payments/verify-premium', payload).then(r => r.data);
+
 export default api;

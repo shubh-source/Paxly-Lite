@@ -21,6 +21,15 @@ class PaymentCreate(BaseModel):
     booking_id: str
     booking_type: str # theatre | restaurant
 
+class PremiumOrderRequest(BaseModel):
+    amount: int = 149
+    currency: str = "INR"
+
+class VerifyPremiumRequest(BaseModel):
+    razorpay_payment_id: str
+    razorpay_order_id: str
+    razorpay_signature: str
+
 @router.post("/create-order")
 async def create_order(data: PaymentCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if data.booking_type == "theatre":
@@ -53,6 +62,39 @@ async def create_order(data: PaymentCreate, cu: User = Depends(get_current_user)
         return razorpay_order
     except Exception as e:
         raise HTTPException(400, f"Order creation failed: {str(e)}")
+
+@router.post("/create-premium-order")
+async def create_premium_order(req: PremiumOrderRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    amount = req.amount * 100
+    try:
+        razorpay_order = client.order.create(data={
+            "amount": amount,
+            "currency": req.currency,
+            "receipt": f"premium_{cu.id}",
+            "payment_capture": 1
+        })
+        log = PaymentLog(booking_id=f"premium_{cu.id}", booking_type="premium_upgrade", event="order_created", data=razorpay_order)
+        db.add(log)
+        await db.commit()
+        return razorpay_order
+    except Exception as e:
+        raise HTTPException(400, f"Premium Order creation failed: {str(e)}")
+
+@router.post("/verify-premium")
+async def verify_premium(req: VerifyPremiumRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        client.utility.verify_payment_signature({
+            'razorpay_order_id': req.razorpay_order_id,
+            'razorpay_payment_id': req.razorpay_payment_id,
+            'razorpay_signature': req.razorpay_signature
+        })
+        await db.execute(update(User).where(User.id == cu.id).values(is_premium=True))
+        log = PaymentLog(booking_id=req.razorpay_order_id, booking_type="premium_upgrade", event="payment_verified", data={"payment_id": req.razorpay_payment_id})
+        db.add(log)
+        await db.commit()
+        return {"status": "success", "message": "Premium Activated!"}
+    except Exception as e:
+        raise HTTPException(400, f"Signature verification failed: {str(e)}")
 
 @router.post("/webhook")
 async def razorpay_webhook(request: Request, db: AsyncSession = Depends(get_db)):

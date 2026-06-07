@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { askAI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
+import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 
 export default function AIAssistant() {
   const { user } = useAuth();
@@ -10,6 +11,7 @@ export default function AIAssistant() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachment, setAttachment] = useState(null);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const endRef = useRef(null);
   const inputRef = useRef(null); useEffect(() => { const originalOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.body.style.position = 'fixed'; document.body.style.inset = '0px'; return () => { document.body.style.overflow = originalOverflow; document.body.style.position = ''; document.body.style.inset = ''; }; }, []);
   const [threads, setThreads] = useState([]);
@@ -129,7 +131,8 @@ export default function AIAssistant() {
       if (usage.count >= AI_FREE_LIMIT) {
         setMsgs(prev => [...prev, { 
           role: 'assistant', 
-          content: "Oops! Aapki aaj ki free AI limit khatam ho chuki hai. Unlimited chats ke liye Premium mein upgrade karein! dY`'"
+          content: "Oops! Aapki aaj ki free AI limit (15 msgs) khatam ho chuki hai. Unlimited chats aur Deep Lab ke liye Premium mein upgrade karein! ✨",
+          isPremiumPrompt: true
         }]);
         return;
       }
@@ -328,6 +331,11 @@ export default function AIAssistant() {
                 </div>
               ))}
               {m.content}
+              {m.isPremiumPrompt && (
+                <button onClick={() => setShowPremiumModal(true)} style={{ marginTop: 12, padding: '10px 20px', borderRadius: 20, background: '#000', color: 'var(--accent)', border: 'none', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  Upgrade to Premium
+                </button>
+              )}
               {m.isLabPrompt && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                   {[7, 30, 90].map(days => (
@@ -398,6 +406,16 @@ export default function AIAssistant() {
           </button>
         </div>
       </div>
+      
+      {showPremiumModal && (
+        <PremiumUpgrade 
+          onCancel={() => setShowPremiumModal(false)}
+          onUpgradeSuccess={() => {
+            setShowPremiumModal(false);
+            window.location.reload();
+          }}
+        />
+      )}
 
       <style>{`
         @keyframes fadeInUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
