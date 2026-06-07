@@ -16,9 +16,12 @@ import ResetPassword  from './pages/auth/ResetPassword';
 import Connect        from './pages/auth/Connect';
 import SetupLock      from './pages/auth/SetupLock';
 import ForgotPin      from './pages/auth/ForgotPin';
-import Dashboard      from './pages/Dashboard';
+import VoiceNotes     from './pages/voice/VoiceNotes';
 import Chat           from './pages/chat/Chat';
+import ChatDraft      from './pages/chat/ChatDraft';
 import CallScreen     from './pages/calls/CallScreen';
+import DatesPage      from './pages/dates/DatesPage';
+import Dashboard      from './pages/Dashboard';
 import MoodSync       from './pages/mood/MoodSync';
 import MoodHistory    from './pages/mood/MoodHistory';
 import MemoryVault    from './pages/memories/MemoryVault';
@@ -32,7 +35,6 @@ import VibeViewer     from './pages/website/VibeViewer';
 import Profile        from './pages/profile/Profile';
 import Settings       from './pages/profile/Settings';
 import SettingsDemo   from './pages/profile/SettingsDemo';
-import VoiceNotes    from './pages/voice/VoiceNotes';
 import LoveNotes      from './pages/notes/LoveNotes';
 import AnniversaryTracker from './pages/dates/AnniversaryTracker';
 import BucketList     from './pages/bucket/BucketList';
@@ -99,8 +101,6 @@ function AnimatedRoutes() {
         <Route path="/forgot-pin" element={<Guard needsPartner><ForgotPin /></Guard>} />
 
         <Route path="/dashboard"  element={<Guard needsPartner><Layout><Dashboard /></Layout></Guard>} />
-        <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />
-        <Route path="/call"       element={<Guard needsPartner><Layout><CallScreen /></Layout></Guard>} />
         <Route path="/mood"       element={<Guard needsPartner><Layout><MoodSync /></Layout></Guard>} />
         <Route path="/mood/history" element={<Guard needsPartner><Layout><MoodHistory /></Layout></Guard>} />
         <Route path="/memories"   element={<Guard needsPartner><Layout><MemoryVault /></Layout></Guard>} />
@@ -113,9 +113,11 @@ function AnimatedRoutes() {
         <Route path="/settings"   element={<Guard needsPartner><Layout><Settings /></Layout></Guard>} />
         <Route path="/settings-demo" element={<Guard needsPartner><Layout><SettingsDemo /></Layout></Guard>} />
 
-        {/* New features */}
-        <Route path="/notes"      element={<Guard needsPartner><Layout><LoveNotes /></Layout></Guard>} />
-        <Route path="/dates"      element={<Guard needsPartner><Layout><AnniversaryTracker /></Layout></Guard>} />
+        {/* Core Couple Features */}
+        <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />
+        <Route path="/chat-draft" element={<Guard needsPartner><Layout><ChatDraft /></Layout></Guard>} />
+        <Route path="/call"       element={<Guard needsPartner><Layout><CallScreen /></Layout></Guard>} />
+        <Route path="/dates"      element={<Guard needsPartner><Layout><DatesPage /></Layout></Guard>} />
         <Route path="/bucket"     element={<Guard needsPartner><Layout><BucketList /></Layout></Guard>} />
         <Route path="/shop"       element={<Guard needsPartner><Layout><LoveShop /></Layout></Guard>} />
         <Route path="/shop/checkout" element={<Guard needsPartner><Layout><Checkout /></Layout></Guard>} />
