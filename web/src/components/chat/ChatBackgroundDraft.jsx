@@ -145,6 +145,124 @@ function GoldenBokehBackground() {
   );
 }
 
+/* ── 3D STARS (MIDNIGHT) ── */
+function MidnightStarsBackground() {
+  const stars = useMemo(() => seededRands(30, 11), []);
+  const delays = useMemo(() => seededRands(30, 22), []);
+  const sizes  = useMemo(() => seededRands(30, 33), []);
+  
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <style>{`
+        @keyframes twinkleStar {
+          0%   { opacity: 0; transform: scale(0.5); }
+          50%  { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 0; transform: scale(0.5); }
+        }
+        @keyframes driftStar {
+          from { transform: translateY(0) rotate(0deg); }
+          to   { transform: translateY(-50vh) rotate(360deg); }
+        }
+        .star-3d {
+          position: absolute;
+          background: #fff;
+          border-radius: 50%;
+          box-shadow: 0 0 8px #fff, 0 0 15px #4da6ff;
+        }
+      `}</style>
+      {stars.map((r, i) => {
+        const size = 1 + sizes[i] * 3;
+        return (
+          <div key={i} className="star-3d" style={{
+            left: `${r * 100}%`,
+            top: `${sizes[i] * 100}%`,
+            width: size, height: size,
+            animation: `twinkleStar ${3 + delays[i] * 4}s ease-in-out infinite, driftStar ${40 + delays[i] * 30}s linear infinite`,
+            animationDelay: `-${delays[i] * 10}s`
+          }} />
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── 3D BUBBLES (OCEAN) ── */
+function OceanBubblesBackground() {
+  const bubbles = useMemo(() => seededRands(20, 55), []);
+  const delays = useMemo(() => seededRands(20, 66), []);
+  const sizes  = useMemo(() => seededRands(20, 77), []);
+  
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <style>{`
+        @keyframes floatWaterBubble {
+          0%   { transform: translateY(110vh) scale(0.8) translateX(0); opacity: 0; }
+          10%  { opacity: 0.6; }
+          90%  { opacity: 0.3; }
+          100% { transform: translateY(-10vh) scale(1.2) translateX(20px); opacity: 0; }
+        }
+        .water-bubble {
+          position: absolute;
+          border-radius: 50%;
+          border: 1px solid rgba(255,255,255,0.3);
+          background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.2), rgba(0,229,255,0.05));
+          backdrop-filter: blur(2px);
+          box-shadow: inset 0 0 10px rgba(255,255,255,0.2), 0 5px 15px rgba(0,0,0,0.2);
+        }
+      `}</style>
+      {bubbles.map((r, i) => {
+        const size = 15 + sizes[i] * 40;
+        return (
+          <div key={i} className="water-bubble" style={{
+            left: `${r * 100}%`,
+            width: size, height: size,
+            animation: `floatWaterBubble ${10 + delays[i] * 15}s ease-in infinite`,
+            animationDelay: `-${delays[i] * 15}s`
+          }} />
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── 3D EMBERS (FIREPLACE) ── */
+function FireplaceEmbersBackground() {
+  const embers = useMemo(() => seededRands(40, 88), []);
+  const delays = useMemo(() => seededRands(40, 99), []);
+  const sizes  = useMemo(() => seededRands(40, 11), []);
+  
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <style>{`
+        @keyframes floatEmber {
+          0%   { transform: translateY(110vh) translateX(0) scale(1); opacity: 0; }
+          10%  { opacity: 1; }
+          80%  { opacity: 0.8; }
+          100% { transform: translateY(-10vh) translateX(30px) scale(0.2); opacity: 0; }
+        }
+        .ember-spark {
+          position: absolute;
+          border-radius: 50%;
+          background: radial-gradient(circle, #ffcc00 0%, #ff6600 40%, transparent 100%);
+          box-shadow: 0 0 10px #ff6600;
+          mix-blend-mode: screen;
+        }
+      `}</style>
+      {embers.map((r, i) => {
+        const size = 3 + sizes[i] * 8;
+        return (
+          <div key={i} className="ember-spark" style={{
+            left: `${r * 100}%`,
+            width: size, height: size,
+            animation: `floatEmber ${5 + delays[i] * 8}s ease-in infinite`,
+            animationDelay: `-${delays[i] * 10}s`
+          }} />
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ChatBackground({ elements, theme }) {
   switch (elements) {
     case '3d_petals':
@@ -153,6 +271,12 @@ export default function ChatBackground({ elements, theme }) {
       return <CrystalHeartsBackground />;
     case '3d_rings':
       return <GoldenBokehBackground />;
+    case '3d_stars':
+      return <MidnightStarsBackground />;
+    case '3d_bubbles':
+      return <OceanBubblesBackground />;
+    case '3d_embers':
+      return <FireplaceEmbersBackground />;
     default:
       return null;
   }

@@ -6,6 +6,9 @@ const THEME_ICONS = {
   velvet_rose:        { emoji: '🌹', desc: 'Velvet Rose' },
   crystal_love:       { emoji: '💖', desc: 'Crystal Love' },
   golden_anniversary: { emoji: '💍', desc: 'Diamond Gold' },
+  midnight_starlight: { emoji: '🌌', desc: 'Midnight Stars' },
+  ocean_breeze:       { emoji: '🌊', desc: 'Ocean Breeze' },
+  cozy_fireplace:     { emoji: '🔥', desc: 'Cozy Fireplace' },
   classic:            { emoji: '✨', desc: 'Timeless Gold' },
 };
 

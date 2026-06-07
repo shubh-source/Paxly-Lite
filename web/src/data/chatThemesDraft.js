@@ -57,5 +57,53 @@ export const CHAT_THEMES = {
     textOther: '#e8e8e8',
     accent: '#C9A96E',
     elements: 'bokeh'
+  },
+
+  midnight_starlight: {
+    name: 'Midnight Stars',
+    bg: '#050a1a',
+    bubbleMe: 'linear-gradient(145deg, #102a6b, #0a1b4d)',
+    textMe: '#e6f0ff',
+    bubbleOther: 'linear-gradient(145deg, #0d142b, #080c1a)',
+    textOther: '#c2d1eb',
+    accent: '#4da6ff',
+    borderMe: '1px solid rgba(77, 166, 255, 0.3)',
+    borderOther: '1px solid rgba(255, 255, 255, 0.05)',
+    boxShadowMe: '0 10px 20px rgba(0,0,0,0.8), inset 0 2px 5px rgba(77,166,255,0.2), inset 0 -3px 8px rgba(0,0,0,0.8)',
+    boxShadowOther: '0 10px 20px rgba(0,0,0,0.8), inset 0 2px 3px rgba(255,255,255,0.05), inset 0 -3px 8px rgba(0,0,0,0.8)',
+    elements: '3d_stars',
+    premium: true
+  },
+
+  ocean_breeze: {
+    name: 'Ocean Breeze',
+    bg: '#02161c',
+    bubbleMe: 'linear-gradient(145deg, #00596b, #003d4a)',
+    textMe: '#d4fbff',
+    bubbleOther: 'linear-gradient(145deg, #04242d, #021a22)',
+    textOther: '#b8e3ea',
+    accent: '#00e5ff',
+    borderMe: '1px solid rgba(0, 229, 255, 0.3)',
+    borderOther: '1px solid rgba(255, 255, 255, 0.05)',
+    boxShadowMe: '0 10px 20px rgba(0,0,0,0.6), inset 0 2px 5px rgba(0,229,255,0.2), inset 0 -3px 8px rgba(0,0,0,0.8)',
+    boxShadowOther: '0 10px 20px rgba(0,0,0,0.6), inset 0 2px 3px rgba(255,255,255,0.05), inset 0 -3px 8px rgba(0,0,0,0.8)',
+    elements: '3d_bubbles',
+    premium: true
+  },
+
+  cozy_fireplace: {
+    name: 'Cozy Fireplace',
+    bg: '#140802',
+    bubbleMe: 'linear-gradient(145deg, #8b2b00, #5c1b00)',
+    textMe: '#ffebdb',
+    bubbleOther: 'linear-gradient(145deg, #2b1104, #1a0a02)',
+    textOther: '#ffdec7',
+    accent: '#ff6600',
+    borderMe: '1px solid rgba(255, 102, 0, 0.3)',
+    borderOther: '1px solid rgba(255, 255, 255, 0.05)',
+    boxShadowMe: '0 10px 20px rgba(0,0,0,0.8), inset 0 2px 5px rgba(255,102,0,0.2), inset 0 -3px 8px rgba(0,0,0,0.8)',
+    boxShadowOther: '0 10px 20px rgba(0,0,0,0.8), inset 0 2px 3px rgba(255,255,255,0.05), inset 0 -3px 8px rgba(0,0,0,0.8)',
+    elements: '3d_embers',
+    premium: true
   }
 };
