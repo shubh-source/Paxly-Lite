@@ -6,6 +6,7 @@ import { getMessages, getSpace, uploadMedia } from '../../services/api';
 import { format } from 'date-fns';
 import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
+import VoiceNotePlayer from '../../components/chat/VoiceNotePlayer';
 import DynamicPresence from '../../components/chat/DynamicPresence';
 import VlynxlyStudio from '../../components/chat/VlynxlyStudio';
 import ChatBackground from '../../components/chat/ChatBackground';
@@ -748,12 +749,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                     {/* AUDIO */}
                     {msg.message_type === 'audio' && (
-                      <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-                        <div style={{ width:34, height:34, borderRadius:'50%', background: me ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          <Icons.Mic size={15} color={me ? '#000' : '#b3945a'} />
-                        </div>
-                        <audio src={msg.media_url} controls style={{ height:32, minWidth:160, maxWidth:220 }} />
-                      </div>
+                      <VoiceNotePlayer src={msg.media_url} isMe={me} theme={activeTheme} />
                     )}
 
                     {/* TEXT */}

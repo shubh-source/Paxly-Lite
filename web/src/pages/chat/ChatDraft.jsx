@@ -13,6 +13,7 @@ import { CHAT_THEMES } from '../../data/chatThemesDraft';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 import axios from 'axios';
 import { Icons } from '../../components/ui/Icons';
+import VoiceNotePlayer from '../../components/chat/VoiceNotePlayer';
 
 export default function ChatDraft() {
   const { user } = useAuth();
@@ -702,12 +703,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                     {/* AUDIO */}
                     {msg.message_type === 'audio' && (
-                      <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-                        <div style={{ width:34, height:34, borderRadius:'50%', background: me ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          <Icons.Mic size={15} color={me ? '#000' : '#b3945a'} />
-                        </div>
-                        <audio src={msg.media_url} controls style={{ height:32, minWidth:160, maxWidth:220 }} />
-                      </div>
+                      <VoiceNotePlayer src={msg.media_url} isMe={me} theme={activeTheme} />
                     )}
 
                     {/* TEXT */}
