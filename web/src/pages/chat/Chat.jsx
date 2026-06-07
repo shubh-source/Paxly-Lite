@@ -29,9 +29,13 @@ export default function Chat() {
   const [sending, setSending]         = useState(false);
 
   // Voice
-  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [recordState, setRecordState]           = useState('idle');
+  const [recordTime, setRecordTime]             = useState(0);
   const [audioRecorder, setAudioRecorder]       = useState(null);
-  const audioChunks = useRef([]);
+  const audioChunks                             = useRef([]);
+  const recordInterval                          = useRef(null);
+  const recordStartY                            = useRef(0);
+  const isRecordingAudio = recordState !== 'idle';
 
   // Security / media
   const [pendingFile, setPendingFile]                   = useState(null);
@@ -188,28 +192,67 @@ export default function Chat() {
     setShowGallerySecureModal(true);
   };
 
-  const startVoiceRecord = async () => {
+  const startVoiceRecord = async (e) => {
+    if (e?.touches?.[0]) recordStartY.current = e.touches[0].clientY;
+    else if (e?.clientY) recordStartY.current = e.clientY;
+    
     try {
       const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunks.current = [];
-      recorder.ondataavailable = e => audioChunks.current.push(e.data);
+      recorder.ondataavailable = ev => audioChunks.current.push(ev.data);
+      
       recorder.onstop = async () => {
-        const blob = new Blob(audioChunks.current, { type: 'audio/webm' });
-        const file = new File([blob], 'voice_note.webm', { type: 'audio/webm' });
-        const { media_url } = await uploadMedia(file);
-        wsService.sendMessage('', 'audio', media_url, false, 0);
+        if (audioChunks.current.length > 0) {
+          const blob = new Blob(audioChunks.current, { type: 'audio/webm' });
+          const file = new File([blob], 'voice_note.webm', { type: 'audio/webm' });
+          const { media_url } = await uploadMedia(file);
+          wsService.sendMessage('', 'audio', media_url, false, 0);
+        }
         stream.getTracks().forEach(t => t.stop());
+        clearInterval(recordInterval.current);
+        setRecordTime(0);
+        setRecordState('idle');
+        audioChunks.current = []; 
       };
+      
       recorder.start();
       setAudioRecorder(recorder);
-      setIsRecordingAudio(true);
+      setRecordState('holding');
+      setRecordTime(0);
+      recordInterval.current = setInterval(() => setRecordTime(p => p + 1), 1000);
     } catch (err) { console.error('Audio recording failed', err); }
   };
 
-  const stopVoiceRecord = () => {
-    if (audioRecorder && isRecordingAudio) { audioRecorder.stop(); setIsRecordingAudio(false); }
+  const handleRecordMove = (e) => {
+    if (recordState !== 'holding') return;
+    const clientY = e?.touches?.[0]?.clientY || e.clientY;
+    if (!clientY) return;
+    if (recordStartY.current - clientY > 40) {
+      setRecordState('locked'); 
+    }
   };
+
+  const stopVoiceRecord = () => {
+    if (recordState === 'holding' && audioRecorder) {
+      audioRecorder.stop(); 
+    }
+  };
+
+  const cancelVoiceRecord = () => {
+    if (audioRecorder) {
+      audioChunks.current = []; 
+      audioRecorder.stop();
+    }
+  };
+  
+  const sendLockedVoiceRecord = () => {
+    if (recordState === 'locked' && audioRecorder) {
+      audioRecorder.stop();
+    }
+  };
+
+  const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 
   const sendMedia = async (fileToUse, mode = 'standard') => {
     const f = fileToUse || pendingFile;
@@ -314,6 +357,15 @@ export default function Chat() {
         @keyframes typingDot {
           0%, 60%, 100% { transform: translateY(0) scale(0.6); opacity: 0.35; }
           30%           { transform: translateY(-5px) scale(1); opacity: 1;   }
+        }
+        @keyframes beatBar {
+          0%, 100% { height: 4px; }
+          50%      { height: 16px; }
+        }
+        @keyframes slideUpFade {
+          0% { transform: translateY(5px); opacity: 0; }
+          50% { transform: translateY(0); opacity: 1; }
+          100% { transform: translateY(-5px); opacity: 0; }
         }
         @keyframes recPulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(255,90,60,0.5); }
@@ -755,28 +807,54 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               boxShadow: `0 6px 24px rgba(0,0,0,0.45), inset 0 1px 0 ${activeTheme.accent || '#C9A96E'}15`,
             }}
           >
-            <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
-              <Icons.Camera size={20} color={activeTheme.accent || 'var(--muted)'} />
-            </button>
-            <button className="chat-icon-btn" onClick={() => fileRef.current?.click()}>
-              <Icons.Gallery size={20} color={activeTheme.accent || 'var(--muted)'} />
-            </button>
-
-            <input
-              value={text}
-              onChange={handleType}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-              placeholder={isRecordingAudio ? 'Recording…' : 'Message'}
-              disabled={isRecordingAudio}
-              style={{ color: isRecordingAudio ? '#ff5a3c' : '#fff' }}
-            />
+            {isRecordingAudio ? (
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '0 8px', justifyContent: 'space-between', color: '#ff5a3c' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div className="rec-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5a3c', animation: 'recPulse 1s infinite' }} />
+                  <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{formatRecordTime(recordTime)}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 10, height: 20 }}>
+                    {[...Array(5)].map((_,i) => (
+                      <div key={i} style={{ width: 3, background: '#ff5a3c', borderRadius: 2, animation: `beatBar ${0.5 + Math.random()*0.5}s infinite ease-in-out`, animationDelay: `${Math.random()}s` }} />
+                    ))}
+                  </div>
+                </div>
+                {recordState === 'holding' ? (
+                  <div style={{ fontSize: '0.75rem', opacity: 0.8, display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'slideUpFade 1.5s infinite', marginRight: 15 }}>
+                    <span style={{ fontSize: 16, lineHeight: 1 }}>&uarr;</span>
+                    <span>Slide to lock</span>
+                  </div>
+                ) : null}
+                {recordState === 'locked' && (
+                  <button className="chat-icon-btn" onClick={cancelVoiceRecord} style={{ color: '#ff5a3c', marginLeft: 'auto', marginRight: 10 }}>
+                    <Icons.Trash2 size={20} />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
+                  <Icons.Camera size={20} color={activeTheme.accent || 'var(--muted)'} />
+                </button>
+                <button className="chat-icon-btn" onClick={() => fileRef.current?.click()}>
+                  <Icons.Gallery size={20} color={activeTheme.accent || 'var(--muted)'} />
+                </button>
+    
+                <input
+                  value={text}
+                  onChange={handleType}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                  placeholder="Message"
+                />
+              </>
+            )}
 
             <button
-              className={`chat-send-btn${isRecordingAudio ? ' rec-btn' : ''}`}
-              onPointerDown={!text.trim() ? startVoiceRecord : undefined}
-              onPointerUp={!text.trim() ? stopVoiceRecord : undefined}
-              onPointerLeave={!text.trim() ? stopVoiceRecord : undefined}
-              onClick={text.trim() ? send : undefined}
+              className={`chat-send-btn${recordState === 'holding' ? ' rec-btn' : ''}`}
+              onPointerDown={!text.trim() && recordState === 'idle' ? startVoiceRecord : undefined}
+              onPointerMove={!text.trim() && recordState === 'holding' ? handleRecordMove : undefined}
+              onPointerUp={recordState === 'holding' ? stopVoiceRecord : undefined}
+              onPointerLeave={recordState === 'holding' ? stopVoiceRecord : undefined}
+              onClick={recordState === 'locked' ? sendLockedVoiceRecord : (text.trim() ? send : undefined)}
               disabled={sending && !!text.trim()}
               style={{
                 background: isRecordingAudio
@@ -785,12 +863,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     ? activeTheme.accent || 'var(--accent)'
                     : `${activeTheme.accent || '#C9A96E'}18`,
                 border: text.trim() || isRecordingAudio ? 'none' : `1px solid ${activeTheme.accent || '#C9A96E'}33`,
-                boxShadow: text.trim() ? `0 5px 16px ${activeTheme.accent || '#C9A96E'}55` : 'none',
-                transform: isRecordingAudio ? 'scale(1.12)' : 'scale(1)',
+                boxShadow: text.trim() || isRecordingAudio ? `0 5px 16px ${isRecordingAudio ? '#ff5a3c' : activeTheme.accent || '#C9A96E'}55` : 'none',
+                transform: recordState === 'holding' ? 'scale(1.15)' : 'scale(1)',
+                touchAction: recordState === 'holding' ? 'none' : 'auto'
               }}
             >
-              {text.trim()
-                ? <Icons.Send size={18} color={activeTheme.textMe || '#000'} />
+              {text.trim() || recordState === 'locked'
+                ? <Icons.Send size={18} color={isRecordingAudio ? '#fff' : (activeTheme.textMe || '#000')} />
                 : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : (activeTheme.accent || 'var(--muted)')} />}
             </button>
           </div>
