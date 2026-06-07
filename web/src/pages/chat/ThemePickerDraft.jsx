@@ -3,10 +3,9 @@ import { CHAT_THEMES } from '../../data/chatThemesDraft';
 import axios from 'axios';
 
 const THEME_ICONS = {
-  aurora_premium: { emoji: '🌌', desc: 'Ultra premium aurora' },
-  abyss_glass:    { emoji: '🔮', desc: 'Deep abyss blur' },
-  cyber_neo:      { emoji: '🕹️', desc: 'Neon scanlines' },
-  golden_elegance:{ emoji: '✨', desc: 'Luxury gold' },
+  neumorphic_3d:  { emoji: '🧊', desc: 'Neumorphic 3D' },
+  glass_3d:       { emoji: '🔮', desc: '3D Frost Glass' },
+  metal_3d:       { emoji: '🏆', desc: 'Solid Gold 3D' },
   classic:        { emoji: '✨', desc: 'Timeless gold' },
 };
 
