@@ -664,7 +664,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         </div>
 
         {/* ── MESSAGES ─────────────────────────────────────── */}
-        <div className="chat-scroll" ref={scrollRef}>
+        <div className="chat-scroll" ref={scrollRef} style={ replyingTo ? { paddingBottom: '160px', transition: 'padding-bottom 0.2s ease' } : { transition: 'padding-bottom 0.2s ease' } }>
           {[...msgs].reverse().map((msg, i) => {
             const me            = isMe(msg);
             const isSecure      = msg.is_once_view;
