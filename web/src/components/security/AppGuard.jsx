@@ -168,7 +168,7 @@ export default function AppGuard({ children }) {
 
   return (
     <>
-      <div style={{ display: showLock ? 'none' : 'contents' }}>
+      <div style={{ display: showLock ? 'none' : 'flex', flex: 1, flexDirection: 'column', width: '100%', minHeight: '100vh' }}>
         {children}
       </div>
 
