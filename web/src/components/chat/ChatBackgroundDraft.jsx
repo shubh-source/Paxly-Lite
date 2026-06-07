@@ -238,7 +238,7 @@ function FireplaceEmbersBackground() {
           0%   { transform: translateY(110vh) translateX(0) scale(1); opacity: 0; }
           10%  { opacity: 1; }
           80%  { opacity: 0.8; }
-          100% { transform: translateY(-10vh) translateX(30px) scale(0.2); opacity: 0; }
+          100% { transform: translateY(-10vh) translateX(40px) scale(0.2); opacity: 0; }
         }
         .ember-spark {
           position: absolute;
@@ -254,8 +254,8 @@ function FireplaceEmbersBackground() {
           <div key={i} className="ember-spark" style={{
             left: `${r * 100}%`,
             width: size, height: size,
-            animation: `floatEmber ${5 + delays[i] * 8}s ease-in infinite`,
-            animationDelay: `-${delays[i] * 10}s`
+            animation: `floatEmber ${15 + delays[i] * 20}s ease-in infinite`,
+            animationDelay: `-${delays[i] * 25}s`
           }} />
         );
       })}
