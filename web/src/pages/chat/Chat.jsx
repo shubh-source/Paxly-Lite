@@ -71,21 +71,7 @@ export default function Chat() {
   const fileRef    = useRef(null);
   const scrollRef  = useRef(null);
 
-  // Prevent body scrolling while in immersive chat
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    
-    document.body.style.overflow = 'hidden'; document.body.style.position = 'fixed'; document.body.style.inset = '0px';
-    
-    document.body.style.width = '100%';
-    document.body.style.height = '100%';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      
-      document.body.style.width = ''; document.body.style.position = ''; document.body.style.inset = '';
-      document.body.style.height = '';
-    };
-  }, []);
+  // Prevent body scrolling while in immersive chat (REMOVED to fix black screen bug)
 
   /* ── data + websocket ─────────────────────────────────────── */
   useEffect(() => {

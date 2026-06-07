@@ -13,7 +13,7 @@ export default function AIAssistant() {
   const [attachment, setAttachment] = useState(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const endRef = useRef(null);
-  const inputRef = useRef(null); useEffect(() => { const originalOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.body.style.position = 'fixed'; document.body.style.inset = '0px'; return () => { document.body.style.overflow = originalOverflow; document.body.style.position = ''; document.body.style.inset = ''; }; }, []);
+  const inputRef = useRef(null); 
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
