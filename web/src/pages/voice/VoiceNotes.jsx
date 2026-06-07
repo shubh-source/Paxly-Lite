@@ -64,7 +64,7 @@ function VoicePlayer({ id, url, customName, fromName, createdAt, size, onDelete,
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: '0.95rem', color: isMe ? 'var(--accent)' : 'var(--purple)', fontWeight: 700 }}>{customName || fromName}</span>
-              {isMe && <button onClick={() => onRename(id, customName)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: 8, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Edit size={14} /></button>}
+              <button onClick={() => onRename(id, customName)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: 8, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Edit size={14} /></button>
               {url.includes('chat_media') && <span style={{ fontSize: '0.6rem', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4, color: 'var(--muted)', letterSpacing: 0.5 }}>CHAT</span>}
             </div>
             <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 500 }}>{new Date(createdAt).toLocaleDateString()}</span>
