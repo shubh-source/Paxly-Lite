@@ -35,14 +35,14 @@ export const CHAT_THEMES = {
   golden_anniversary: {
     name: '3D Diamond Gold',
     bg: '#0a0a0a',
-    bubbleMe: 'linear-gradient(to bottom, #f9d976 0%, #e9b646 20%, #c19227 50%, #f9d976 80%, #fff 100%)',
-    textMe: '#332000',
+    bubbleMe: 'linear-gradient(145deg, #d4af37, #b8860b, #8b6508)',
+    textMe: '#1a1000',
     bubbleOther: 'linear-gradient(145deg, #222, #111)',
     textOther: '#eee',
     accent: '#f9d976',
     borderMe: 'none',
     borderOther: '1px solid rgba(212, 175, 55, 0.3)',
-    boxShadowMe: '0 15px 25px rgba(0,0,0,0.8), inset 0 4px 6px rgba(255,255,255,0.9), inset 0 -4px 6px rgba(0,0,0,0.6)',
+    boxShadowMe: '0 8px 15px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.4), inset 0 -3px 5px rgba(0,0,0,0.6)',
     boxShadowOther: '0 10px 20px rgba(0,0,0,0.6), inset 0 2px 3px rgba(255,255,255,0.1), inset 0 -3px 5px rgba(0,0,0,0.8)',
     elements: '3d_rings',
     premium: true
