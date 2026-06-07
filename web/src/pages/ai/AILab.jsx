@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { startAISession, sendAIInterviewMessage, finishAIInterview, getActiveAISession, getAIHistory } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { Icons } from '../../components/ui/Icons';
 
 const PHASES = [
   { id: 'start', label: 'Setup', icon: '⚙️' },
@@ -21,6 +23,7 @@ export default function AILab() {
   const [report, setReport] = useState(null);
   const bottomRef = useRef(null);
   const nav = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }); }, [msgs]);
 

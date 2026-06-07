@@ -108,10 +108,34 @@ export default function AIAssistant() {
     e.target.value = '';
   };
 
+  const AI_FREE_LIMIT = 5;
+
   const send = async (msg) => {
     const content = (msg || text).trim();
     if (!content && !attachment) return;
     if (loading) return;
+
+    if (!user?.is_premium) {
+      const today = new Date().toDateString();
+      let usage = { date: '', count: 0 };
+      try {
+        usage = JSON.parse(localStorage.getItem('paxly_ai_usage') || '{}');
+      } catch(e) {}
+      
+      if (usage.date !== today) {
+        usage = { date: today, count: 0 };
+      }
+      
+      if (usage.count >= AI_FREE_LIMIT) {
+        setMsgs(prev => [...prev, { 
+          role: 'assistant', 
+          content: "Oops! Aapki aaj ki free AI limit khatam ho chuki hai. Unlimited chats ke liye Premium mein upgrade karein! dY`'"
+        }]);
+        return;
+      }
+      usage.count++;
+      localStorage.setItem('paxly_ai_usage', JSON.stringify(usage));
+    }
     
     const userMsg = { role: 'user', content };
     if (attachment) {
