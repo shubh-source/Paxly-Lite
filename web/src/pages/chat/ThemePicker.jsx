@@ -16,9 +16,16 @@ const THEME_ICONS = {
   // Love themes
   cherry:     { emoji: '🌸', desc: 'Cherry blossom love' },
   heartbeat:  { emoji: '❤️', desc: 'Heartbeat rush' },
-  pastel:     { emoji: '🎀', desc: 'Soft pastel love' },
+  pastel:     { emoji: '💝', desc: 'Soft pastel love' },
   moonlit:    { emoji: '🌙', desc: 'Moonlit romance' },
   loveblush:  { emoji: '💕', desc: 'Sweet blush' },
+  // 3D Premium Themes
+  velvet_rose:        { emoji: '🌹', desc: 'Velvet Rose 3D' },
+  crystal_love:       { emoji: '💖', desc: 'Crystal Love 3D' },
+  golden_anniversary: { emoji: '💍', desc: 'Diamond Gold 3D' },
+  midnight_starlight: { emoji: '🌌', desc: 'Midnight Stars 3D' },
+  ocean_breeze:       { emoji: '🌊', desc: 'Ocean Breeze 3D' },
+  cozy_fireplace:     { emoji: '🔥', desc: 'Cozy Fireplace 3D' },
 };
 
 export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate, isPremium, onClose, onPremiumRequired }) {
