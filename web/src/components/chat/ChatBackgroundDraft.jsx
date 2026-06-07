@@ -49,7 +49,7 @@ function VelvetPetalsBackground() {
   );
 }
 
-/* ── 3D CRYSTAL HEARTS (IMPROVED) ── */
+/* ── 3D CRYSTAL HEARTS (FIXED CLIPPING) ── */
 function CrystalHeartsBackground() {
   const hearts = useMemo(() => seededRands(12, 44), []);
   const delays = useMemo(() => seededRands(12, 55), []);
@@ -79,14 +79,15 @@ function CrystalHeartsBackground() {
             animation: `floatHeartCrystal ${15 + delays[i] * 12}s linear infinite`,
             animationDelay: `-${delays[i] * 20}s`
           }}>
-            <svg viewBox="0 0 32 29.6" width="100%" height="100%">
+            {/* Added overflow: 'visible' so the SVG filter doesn't cut the heart edges */}
+            <svg viewBox="0 0 32 29.6" width="100%" height="100%" style={{ overflow: 'visible' }}>
               <defs>
                 <linearGradient id={`crystalGrad${i}`} x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="rgba(255, 255, 255, 0.95)" />
                   <stop offset="40%" stopColor="rgba(255, 182, 193, 0.6)" />
                   <stop offset="100%" stopColor="rgba(255, 105, 180, 0.2)" />
                 </linearGradient>
-                <filter id={`glow${i}`} x="-20%" y="-20%" width="140%" height="140%">
+                <filter id={`glow${i}`} x="-50%" y="-50%" width="200%" height="200%">
                   <feGaussianBlur stdDeviation="2" result="blur" />
                   <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
@@ -106,50 +107,37 @@ function CrystalHeartsBackground() {
   );
 }
 
-/* ── 3D DIAMONDS (IMPROVED GOLDEN) ── */
-function DiamondGoldBackground() {
-  const diamonds = useMemo(() => seededRands(12, 77), []);
-  const delays = useMemo(() => seededRands(12, 88), []);
-  const sizes  = useMemo(() => seededRands(12, 99), []);
+/* ── GOLDEN BOKEH (Replaced Diamonds) ── */
+function GoldenBokehBackground() {
+  const orbs = useMemo(() => seededRands(15, 77), []);
+  const delays = useMemo(() => seededRands(15, 88), []);
+  const sizes  = useMemo(() => seededRands(15, 99), []);
   
   return (
-    <div style={{ perspective: '1000px', width: '100%', height: '100%', position: 'absolute', inset: 0 }}>
+    <div style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, overflow: 'hidden' }}>
       <style>{`
-        @keyframes floatDiamond {
-          0%   { transform: translateY(110vh) rotateX(45deg) rotateY(0deg) rotateZ(45deg); opacity: 0; }
-          20%  { opacity: 1; }
-          80%  { opacity: 0.9; }
-          100% { transform: translateY(-20vh) rotateX(45deg) rotateY(360deg) rotateZ(45deg); opacity: 0; }
+        @keyframes floatBokeh {
+          0%   { transform: translateY(110vh) scale(0.5); opacity: 0; }
+          20%  { opacity: 0.8; }
+          80%  { opacity: 0.6; }
+          100% { transform: translateY(-20vh) scale(1.5); opacity: 0; }
         }
-        .diamond-3d {
+        .bokeh-orb {
           position: absolute;
-          background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(212,175,55,0.6) 50%, rgba(139,117,0,0.9) 100%);
-          box-shadow: 
-            inset 0 0 10px rgba(255,255,255,0.8),
-            0 10px 20px rgba(0,0,0,0.5),
-            0 0 30px rgba(212,175,55,0.3);
-          border: 1px solid rgba(255,255,255,0.5);
-          border-radius: 4px;
-          transform-style: preserve-3d;
-        }
-        /* Top facet */
-        .diamond-3d::after {
-          content: "";
-          position: absolute;
-          inset: 15%;
-          border: 1px solid rgba(255,255,255,0.6);
-          background: rgba(255,255,255,0.1);
-          transform: translateZ(10px);
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(212,175,55,0.3) 0%, rgba(212,175,55,0) 70%);
+          filter: blur(4px);
+          mix-blend-mode: screen;
         }
       `}</style>
-      {diamonds.map((r, i) => {
-        const size = 20 + sizes[i] * 40;
+      {orbs.map((r, i) => {
+        const size = 60 + sizes[i] * 120;
         return (
-          <div key={i} className="diamond-3d" style={{
-            left: `${r * 90}%`,
+          <div key={i} className="bokeh-orb" style={{
+            left: `${r * 100}%`,
             width: size, height: size,
-            animation: `floatDiamond ${15 + delays[i] * 12}s linear infinite`,
-            animationDelay: `-${delays[i] * 15}s`
+            animation: `floatBokeh ${15 + delays[i] * 15}s ease-in-out infinite`,
+            animationDelay: `-${delays[i] * 10}s`
           }} />
         );
       })}
@@ -164,7 +152,7 @@ export default function ChatBackground({ elements, theme }) {
     case '3d_crystal_hearts':
       return <CrystalHeartsBackground />;
     case '3d_rings':
-      return <DiamondGoldBackground />;
+      return <GoldenBokehBackground />;
     default:
       return null;
   }
