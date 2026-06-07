@@ -115,9 +115,14 @@ class PlaceOut(BaseModel):
     image_url: Optional[str] = None
 
 # ── AI ────────────────────────────────────────────────────────
+class AIAttachment(BaseModel):
+    mime_type: str
+    data: str  # Base64 string
+
 class AIMessage(BaseModel):
     role: str  # user | assistant
     content: str
+    attachments: Optional[List[AIAttachment]] = None
 
 class AIRequest(BaseModel):
     messages: List[AIMessage]

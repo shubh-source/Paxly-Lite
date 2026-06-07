@@ -44,10 +44,22 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
             )
             chat_history = []
             for m in data.messages[:-1]:
-                chat_history.append({"role": "user" if m.role == "user" else "model", "parts": [m.content]})
+                parts = [m.content]
+                if m.attachments:
+                    for att in m.attachments:
+                        parts.append({"mime_type": att.mime_type, "data": att.data})
+                chat_history.append({"role": "user" if m.role == "user" else "model", "parts": parts})
             
             chat = model.start_chat(history=chat_history)
-            response = await chat.send_message_async(data.messages[-1].content)
+            
+            # Prepare last message parts
+            last_msg = data.messages[-1]
+            last_parts = [last_msg.content]
+            if last_msg.attachments:
+                for att in last_msg.attachments:
+                    last_parts.append({"mime_type": att.mime_type, "data": att.data})
+                    
+            response = await chat.send_message_async(last_parts)
             return AIResponse(reply=response.text)
         except Exception as e:
             print(f"Gemini Error: {e}")

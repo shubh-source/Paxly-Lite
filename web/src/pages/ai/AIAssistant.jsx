@@ -9,6 +9,7 @@ export default function AIAssistant() {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [attachment, setAttachment] = useState(null);
   const endRef = useRef(null);
   const inputRef = useRef(null); useEffect(() => { const originalOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.body.style.position = 'fixed'; document.body.style.inset = '0px'; return () => { document.body.style.overflow = originalOverflow; document.body.style.position = ''; document.body.style.inset = ''; }; }, []);
   const [threads, setThreads] = useState([]);
@@ -85,14 +86,41 @@ export default function AIAssistant() {
     }
   };
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File is too large! Please select a file under 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setAttachment({
+        file: file,
+        mime_type: file.type,
+        data: ev.target.result.split(',')[1],
+        preview_url: URL.createObjectURL(file)
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const send = async (msg) => {
     const content = (msg || text).trim();
-    if (!content || loading) return;
+    if (!content && !attachment) return;
+    if (loading) return;
     
     const userMsg = { role: 'user', content };
+    if (attachment) {
+      userMsg.attachments = [{ mime_type: attachment.mime_type, data: attachment.data, preview_url: attachment.preview_url }];
+    }
     const updated = [...msgs, userMsg];
     setMsgs(updated);
     setText('');
+    setAttachment(null);
     setLoading(true);
 
     try {
@@ -111,7 +139,13 @@ export default function AIAssistant() {
         }
       }
 
-      const aiRequestPayload = updated.map(m => ({ role: m.role, content: m.content }));
+      const aiRequestPayload = updated.map(m => {
+        const payload = { role: m.role, content: m.content };
+        if (m.attachments) {
+          payload.attachments = m.attachments.map(a => ({ mime_type: a.mime_type, data: a.data }));
+        }
+        return payload;
+      });
       if (globalContext) {
         aiRequestPayload.unshift({ role: 'system', content: globalContext });
       }
@@ -258,6 +292,17 @@ export default function AIAssistant() {
               boxShadow: m.role === 'user' ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)',
               whiteSpace: 'pre-wrap',
             }}>
+              {m.attachments && m.attachments.map((a, idx) => (
+                <div key={idx} style={{ marginBottom: m.content ? 8 : 0 }}>
+                  {a.mime_type.startsWith('image/') ? (
+                    <img src={a.preview_url || `data:${a.mime_type};base64,${a.data}`} style={{ maxWidth: '100%', borderRadius: 12, display: 'block' }} alt="attachment" />
+                  ) : (
+                    <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.1)', borderRadius: 8, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Icons.Paperclip size={14} /> Attachment ({a.mime_type.split('/')[1]})
+                    </div>
+                  )}
+                </div>
+              ))}
               {m.content}
               {m.isLabPrompt && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
@@ -290,21 +335,42 @@ export default function AIAssistant() {
 
       {/* Input Bar */}
       <div style={{ padding: '8px 16px 20px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'rgba(22,22,26,0.65)', backdropFilter: 'blur(25px) saturate(200%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: '10px 10px 10px 20px', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+        {attachment && (
+          <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: 12, width: 'max-content' }}>
+            {attachment.mime_type.startsWith('image/') ? (
+              <img src={attachment.preview_url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8 }} alt="preview" />
+            ) : (
+              <div style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.1)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                 <Icons.Paperclip size={16} color="var(--muted)" />
+              </div>
+            )}
+            <div style={{ flex: 1, fontSize: '0.8rem', color: '#fff', maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {attachment.file.name}
+            </div>
+            <button onClick={() => setAttachment(null)} style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}>
+               <Icons.Close size={16} />
+            </button>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'rgba(22,22,26,0.65)', backdropFilter: 'blur(25px) saturate(200%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: '10px 10px 10px 16px', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+          <label htmlFor="ai-attach" style={{ cursor: 'pointer', display: 'flex', color: attachment ? 'var(--accent)' : 'var(--muted)', padding: '4px' }}>
+            <Icons.Paperclip size={20} />
+          </label>
+          <input type="file" id="ai-attach" hidden accept="image/*,video/*,application/pdf" onChange={handleFileSelect} />
           <input
             ref={inputRef}
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
             placeholder="Kuch bhi bolo..."
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '1rem', outline: 'none', padding: '6px 0' }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '1rem', outline: 'none', padding: '6px 0', minWidth: 0 }}
           />
           <button
             onClick={() => send()}
-            disabled={loading || !text.trim()}
-            style={{ width: 44, height: 44, borderRadius: '50%', background: text.trim() ? 'var(--accent)' : 'rgba(255,255,255,0.05)', border: 'none', cursor: text.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', boxShadow: text.trim() ? '0 6px 18px rgba(201,169,110,0.35)' : 'none' }}
+            disabled={loading || (!text.trim() && !attachment)}
+            style={{ width: 44, height: 44, borderRadius: '50%', background: (text.trim() || attachment) ? 'var(--accent)' : 'rgba(255,255,255,0.05)', border: 'none', cursor: (text.trim() || attachment) ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', boxShadow: (text.trim() || attachment) ? '0 6px 18px rgba(201,169,110,0.35)' : 'none' }}
           >
-            <Icons.Send size={20} color={text.trim() ? '#000' : 'var(--muted)'} />
+            <Icons.Send size={20} color={(text.trim() || attachment) ? '#000' : 'var(--muted)'} />
           </button>
         </div>
       </div>
