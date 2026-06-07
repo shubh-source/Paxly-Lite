@@ -17,20 +17,19 @@ export function MemoryVault() {
     getMemories().then(setMemories);
     
     const offs = [
-      wsService.on('media_save_request', d => {
-        if (d.sender_id !== user?.id) setSaveRequest(d);
-      }),
-      wsService.on('media_save_response', d => {
-        if (d.sender_id !== user?.id) {
-          setRequestingSave(false);
-          if (d.allowed) {
+      wsService.on('vault_download_response', d => {
+        setRequestingSave(false);
+        if (d.allowed) {
+          // Find the memory to get the URL
+          const memory = memories.find(m => m.id === d.memory_id);
+          if (memory && memory.image_url) {
             const link = document.createElement('a');
-            link.href = d.media_url;
+            link.href = memory.image_url;
             link.download = `vlynxly_vault_${Date.now()}`;
             link.click();
-          } else {
-            alert("Save request denied.");
           }
+        } else {
+          alert(`🚫 ${d.partner_name || 'Partner'} denied your download request.`);
         }
       })
     ];
@@ -45,13 +44,7 @@ export function MemoryVault() {
 
   const requestSave = (m) => {
     setRequestingSave(true);
-    wsService.sendMediaSaveRequest(m.image_url, m.id);
-  };
-
-  const respondSave = (allowed) => {
-    if (!saveRequest) return;
-    wsService.sendMediaSaveResponse(saveRequest.sender_id, allowed, saveRequest.message_id);
-    setSaveRequest(null);
+    wsService.sendVaultDownloadRequest(m.id, m.title || 'Photo');
   };
 
   return (
@@ -73,22 +66,7 @@ export function MemoryVault() {
         <span className="header-title" style={{ color: 'var(--text)' }}>The Vault</span>
       </header>
 
-      {/* Permission Modals */}
-      {saveRequest && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(10px)' }}>
-          <div className="card" style={{ maxWidth:360, width:'100%', textAlign:'center', border: '1px solid var(--accent)', padding: 30 }}>
-            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={48} color="var(--accent)" /></div>
-            <h3 style={{ marginBottom:10 }}>Vault Save Request</h3>
-            <p style={{ fontSize:'0.95rem', color:'#fff', marginBottom:24 }}>
-              Your partner wants to save a memory from the vault to their phone. Allow?
-            </p>
-            <div style={{ display:'flex', gap:12 }}>
-              <button className="btn btn-g" onClick={() => respondSave(false)} style={{ flex: 1, padding: 14 }}>Deny</button>
-              <button className="btn btn-p" onClick={() => respondSave(true)} style={{ flex: 1, padding: 14, color: '#000', fontWeight: 700 }}>Allow Save</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Removed old modal, now handled globally in AppGuard */}
 
       {requestingSave && (
         <div style={{ position: 'fixed', top: 100, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', padding: '12px 24px', borderRadius: 99, fontWeight: 700, zIndex: 100, boxShadow: '0 10px 30px rgba(201,169,110,0.3)', display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -146,6 +146,15 @@ class WSService {
   sendMediaSaveResponse(requestId, allowed, messageId) {
     this.send({ type: 'media_save_response', request_id: requestId, allowed, message_id: messageId });
   }
+
+  // Vault Download Permissions
+  sendVaultDownloadRequest(memoryId, title) {
+    this.send({ type: 'vault_download_request', memory_id: memoryId, title });
+  }
+
+  sendVaultDownloadResponse(requestId, allowed, memoryId) {
+    this.send({ type: 'vault_download_response', request_id: requestId, allowed, memory_id: memoryId });
+  }
 }
 
 export const wsService = new WSService();

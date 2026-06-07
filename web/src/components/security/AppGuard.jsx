@@ -34,6 +34,7 @@ export default function AppGuard({ children }) {
   }, [loading, user?.has_pin]);
 
   const [incomingCall, setIncomingCall] = useState(null);
+  const [vaultDownloadRequest, setVaultDownloadRequest] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -51,7 +52,11 @@ export default function AppGuard({ children }) {
     // Also clear banner if call is cancelled by caller
     const offEnd = wsService.on('webrtc_end', () => setIncomingCall(null));
     
-    return () => { off(); offEnd(); };
+    const offVault = wsService.on('vault_download_request', d => {
+       setVaultDownloadRequest(d);
+    });
+
+    return () => { off(); offEnd(); offVault(); };
   }, [user, pathname]);
 
   const answerCall = () => {
@@ -260,6 +265,28 @@ export default function AppGuard({ children }) {
               to { transform: translate(-50%, 0); opacity: 1; }
             }
           `}</style>
+        </div>
+      )}
+
+      {vaultDownloadRequest && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:999999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(10px)' }}>
+          <div className="card" style={{ maxWidth:360, width:'100%', textAlign:'center', border: '1px solid var(--accent)', padding: 30, background: '#161618' }}>
+            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={48} color="var(--accent)" /></div>
+            <h3 style={{ marginBottom:10 }}>Vault Download Request</h3>
+            <p style={{ fontSize:'0.95rem', color:'#fff', marginBottom:24 }}>
+              <b>{vaultDownloadRequest.from || 'Partner'}</b> wants to save the memory <b>"{vaultDownloadRequest.title || 'Unknown'}"</b> to their phone. Allow?
+            </p>
+            <div style={{ display:'flex', gap:12 }}>
+              <button className="btn btn-g" onClick={() => {
+                wsService.sendVaultDownloadResponse(vaultDownloadRequest.sender_id, false, vaultDownloadRequest.memory_id);
+                setVaultDownloadRequest(null);
+              }} style={{ flex: 1, padding: 14 }}>Deny</button>
+              <button className="btn btn-p" onClick={() => {
+                wsService.sendVaultDownloadResponse(vaultDownloadRequest.sender_id, true, vaultDownloadRequest.memory_id);
+                setVaultDownloadRequest(null);
+              }} style={{ flex: 1, padding: 14, color: '#000', fontWeight: 700 }}>Allow Save</button>
+            </div>
+          </div>
         </div>
       )}
     </>

@@ -66,7 +66,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                     )
                     
                     # Auto-save image to memory vault if not once-view
-                    if msg.media_url and not msg.is_once_view and msg.message_type == "image":
+                    if msg.media_url and not msg.is_once_view and msg.message_type in ["image", "video"]:
                         from app.models.orm import Memory
                         mem = Memory(
                             id=str(uuid.uuid4()),
@@ -156,6 +156,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                             )
                             db.add(mem)
                             await db.commit()
+
+                elif p_type == "vault_download_request":
+                    payload["from"] = user_name
+                    payload["sender_id"] = user_id
+                    await manager.send_to_user(partner_id, payload)
+
+                elif p_type == "vault_download_response":
+                    request_id = payload.get("request_id")
+                    payload["partner_name"] = user_name
+                    await manager.send_to_user(request_id, payload)
 
                 elif p_type in ["webrtc_offer", "webrtc_answer", "webrtc_ice", "webrtc_reject", "webrtc_end"]:
                     # Relay to partner
