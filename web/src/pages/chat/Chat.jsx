@@ -358,9 +358,9 @@ export default function Chat() {
           0%, 60%, 100% { transform: translateY(0) scale(0.6); opacity: 0.35; }
           30%           { transform: translateY(-5px) scale(1); opacity: 1;   }
         }
-        @keyframes beatBar {
-          0%, 100% { height: 4px; }
-          50%      { height: 16px; }
+        @keyframes audioWave {
+          0%, 100% { transform: scaleY(0.2); }
+          50%      { transform: scaleY(1); }
         }
         @keyframes slideUpFade {
           0% { transform: translateY(5px); opacity: 0; }
@@ -812,10 +812,12 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div className="rec-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5a3c', animation: 'recPulse 1s infinite' }} />
                   <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{formatRecordTime(recordTime)}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 10, height: 20 }}>
-                    {[...Array(5)].map((_,i) => (
-                      <div key={i} style={{ width: 3, background: '#ff5a3c', borderRadius: 2, animation: `beatBar ${0.5 + Math.random()*0.5}s infinite ease-in-out`, animationDelay: `${Math.random()}s` }} />
-                    ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 10, height: 16 }}>
+                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.9s infinite ease-in-out 0.1s` }} />
+                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.7s infinite ease-in-out 0.5s` }} />
+                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 1.1s infinite ease-in-out 0.2s` }} />
+                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.8s infinite ease-in-out 0.6s` }} />
+                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 1.0s infinite ease-in-out 0.3s` }} />
                   </div>
                 </div>
                 {recordState === 'holding' ? (
