@@ -20,7 +20,7 @@ import VoiceNotes     from './pages/voice/VoiceNotes';
 import Chat           from './pages/chat/Chat';
 import ChatDraft      from './pages/chat/ChatDraft';
 import CallScreen     from './pages/calls/CallScreen';
-import DatesPage      from './pages/dates/DatesPage';
+import AnniversaryTracker from './pages/dates/AnniversaryTracker';
 import Dashboard      from './pages/Dashboard';
 import MoodSync       from './pages/mood/MoodSync';
 import MoodHistory    from './pages/mood/MoodHistory';
@@ -117,7 +117,7 @@ function AnimatedRoutes() {
         <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />
         <Route path="/chat-draft" element={<Guard needsPartner><Layout><ChatDraft /></Layout></Guard>} />
         <Route path="/call"       element={<Guard needsPartner><Layout><CallScreen /></Layout></Guard>} />
-        <Route path="/dates"      element={<Guard needsPartner><Layout><DatesPage /></Layout></Guard>} />
+        <Route path="/dates"      element={<Guard needsPartner><Layout><AnniversaryTracker /></Layout></Guard>} />
         <Route path="/bucket"     element={<Guard needsPartner><Layout><BucketList /></Layout></Guard>} />
         <Route path="/shop"       element={<Guard needsPartner><Layout><LoveShop /></Layout></Guard>} />
         <Route path="/shop/checkout" element={<Guard needsPartner><Layout><Checkout /></Layout></Guard>} />
