@@ -520,12 +520,21 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)' }} />
             </>
           ) : (
-            <div style={{ width:'100%', height:'100%', position:'absolute', inset:0, zIndex:0, overflow:'hidden',
-              background: activeTheme.bg || '#0E0C11' }}>
-        <div style={{ position: 'absolute', inset: 0, background: activeTheme.bg, backgroundImage: activeTheme.bgImage || 'none', animation: activeTheme.bgAnimation || 'none', backgroundSize: activeTheme.bgAnimation ? '400% 400%' : 'auto', zIndex: 0 }} />
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
-          <ChatBackground elements={activeTheme.elements} theme={activeTheme} />
+            <div style={{ width:'100%', height:'100%', position:'absolute', inset:0, zIndex:0, overflow:'hidden', background: activeTheme.bg || '#0E0C11' }}>
+              <div style={{ position: 'absolute', inset: 0, background: activeTheme.bg, backgroundImage: activeTheme.bgImage || 'none', animation: activeTheme.bgAnimation || 'none', backgroundSize: activeTheme.bgAnimation ? '400% 400%' : 'auto', zIndex: 0 }} />
+              <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+                <ChatBackground elements={activeTheme.elements} theme={activeTheme} />
+              </div>
+            </div>
+          )}
         </div>
+        <style>{`
+          @keyframes auroraAnim {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+        `}</style>
 
         {/* ── HEADER ───────────────────────────────────────── */}
         <div
