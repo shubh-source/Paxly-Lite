@@ -10,6 +10,7 @@ import DynamicPresence from '../../components/chat/DynamicPresence';
 import VlynxlyStudio from '../../components/chat/VlynxlyStudio';
 import ChatBackground from '../../components/chat/ChatBackground';
 import { CHAT_THEMES } from '../../data/chatThemes';
+import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 import axios from 'axios';
 import { Icons } from '../../components/ui/Icons';
 
@@ -43,6 +44,7 @@ export default function Chat() {
     try { return JSON.parse(localStorage.getItem('cached_space'))?.space || null; } catch { return null; }
   });
   const [showThemePicker, setShowThemePicker]   = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [partnerPresence, setPartnerPresence]   = useState('idle');
   const [partnerMood, setPartnerMood]           = useState('neutral');
   const [selfMood]                              = useState('neutral');
@@ -781,6 +783,20 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             onSelect={id => { updateTheme(id); setShowThemePicker(false); }}
             onWallpaperUpdate={url => { updateWallpaper(url); setShowThemePicker(false); }}
             onClose={() => setShowThemePicker(false)}
+            onPremiumRequired={() => {
+              setShowThemePicker(false);
+              setShowPremiumModal(true);
+            }}
+          />
+        )}
+        
+        {showPremiumModal && (
+          <PremiumUpgrade 
+            onCancel={() => setShowPremiumModal(false)}
+            onUpgradeSuccess={() => {
+              setShowPremiumModal(false);
+              window.location.reload();
+            }}
           />
         )}
 

@@ -81,12 +81,13 @@ async def upload_media(file: UploadFile = File(...), cu: User = Depends(get_curr
     
     content = await file.read()
     size = len(content)
-    if size > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
-        raise HTTPException(400, f"File too large.")
+    
+    limit_mb = settings.MAX_FILE_SIZE_MB if cu.is_premium else 5
+    if size > limit_mb * 1024 * 1024:
+        raise HTTPException(400, f"File too large. Free users limit: 5MB, Premium limit: {settings.MAX_FILE_SIZE_MB}MB.")
     
     filename = f"{uuid.uuid4()}.{ext}"
     url = await storage.upload_file(content, filename, "chat")
-    return {"media_url": url, "filename": filename}
     return {"media_url": url, "filename": filename}
 
 @router.post("/messages/{message_id}/secure-event")

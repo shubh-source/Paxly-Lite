@@ -21,12 +21,12 @@ const THEME_ICONS = {
   loveblush:  { emoji: '💕', desc: 'Sweet blush' },
 };
 
-export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate, isPremium, onClose }) {
+export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate, isPremium, onClose, onPremiumRequired }) {
   const [loading, setLoading] = useState(false);
 
   const handleWallpaper = async (e) => {
     if (!isPremium) {
-      alert("💎 This is a premium feature. Please upgrade to use custom wallpapers!");
+      if (onPremiumRequired) onPremiumRequired();
       return;
     }
     const file = e.target.files[0];
