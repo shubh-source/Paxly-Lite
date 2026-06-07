@@ -20,7 +20,6 @@ import VoiceNotes     from './pages/voice/VoiceNotes';
 import Chat           from './pages/chat/Chat';
 import ChatDraft      from './pages/chat/ChatDraft';
 import CallScreen     from './pages/calls/CallScreen';
-import AnniversaryTracker from './pages/dates/AnniversaryTracker';
 import Dashboard      from './pages/Dashboard';
 import MoodSync       from './pages/mood/MoodSync';
 import MoodHistory    from './pages/mood/MoodHistory';
