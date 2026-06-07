@@ -65,7 +65,12 @@ app = FastAPI(title="Vlynxly Fortress API", version="1.1.1", lifespan=lifespan)
 # 1. SECURITY: CORS (Must be at the TOP)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://paxly-lite.vercel.app",
+        "https://vlynxly-web.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
