@@ -49,62 +49,56 @@ function VelvetPetalsBackground() {
   );
 }
 
-/* ── 3D CRYSTAL HEARTS ── */
+/* ── 3D CRYSTAL HEARTS (IMPROVED) ── */
 function CrystalHeartsBackground() {
-  const hearts = useMemo(() => seededRands(10, 44), []);
-  const delays = useMemo(() => seededRands(10, 55), []);
-  const sizes  = useMemo(() => seededRands(10, 66), []);
+  const hearts = useMemo(() => seededRands(12, 44), []);
+  const delays = useMemo(() => seededRands(12, 55), []);
+  const sizes  = useMemo(() => seededRands(12, 66), []);
   
   return (
     <div style={{ perspective: '800px', width: '100%', height: '100%', position: 'absolute', inset: 0 }}>
       <style>{`
-        @keyframes floatHeart3D {
-          0%   { transform: translateY(110vh) rotateY(0deg) scale(0.8); opacity: 0; }
-          20%  { opacity: 0.8; }
-          80%  { opacity: 0.6; }
-          100% { transform: translateY(-20vh) rotateY(360deg) scale(1.2); opacity: 0; }
+        @keyframes floatHeartCrystal {
+          0%   { transform: translateY(110vh) rotateY(0deg) rotateZ(-15deg) scale(0.8); opacity: 0; }
+          15%  { opacity: 1; }
+          85%  { opacity: 0.8; }
+          100% { transform: translateY(-20vh) rotateY(360deg) rotateZ(15deg) scale(1.1); opacity: 0; }
         }
-        .heart-3d-container {
+        .crystal-heart-wrapper {
           position: absolute;
           transform-style: preserve-3d;
-        }
-        .heart-3d {
-          position: relative;
-          width: 100%; height: 100%;
-          transform-style: preserve-3d;
-        }
-        .heart-3d::before, .heart-3d::after {
-          content: "";
-          position: absolute;
-          top: 0;
-          width: 50%; height: 80%;
-          background: linear-gradient(135deg, rgba(255,182,193,0.4), rgba(255,105,180,0.1));
-          border-radius: 50% 50% 0 0;
-          backdrop-filter: blur(8px);
-          box-shadow: inset 0 0 10px rgba(255,255,255,0.6), 0 10px 20px rgba(0,0,0,0.2);
-          border: 1px solid rgba(255,255,255,0.4);
-        }
-        .heart-3d::before {
-          left: 50%;
-          transform: rotate(-45deg);
-          transform-origin: 0 100%;
-        }
-        .heart-3d::after {
-          left: 0;
-          transform: rotate(45deg);
-          transform-origin: 100% 100%;
+          filter: drop-shadow(0 15px 25px rgba(255,105,180,0.25));
         }
       `}</style>
       {hearts.map((r, i) => {
-        const size = 40 + sizes[i] * 60;
+        const size = 30 + sizes[i] * 50;
         return (
-          <div key={i} className="heart-3d-container" style={{
+          <div key={i} className="crystal-heart-wrapper" style={{
             left: `${r * 90}%`,
             width: size, height: size,
-            animation: `floatHeart3D ${18 + delays[i] * 12}s linear infinite`,
+            animation: `floatHeartCrystal ${15 + delays[i] * 12}s linear infinite`,
             animationDelay: `-${delays[i] * 20}s`
           }}>
-            <div className="heart-3d" />
+            <svg viewBox="0 0 32 29.6" width="100%" height="100%">
+              <defs>
+                <linearGradient id={`crystalGrad${i}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="rgba(255, 255, 255, 0.95)" />
+                  <stop offset="40%" stopColor="rgba(255, 182, 193, 0.6)" />
+                  <stop offset="100%" stopColor="rgba(255, 105, 180, 0.2)" />
+                </linearGradient>
+                <filter id={`glow${i}`} x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="2" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+              <path 
+                d="M23.6,0c-3.4,0-6.3,2.7-7.6,5.6C14.7,2.7,11.8,0,8.4,0C3.8,0,0,3.8,0,8.4c0,9.4,9.5,11.9,16,21.2c6.1-9.3,16-12.1,16-21.2C32,3.8,28.2,0,23.6,0z" 
+                fill={`url(#crystalGrad${i})`}
+                stroke="rgba(255,255,255,0.8)"
+                strokeWidth="0.8"
+                filter={`url(#glow${i})`}
+              />
+            </svg>
           </div>
         );
       })}
@@ -112,41 +106,50 @@ function CrystalHeartsBackground() {
   );
 }
 
-/* ── 3D GOLDEN RINGS ── */
-function GoldenRingsBackground() {
-  const rings = useMemo(() => seededRands(8, 77), []);
-  const delays = useMemo(() => seededRands(8, 88), []);
-  const sizes  = useMemo(() => seededRands(8, 99), []);
+/* ── 3D DIAMONDS (IMPROVED GOLDEN) ── */
+function DiamondGoldBackground() {
+  const diamonds = useMemo(() => seededRands(12, 77), []);
+  const delays = useMemo(() => seededRands(12, 88), []);
+  const sizes  = useMemo(() => seededRands(12, 99), []);
   
   return (
     <div style={{ perspective: '1000px', width: '100%', height: '100%', position: 'absolute', inset: 0 }}>
       <style>{`
-        @keyframes floatRing {
-          0%   { transform: translateY(110vh) rotateX(60deg) rotateY(0deg); opacity: 0; }
+        @keyframes floatDiamond {
+          0%   { transform: translateY(110vh) rotateX(45deg) rotateY(0deg) rotateZ(45deg); opacity: 0; }
           20%  { opacity: 1; }
-          80%  { opacity: 0.8; }
-          100% { transform: translateY(-20vh) rotateX(60deg) rotateY(360deg); opacity: 0; }
+          80%  { opacity: 0.9; }
+          100% { transform: translateY(-20vh) rotateX(45deg) rotateY(360deg) rotateZ(45deg); opacity: 0; }
         }
-        .ring-3d {
+        .diamond-3d {
           position: absolute;
-          border-radius: 50%;
-          border: 8px solid #d4af37;
+          background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(212,175,55,0.6) 50%, rgba(139,117,0,0.9) 100%);
           box-shadow: 
-            inset 0 4px 5px rgba(255,255,255,0.8), 
-            inset 0 -4px 5px rgba(0,0,0,0.5),
-            0 10px 15px rgba(0,0,0,0.6),
-            0 -2px 5px rgba(255,255,255,0.6);
+            inset 0 0 10px rgba(255,255,255,0.8),
+            0 10px 20px rgba(0,0,0,0.5),
+            0 0 30px rgba(212,175,55,0.3);
+          border: 1px solid rgba(255,255,255,0.5);
+          border-radius: 4px;
           transform-style: preserve-3d;
         }
+        /* Top facet */
+        .diamond-3d::after {
+          content: "";
+          position: absolute;
+          inset: 15%;
+          border: 1px solid rgba(255,255,255,0.6);
+          background: rgba(255,255,255,0.1);
+          transform: translateZ(10px);
+        }
       `}</style>
-      {rings.map((r, i) => {
-        const size = 60 + sizes[i] * 80;
+      {diamonds.map((r, i) => {
+        const size = 20 + sizes[i] * 40;
         return (
-          <div key={i} className="ring-3d" style={{
-            left: `${r * 85}%`,
+          <div key={i} className="diamond-3d" style={{
+            left: `${r * 90}%`,
             width: size, height: size,
-            animation: `floatRing ${20 + delays[i] * 15}s linear infinite`,
-            animationDelay: `-${delays[i] * 10}s`
+            animation: `floatDiamond ${15 + delays[i] * 12}s linear infinite`,
+            animationDelay: `-${delays[i] * 15}s`
           }} />
         );
       })}
@@ -161,7 +164,7 @@ export default function ChatBackground({ elements, theme }) {
     case '3d_crystal_hearts':
       return <CrystalHeartsBackground />;
     case '3d_rings':
-      return <GoldenRingsBackground />;
+      return <DiamondGoldBackground />;
     default:
       return null;
   }
