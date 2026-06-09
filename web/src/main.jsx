@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AnimatePresence, motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppGuard from './components/security/AppGuard';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import SplashScreen from './components/layout/SplashScreen';
 import './index.css';
@@ -51,7 +52,7 @@ function Guard({ children, needsPartner = false }) {
   if (!loading && needsPartner && !user?.couple_space_id) return <Navigate to="/connect" replace />;
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence>
       {loading ? (
         <motion.div 
           key="splash" 
@@ -139,9 +140,9 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <AppGuard>
+        <ErrorBoundary><AppGuard>
           <AnimatedRoutes />
-        </AppGuard>
+        </AppGuard></ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>
