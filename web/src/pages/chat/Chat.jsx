@@ -960,7 +960,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 )}
               </div>
             );
-          })}
+          }))}
 
           {typing && (
             <div style={{ display: 'flex', alignItems: 'flex-start', margin: '10px 0', gap: 12, justifyContent: 'flex-start' }}>
