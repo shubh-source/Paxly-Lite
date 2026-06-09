@@ -4,7 +4,7 @@ from app.models.schemas import AIRequest, AIResponse, AISessionStart, AIIntervie
 from app.core.security import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.orm import User, AICounselingSession, Message, Notification
+from app.models.orm import User, AICounselingSession, Message, Notification, Anniversary
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, desc
@@ -32,7 +32,30 @@ Rules:
 - You are NOT a therapist. You are a best friend."""
 
 @router.post("/chat", response_model=AIResponse)
-async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
+async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    partner_name = "your partner"
+    dates_info = ""
+    
+    if cu.partner_id:
+        p_res = await db.execute(select(User).filter(User.id == cu.partner_id))
+        partner = p_res.scalars().first()
+        if partner:
+            partner_name = partner.name
+
+    if cu.couple_space_id:
+        dates_res = await db.execute(select(Anniversary).filter(Anniversary.couple_space_id == cu.couple_space_id))
+        dates = dates_res.scalars().all()
+        if dates:
+            dates_info = "Important Dates:\n" + "\n".join([f"- {d.title} ({d.type}): {d.date}" for d in dates])
+            
+    dynamic_prompt = f"""{SYSTEM_PROMPT}
+    
+    Context:
+    - User's name: {cu.name}
+    - Partner's name: {partner_name}
+    {dates_info}
+    """
+
     # 1. Try Gemini (Free & High Quality)
     if settings.GOOGLE_API_KEY:
         try:
@@ -40,7 +63,7 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
             genai.configure(api_key=settings.GOOGLE_API_KEY)
             model = genai.GenerativeModel(
                 model_name="gemini-2.5-flash",
-                system_instruction=SYSTEM_PROMPT
+                system_instruction=dynamic_prompt
             )
             chat_history = []
             for m in data.messages[:-1]:
@@ -70,7 +93,7 @@ async def ai_chat(data: AIRequest, cu=Depends(get_current_user)):
         client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         try:
             # Fix surrogates that cause Groq python client to crash
-            clean_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            clean_messages = [{"role": "system", "content": dynamic_prompt}]
             for m in data.messages:
                 clean_content = m.content.encode('utf-16', 'surrogatepass').decode('utf-16')
                 clean_messages.append({"role": m.role, "content": clean_content})
