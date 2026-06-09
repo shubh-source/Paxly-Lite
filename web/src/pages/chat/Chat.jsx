@@ -58,17 +58,35 @@ export default function Chat() {
   // Gestures & Reactions
   const [replyingTo, setReplyingTo] = useState(null);
   const [floatingHeart, setFloatingHeart] = useState(null);
+  const [hoveredMsgId, setHoveredMsgId] = useState(null);
+  const [contextMenuMsg, setContextMenuMsg] = useState(null);
 
   const touchStartX = useRef(0);
-  const handleMsgTouchStart = (e) => {
+  const [swipingMsgId, setSwipingMsgId] = useState(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+
+  const handleMsgTouchStart = (e, msg) => {
     touchStartX.current = e.touches[0].clientX;
+    setSwipingMsgId(msg.id);
+  };
+  const handleMsgTouchMove = (e) => {
+    if (!swipingMsgId) return;
+    const diff = e.touches[0].clientX - touchStartX.current;
+    if (diff > 0 && diff < 80) { // Max 80px swipe right
+      setSwipeOffset(diff);
+    }
   };
   const handleMsgTouchEnd = (e, msg) => {
-    const touchEndX = e.changedTouches[0].clientX;
-    // Swipe right to reply
-    if (touchEndX - touchStartX.current > 50) {
+    if (swipeOffset > 50) {
       setReplyingTo(msg);
     }
+    setSwipingMsgId(null);
+    setSwipeOffset(0);
+  };
+
+  const handleContextMenu = (e, msg) => {
+    e.preventDefault();
+    setContextMenuMsg({ msg, x: e.clientX, y: e.clientY });
   };
 
   const lastTapTime = useRef(0);
@@ -674,11 +692,14 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               <div
                 key={msg.id}
                 className="chat-msg"
+                onMouseEnter={() => setHoveredMsgId(msg.id)}
+                onMouseLeave={() => setHoveredMsgId(null)}
                 style={{
                   marginBottom: 9,
                   display:'flex', gap:7,
                   justifyContent: me ? 'flex-end' : 'flex-start',
                   animationDelay: `${Math.min(i * 0.025, 0.25)}s`,
+                  alignItems: 'center'
                 }}
               >
                 {/* Partner avatar */}
@@ -697,13 +718,24 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   </div>
                 )}
 
+                {/* ActionBar for ME (Left Side) */}
+                {me && hoveredMsgId === msg.id && (
+                  <div style={{ display:'flex', gap:8, paddingRight:4, animation:'fadeIn 0.2s' }}>
+                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Smile size={16} /></button>
+                    <button onClick={() => setReplyingTo(msg)} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Reply size={16} /></button>
+                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.MoreVertical size={16} /></button>
+                  </div>
+                )}
+
                 <div style={{ display:'flex', flexDirection:'column', alignItems: me ? 'flex-end' : 'flex-start' }}
                   className="chat-bubble-col">
 
                   {/* Bubble */}
                   <div
                     className="chat-bubble"
-                    onTouchStart={handleMsgTouchStart}
+                    onContextMenu={(e) => handleContextMenu(e, msg)}
+                    onTouchStart={(e) => handleMsgTouchStart(e, msg)}
+                    onTouchMove={handleMsgTouchMove}
                     onTouchEnd={e => handleMsgTouchEnd(e, msg)}
                     onClick={() => {
                       if (isSecure && !me && !isSpent && !isCompromised) handleSecureView(msg);
@@ -734,6 +766,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       maxWidth: '100%',
                       backdropFilter: 'blur(12px)',
                       WebkitBackdropFilter: 'blur(12px)',
+                      transform: swipingMsgId === msg.id ? `translateX(${swipeOffset}px)` : 'none',
+                      transition: swipingMsgId === msg.id ? 'none' : 'transform 0.2s',
                     }}
                   >
                     {/* Floating Heart */}
@@ -808,6 +842,15 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     {ts(msg)}
                   </span>
                 </div>
+
+                {/* ActionBar for PARTNER (Right Side) */}
+                {!me && hoveredMsgId === msg.id && (
+                  <div style={{ display:'flex', gap:8, paddingLeft:4, animation:'fadeIn 0.2s' }}>
+                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Smile size={16} /></button>
+                    <button onClick={() => setReplyingTo(msg)} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Reply size={16} /></button>
+                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.MoreVertical size={16} /></button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1041,9 +1084,89 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           </div>
         )}
 
+        {/* Context Menu Overlay */}
+        {contextMenuMsg && (
+          <div 
+            style={{ position: 'fixed', inset: 0, zIndex: 999999 }}
+            onClick={() => setContextMenuMsg(null)}
+          >
+            <div style={{
+              position: 'absolute',
+              left: Math.min(contextMenuMsg.x, window.innerWidth - 220),
+              top: Math.min(contextMenuMsg.y, window.innerHeight - 300),
+              background: '#1A1A1A',
+              borderRadius: 16,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              padding: '8px 0',
+              minWidth: 200,
+              border: '1px solid rgba(255,255,255,0.05)',
+              animation: 'fadeIn 0.15s ease'
+            }} onClick={e => e.stopPropagation()}>
+              
+              {/* Reactions Row */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
+                {['❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                  <span 
+                    key={emoji} 
+                    style={{ fontSize: '1.4rem', cursor: 'pointer', padding: 4, transition: 'transform 0.1s' }}
+                    onClick={() => {
+                      wsService.send({ type: 'reaction', message_id: contextMenuMsg.msg.id, emoji });
+                      setContextMenuMsg(null);
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                  >{emoji}</span>
+                ))}
+              </div>
+
+              {/* Options */}
+              {[
+                { icon: <Icons.Reply size={18} />, label: 'Reply', action: () => { setReplyingTo(contextMenuMsg.msg); setContextMenuMsg(null); } },
+                { icon: <Icons.Forward size={18} />, label: 'Forward', action: () => { alert('Coming soon!'); setContextMenuMsg(null); } },
+                { icon: <Icons.Copy size={18} />, label: 'Copy', action: () => { navigator.clipboard.writeText(contextMenuMsg.msg.text); setContextMenuMsg(null); } },
+                { icon: <Icons.Translate size={18} />, label: 'Translate', action: () => { alert('Translate not implemented yet'); setContextMenuMsg(null); } },
+                { icon: <Icons.Pin size={18} />, label: 'Pin', action: () => { alert('Coming soon!'); setContextMenuMsg(null); } },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: '#fff', cursor: 'pointer', fontSize: '0.95rem' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={item.action}>
+                  {item.label}
+                  <div style={{ opacity: 0.7 }}>{item.icon}</div>
+                </div>
+              ))}
+              
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
+              
+              {contextMenuMsg.msg.sender_id === user?.id ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: '#ff4444', cursor: 'pointer', fontSize: '0.95rem' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={() => {
+                    api.delete(`/messages/${contextMenuMsg.msg.id}`).then(() => {
+                      setMsgs(msgs.filter(m => m.id !== contextMenuMsg.msg.id));
+                      setContextMenuMsg(null);
+                    }).catch(() => alert('Failed to delete'));
+                  }}>
+                  Delete
+                  <div style={{ opacity: 0.7 }}><Icons.Trash size={18} /></div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: '#ff4444', cursor: 'pointer', fontSize: '0.95rem' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={() => { alert('Reported!'); setContextMenuMsg(null); }}>
+                  Report
+                  <div style={{ opacity: 0.7 }}><Icons.Report size={18} /></div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
-    </>
-  );
+      </>
+    );
 }
 
 /* ── Small helper components (no extra files needed) ────────── */

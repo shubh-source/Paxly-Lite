@@ -19,6 +19,54 @@ const IconWrapper = ({ children, size = 24, color = 'currentColor', stroke = 2, 
 );
 
 export const Icons = {
+  MoreVertical: (props) => (
+    <IconWrapper {...props}>
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </IconWrapper>
+  ),
+  Reply: (props) => (
+    <IconWrapper {...props}>
+      <polyline points="9 17 4 12 9 7" />
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+    </IconWrapper>
+  ),
+  Copy: (props) => (
+    <IconWrapper {...props}>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </IconWrapper>
+  ),
+  Forward: (props) => (
+    <IconWrapper {...props}>
+      <polyline points="15 17 20 12 15 7" />
+      <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+    </IconWrapper>
+  ),
+  Pin: (props) => (
+    <IconWrapper {...props}>
+      <line x1="12" y1="17" x2="12" y2="22" />
+      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.6V6a3 3 0 0 0-6 0v4.6a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+    </IconWrapper>
+  ),
+  Translate: (props) => (
+    <IconWrapper {...props}>
+      <path d="m5 8 6 6" />
+      <path d="m4 14 6-6 2-3" />
+      <path d="M2 5h12" />
+      <path d="M7 2h1" />
+      <path d="m22 22-5-10-5 10" />
+      <path d="M14 18h6" />
+    </IconWrapper>
+  ),
+  Report: (props) => (
+    <IconWrapper {...props}>
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </IconWrapper>
+  ),
   Close: (props) => (
     <IconWrapper {...props}>
       <line x1="18" y1="6" x2="6" y2="18" />
