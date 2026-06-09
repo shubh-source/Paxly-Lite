@@ -101,10 +101,11 @@ async def delete_memory(memory_id: str, cu: User = Depends(get_current_user), db
     await db.commit()
     return {"ok": True}
 
+from pydantic import BaseModel
+
 class SaveMessageRequest(BaseModel):
     message_id: str
 
-from pydantic import BaseModel
 @router.post("/save-message", response_model=MemoryOut)
 async def save_message_to_vault(req: SaveMessageRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = ensure_space(cu)
