@@ -42,6 +42,7 @@ export default function Chat() {
   const audioChunks                             = useRef([]);
   const recordInterval                          = useRef(null);
   const recordStartY                            = useRef(0);
+  const recordStartX                            = useRef(0);
   const isRecordingAudio = recordState !== 'idle';
 
   // Security / media
@@ -259,8 +260,13 @@ export default function Chat() {
   };
 
   const startVoiceRecord = async (e) => {
-    if (e?.touches?.[0]) recordStartY.current = e.touches[0].clientY;
-    else if (e?.clientY) recordStartY.current = e.clientY;
+    if (e?.touches?.[0]) {
+      recordStartY.current = e.touches[0].clientY;
+      recordStartX.current = e.touches[0].clientX;
+    } else if (e?.clientY) {
+      recordStartY.current = e.clientY;
+      recordStartX.current = e.clientX;
+    }
     
     try {
       const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -293,9 +299,13 @@ export default function Chat() {
   const handleRecordMove = (e) => {
     if (recordState !== 'holding') return;
     const clientY = e?.touches?.[0]?.clientY || e.clientY;
-    if (!clientY) return;
+    const clientX = e?.touches?.[0]?.clientX || e.clientX;
+    if (!clientY || !clientX) return;
+    
     if (recordStartY.current - clientY > 40) {
       setRecordState('locked'); 
+    } else if (recordStartX.current - clientX > 50) {
+      cancelVoiceRecord();
     }
   };
 
@@ -1041,9 +1051,15 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   </div>
                 </div>
                 {recordState === 'holding' ? (
-                  <div style={{ fontSize: '0.75rem', opacity: 0.8, display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'slideUpFade 1.5s infinite', marginRight: 15 }}>
-                    <span style={{ fontSize: 16, lineHeight: 1 }}>&uarr;</span>
-                    <span>Slide to lock</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, padding: '0 10px', color: 'var(--muted)', fontSize: '0.8rem', animation: 'fadeIn 0.2s' }}>
+                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.8, color: '#ff5a3c' }}>
+                        <span style={{ fontSize: 16 }}>&larr;</span>
+                        <span>Cancel</span>
+                     </div>
+                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginLeft: 'auto', marginRight: 15, animation: 'slideUpFade 1.5s infinite', opacity: 0.8 }}>
+                        <span style={{ fontSize: 16, lineHeight: 1 }}>&uarr;</span>
+                        <span>Lock</span>
+                     </div>
                   </div>
                 ) : null}
                 {recordState === 'locked' && (
