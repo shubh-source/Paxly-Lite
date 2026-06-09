@@ -1,0 +1,1 @@
+﻿                            {quoteMsg.message_type === 'image' ? 'ðŸ“· Image' : quoteMsg.message_type === 'video' ? 'ðŸŽ¥ Video' : quoteMsg.message_type === 'audio' ? 'ðŸŽµ Voice Note' : quoteMsg.text}

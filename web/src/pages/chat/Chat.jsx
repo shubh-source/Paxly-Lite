@@ -1172,7 +1172,12 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       { icon: <Icons.Copy size={18} />, label: 'Copy', action: () => { navigator.clipboard.writeText(contextMenuMsg.msg.text); setContextMenuMsg(null); } },
                       { icon: <Icons.Edit size={18} />, label: 'Edit', action: () => { alert('Editing coming soon!'); setContextMenuMsg(null); } },
                       { icon: <Icons.Pin size={18} />, label: 'Pin to Chat', action: () => { alert('Pinning coming soon!'); setContextMenuMsg(null); } },
-                      { icon: <Icons.Vault size={18} />, label: 'Save to Vault', action: () => { alert('Saved to Memory Vault!'); setContextMenuMsg(null); } },
+                      { icon: <Icons.Vault size={18} />, label: 'Save to Vault', action: () => { 
+                        api.post('/memories/save-message', { message_id: contextMenuMsg.msg.id })
+                          .then(() => alert('✨ Saved to Memory Vault!'))
+                          .catch(() => alert('Failed to save message.'));
+                        setContextMenuMsg(null); 
+                      } },
                       { icon: <span style={{ fontSize: '1.2rem' }}>✨</span>, label: 'Ask Aura', action: () => { alert('Aura is analyzing this message...'); setContextMenuMsg(null); } },
                     ].map((item, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: item.label === 'Ask Aura' ? 'var(--accent)' : '#fff', fontWeight: item.label === 'Ask Aura' ? 700 : 400, cursor: 'pointer', fontSize: '0.95rem' }}

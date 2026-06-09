@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { getMemories, deleteMemory, getMedia } from '../../services/api';
-import { format, parseISO } from 'date-fns';
-import { Icons } from '../../components/ui/Icons';
-import { wsService } from '../../services/websocket';
-import { useAuth } from '../../context/AuthContext';
+import re
 
-export function MemoryVault() {
+with open('c:/projects/ros2/paxly-premium/web/src/pages/memories/MemoryVault.jsx', 'r', encoding='utf-8') as f:
+    code = f.read()
+
+# Add getMedia import
+if 'getMedia' not in code:
+    code = code.replace('getMemories, deleteMemory', 'getMemories, deleteMemory, getMedia')
+
+# Rewrite component body
+new_body = '''export function MemoryVault() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('photos'); // photos | videos | messages
   const [memories, setMemories] = useState([]);
@@ -204,6 +206,9 @@ export function MemoryVault() {
       `}</style>
     </div>
   );
-}
+}'''
 
-export default MemoryVault;
+code = re.sub(r'export function MemoryVault\(\) \{.*?(?=export default MemoryVault;)', new_body + '\n\n', code, flags=re.DOTALL)
+
+with open('c:/projects/ros2/paxly-premium/web/src/pages/memories/MemoryVault.jsx', 'w', encoding='utf-8') as f:
+    f.write(code)
