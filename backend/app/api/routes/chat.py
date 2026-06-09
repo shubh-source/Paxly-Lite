@@ -63,6 +63,8 @@ async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_cu
     users_cache = {}
     result_list = []
     for m in msgs:
+        if cu.id in (m.deleted_for or []):
+            continue
         sid = m.sender_id
         if sid not in users_cache:
             u_res = await db.execute(select(User).filter(User.id == sid))
@@ -149,24 +151,31 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     return {"ok": True}
 
 @router.delete("/messages/{message_id}")
-async def delete_message(message_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def delete_message(message_id: str, for_everyone: bool = True, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = ensure_space(cu)
     res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
-    if msg.sender_id != cu.id: raise HTTPException(403, "You can only delete your own messages.")
     
-    # Delete from DB
-    await db.delete(msg)
-    await db.commit()
-    
-    # Send WebSocket event to partner to remove message
-    from app.websocket.manager import manager
-    await manager.send_to_user(msg.couple_space_id.replace(cu.id, ''), {
-        "type": "message_deleted",
-        "message_id": message_id
-    })
-    
+    if for_everyone:
+        if msg.sender_id != cu.id: raise HTTPException(403, "You can only delete your own messages for everyone.")
+        await db.delete(msg)
+        await db.commit()
+        
+        # Send WebSocket event to partner to remove message
+        from app.websocket.manager import manager
+        await manager.send_to_user(msg.couple_space_id.replace(cu.id, ''), {
+            "type": "message_deleted",
+            "message_id": message_id
+        })
+    else:
+        # Delete for me only
+        deleted_list = list(msg.deleted_for or [])
+        if cu.id not in deleted_list:
+            deleted_list.append(cu.id)
+            msg.deleted_for = deleted_list
+            await db.commit()
+            
     return {"ok": True}
 
 @router.get("/space")

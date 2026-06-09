@@ -60,6 +60,7 @@ export default function Chat() {
   const [floatingHeart, setFloatingHeart] = useState(null);
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [contextMenuMsg, setContextMenuMsg] = useState(null);
+  const [deleteModalMsg, setDeleteModalMsg] = useState(null);
 
   const touchStartX = useRef(0);
   const [swipingMsgId, setSwipingMsgId] = useState(null);
@@ -1146,10 +1147,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   onClick={() => {
-                    api.delete(`/messages/${contextMenuMsg.msg.id}`).then(() => {
-                      setMsgs(msgs.filter(m => m.id !== contextMenuMsg.msg.id));
-                      setContextMenuMsg(null);
-                    }).catch(() => alert('Failed to delete'));
+                    setDeleteModalMsg(contextMenuMsg.msg);
+                    setContextMenuMsg(null);
                   }}>
                   Delete
                   <div style={{ opacity: 0.7 }}><Icons.Trash size={18} /></div>
@@ -1168,6 +1167,69 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         )}
 
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalMsg && (
+        <div 
+          style={{ position: 'fixed', inset: 0, zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setDeleteModalMsg(null)}
+        >
+          <div style={{
+            background: '#1A1A1A',
+            borderRadius: 16,
+            padding: '16px 0',
+            width: 280,
+            border: '1px solid rgba(255,255,255,0.05)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            animation: 'fadeIn 0.15s ease'
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 16px 16px', fontSize: '1.1rem', color: '#fff', textAlign: 'center' }}>Delete Message?</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {deleteModalMsg.sender_id === user?.id && (
+                <button
+                  onClick={() => {
+                    api.delete(`/messages/${deleteModalMsg.id}?for_everyone=true`).then(() => {
+                      setMsgs(msgs.filter(m => m.id !== deleteModalMsg.id));
+                      setDeleteModalMsg(null);
+                    }).catch(() => alert('Failed to delete for everyone'));
+                  }}
+                  style={{ background: 'transparent', border: 'none', padding: '12px 16px', color: '#ff4444', fontSize: '1rem', cursor: 'pointer', textAlign: 'center' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  Delete for everyone
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  api.delete(`/messages/${deleteModalMsg.id}?for_everyone=false`).then(() => {
+                    setMsgs(msgs.filter(m => m.id !== deleteModalMsg.id));
+                    setDeleteModalMsg(null);
+                  }).catch(() => alert('Failed to delete for me'));
+                }}
+                style={{ background: 'transparent', border: 'none', padding: '12px 16px', color: '#fff', fontSize: '1rem', cursor: 'pointer', textAlign: 'center' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                Delete for me
+              </button>
+              
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
+              
+              <button
+                onClick={() => setDeleteModalMsg(null)}
+                style={{ background: 'transparent', border: 'none', padding: '12px 16px', color: 'var(--muted)', fontSize: '1rem', cursor: 'pointer', textAlign: 'center' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </>
     );
 }

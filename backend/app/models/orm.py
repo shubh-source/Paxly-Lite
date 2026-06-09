@@ -91,6 +91,7 @@ class Message(Base):
     views_used = Column(Integer, default=0)
     is_compromised = Column(Boolean, default=False)
     reply_to_id = Column(String, nullable=True)
+    deleted_for = Column(JSONB, default=[])
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 
