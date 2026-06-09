@@ -48,11 +48,14 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         if dates:
             dates_info = "Important Dates:\n" + "\n".join([f"- {d.title} ({d.type}): {d.date}" for d in dates])
             
+    signup_date = cu.created_at.strftime("%B %d, %Y") if cu.created_at else "Unknown"
+            
     dynamic_prompt = f"""{SYSTEM_PROMPT}
     
     Context:
     - User's name: {cu.name}
     - Partner's name: {partner_name}
+    - User's Vlynxly signup date: {signup_date}
     {dates_info}
     """
 
