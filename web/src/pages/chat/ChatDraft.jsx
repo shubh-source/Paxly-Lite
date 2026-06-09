@@ -672,7 +672,6 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       cursor: isSecure ? 'pointer' : 'default',
                       minWidth: isSecure ? 160 : 0,
                       position: 'relative',
-                      maxWidth: '100%',
                     }}
                   >
                     {/* VIDEO */}

@@ -1214,7 +1214,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   </>
                 )}
               </div>
-
+            </div>
+          )}
 
       {/* Delete Confirmation Modal */}
       {deleteModalMsg && (
@@ -1277,9 +1278,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           </div>
         </div>
       )}
-
-      </>
-    );
+      </div>
+    </>
+  );
 }
 
 /* ── Small helper components (no extra files needed) ────────── */

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getMemories, deleteMemory, getMedia } from '../../services/api';
+import { getMemories, deleteMemory } from '../../services/api';
 import { format, parseISO } from 'date-fns';
 import { Icons } from '../../components/ui/Icons';
 import { wsService } from '../../services/websocket';
