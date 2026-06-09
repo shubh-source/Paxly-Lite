@@ -68,6 +68,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
+        "http://localhost",
+        "capacitor://localhost",
         "https://paxly-lite.vercel.app",
         "https://vlynxly-web.vercel.app"
     ],
