@@ -10,6 +10,7 @@ from sqlalchemy.future import select
 from sqlalchemy import update, desc
 from datetime import datetime, timedelta
 import json
+import re
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -29,7 +30,13 @@ Rules:
 - If someone shares something serious such as mental health or safety issues, be caring and gently suggest professional support too
 - Never lecture. Never be preachy. Just listen, respond, and vibe
 - Match the energy: if they are joking, joke back. If they are sad, be there for them
-- You are NOT a therapist. You are a best friend."""
+- You are NOT a therapist. You are a best friend.
+
+Special Commands:
+- If the user asks you to save an important date, you MUST output this exact string somewhere in your response: [ADD_DATE: YYYY-MM-DD: Title: Type]
+  - "Type" must be one of: anniversary, birthday, first_date
+  - Example: [ADD_DATE: 2023-07-27: Our First Meeting: first_date]
+  - The system will automatically intercept this and save it to the database. You should also verbally confirm to the user that you've saved it."""
 
 @router.post("/chat", response_model=AIResponse)
 async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -47,6 +54,8 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         dates = dates_res.scalars().all()
         if dates:
             dates_info = "Important Dates:\n" + "\n".join([f"- {d.title} ({d.type}): {d.date}" for d in dates])
+        else:
+            dates_info = "Important Dates: None currently saved. If the user doesn't have any dates saved, you can let them know that their 'Important Dates' section is empty and warmly ask if they'd like to add one."
             
     signup_date = cu.created_at.strftime("%B %d, %Y") if cu.created_at else "Unknown"
             
@@ -59,8 +68,10 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     {dates_info}
     """
 
+    reply_text = ""
+
     # 1. Try Gemini (Free & High Quality)
-    if settings.GOOGLE_API_KEY:
+    if settings.GOOGLE_API_KEY and not reply_text:
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
@@ -86,13 +97,13 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
                     last_parts.append({"mime_type": att.mime_type, "data": att.data})
                     
             response = await chat.send_message_async(last_parts)
-            return AIResponse(reply=response.text)
+            reply_text = response.text
         except Exception as e:
             print(f"Gemini Error: {e}")
             # Fallback to Groq if Gemini fails but key is there
 
     # 2. Try Groq (Ultra Fast)
-    if settings.GROQ_API_KEY:
+    if settings.GROQ_API_KEY and not reply_text:
         client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         try:
             # Fix surrogates that cause Groq python client to crash
@@ -107,12 +118,37 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
                 temperature=0.7,
                 max_tokens=400,
             )
-            return AIResponse(reply=response.choices[0].message.content)
+            reply_text = response.choices[0].message.content
         except Exception as e:
             print(f"Groq Error: {e}")
             raise HTTPException(500, f"AI service error: {str(e)}")
 
-    raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY or GROQ_API_KEY to .env")
+    if not reply_text:
+        raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY or GROQ_API_KEY to .env")
+
+    # Post-process: Check if AI wants to add a date
+    match = re.search(r'\[ADD_DATE:\s*([^:]+):\s*([^:]+):\s*([^\]]+)\]', reply_text)
+    if match and cu.couple_space_id:
+        try:
+            date_val = match.group(1).strip()
+            title_val = match.group(2).strip()
+            type_val = match.group(3).strip()
+            
+            new_date = Anniversary(
+                couple_space_id=cu.couple_space_id,
+                date=date_val,
+                title=title_val,
+                type=type_val
+            )
+            db.add(new_date)
+            await db.commit()
+            
+            # Remove the tag from the final reply
+            reply_text = reply_text.replace(match.group(0), "").strip()
+        except Exception as e:
+            print(f"Failed to save date from AI: {e}")
+
+    return AIResponse(reply=reply_text)
 
 # ── COUNSELING SESSION LOGIC ────────────────────────────────
 
