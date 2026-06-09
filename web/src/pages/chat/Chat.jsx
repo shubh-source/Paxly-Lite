@@ -58,7 +58,19 @@ export default function Chat() {
   // Gestures & Reactions
   const [replyingTo, setReplyingTo] = useState(null);
   const [floatingHeart, setFloatingHeart] = useState(null);
+
   const touchStartX = useRef(0);
+  const handleMsgTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleMsgTouchEnd = (e, msg) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    // Swipe right to reply
+    if (touchEndX - touchStartX.current > 50) {
+      setReplyingTo(msg);
+    }
+  };
+
   const lastTapTime = useRef(0);
   const daysTogether = space?.created_at ? Math.max(1, Math.floor((Date.now() - new Date(space.created_at)) / (1000 * 60 * 60 * 24))) : 0;
 
