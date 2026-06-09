@@ -120,7 +120,19 @@ export default function Chat() {
     });
 
     const offs = [
-      wsService.on('chat_message', msg => setMsgs(p => [...p, msg])),
+      wsService.on('chat_message', msg => {
+        setMsgs(p => {
+          if (msg.sender_id === user?.id) {
+            const optIdx = p.findIndex(m => m.isOptimistic && m.message_type === msg.message_type && (m.message_type === 'text' ? m.text === msg.text : true));
+            if (optIdx !== -1) {
+              const newMsgs = [...p];
+              newMsgs[optIdx] = msg;
+              return newMsgs;
+            }
+          }
+          return [...p, msg];
+        });
+      }),
       wsService.on('typing', d => { if (d.user_id !== user?.id) setTyping(d.is_typing); }),
       wsService.on('presence', d => { if (d.user_id !== user?.id) setPartnerOnline(d.online); }),
       wsService.on('presence_state', d => {
@@ -209,6 +221,19 @@ export default function Chat() {
   const send = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
+    
+    // OPTIMISTIC UPDATE
+    const tempMsg = {
+      id: `temp_${Date.now()}`,
+      sender_id: user?.id,
+      text: text.trim(),
+      message_type: 'text',
+      timestamp: new Date().toISOString(),
+      isOptimistic: true,
+      reactions: {}
+    };
+    setMsgs(p => [...p, tempMsg]);
+
     wsService.sendMessage(text.trim(), 'text', null, false, 1, replyingTo?.id);
     setText('');
     setReplyingTo(null);
@@ -293,6 +318,23 @@ export default function Chat() {
     if (!f) return;
     setSending(true);
     setShowGallerySecureModal(false);
+    
+    // OPTIMISTIC UPDATE
+    const objectUrl = URL.createObjectURL(f);
+    const isVideo = f.type?.startsWith('video');
+    const tempMsg = {
+      id: `temp_${Date.now()}`,
+      sender_id: user?.id,
+      text: '',
+      message_type: isVideo ? 'video' : 'image',
+      media_url: objectUrl,
+      timestamp: new Date().toISOString(),
+      isOptimistic: true,
+      isUploading: true,
+      reactions: {}
+    };
+    setMsgs(p => [...p, tempMsg]);
+
     try {
       const { media_url } = await uploadMedia(f);
       const isOnceView = mode !== 'standard' && mode !== 'permanent';
@@ -308,6 +350,7 @@ export default function Chat() {
       setReplyingTo(null);
     } catch (err) {
       alert('Upload failed: ' + (err.response?.data?.detail || err.message));
+      setMsgs(p => p.filter(m => m.id !== tempMsg.id));
     } finally {
       setSending(false);
       setPendingFile(null);
@@ -412,6 +455,8 @@ export default function Chat() {
           0%,100% { box-shadow: 0 0 0 0 rgba(255,90,60,0.5); }
           50%     { box-shadow: 0 0 0 8px rgba(255,90,60,0);  }
         }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
         .chat-msg { animation: fadeInUp 0.22s ease-out both; }
         .rec-btn  { animation: recPulse 1s ease-in-out infinite; }
 
@@ -816,7 +861,14 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
                     ) : (
                       <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
-                        <video src={fixUrl(msg.media_url)} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                        <div style={{ position: 'relative' }}>
+                          <video src={fixUrl(msg.media_url)} controls={!msg.isUploading} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12, opacity: msg.isUploading ? 0.5 : 1 }} />
+                          {msg.isUploading && (
+                            <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', background:'rgba(0,0,0,0.6)', padding:'10px 16px', borderRadius:'20px', color:'#fff', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px' }}>
+                              <Icons.Loader size={16} className="spin" /> Sending...
+                            </div>
+                          )}
+                        </div>
                       </MediaWrap>
                     ))}
 
@@ -825,7 +877,14 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
                     ) : (
                       <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
-                        <img src={fixUrl(msg.media_url)} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                        <div style={{ position: 'relative' }}>
+                          <img src={fixUrl(msg.media_url)} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12, opacity: msg.isUploading ? 0.5 : 1 }} />
+                          {msg.isUploading && (
+                            <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', background:'rgba(0,0,0,0.6)', padding:'10px 16px', borderRadius:'20px', color:'#fff', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px' }}>
+                              <Icons.Loader size={16} className="spin" /> Sending...
+                            </div>
+                          )}
+                        </div>
                         {!me && (
                           <button
                             onClick={e => { e.stopPropagation(); requestSave(msg); }}
