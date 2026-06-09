@@ -21,6 +21,12 @@ export default function Chat() {
   const [msgs, setMsgs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cached_messages')) || []; } catch { return []; }
   });
+  const [loadingHistory, setLoadingHistory] = useState(() => {
+    try { 
+      const cached = JSON.parse(localStorage.getItem('cached_messages'));
+      return !cached || cached.length === 0;
+    } catch { return true; }
+  });
   const [text, setText] = useState('');
   const [partner, setPartner] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
@@ -117,7 +123,8 @@ export default function Chat() {
       const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       setMsgs(sorted);
       localStorage.setItem('cached_messages', JSON.stringify(sorted));
-    });
+      setLoadingHistory(false);
+    }).catch(() => setLoadingHistory(false));
 
     const offs = [
       wsService.on('chat_message', msg => {
@@ -734,7 +741,18 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {/* ── MESSAGES ─────────────────────────────────────── */}
         <div className="chat-scroll" ref={scrollRef} style={ replyingTo ? { paddingBottom: '160px', transition: 'padding-bottom 0.2s ease' } : { transition: 'padding-bottom 0.2s ease' } }>
-          {[...msgs].reverse().map((msg, i) => {
+          {loadingHistory ? (
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: activeTheme.accent || 'var(--accent)' }}>
+              <Icons.Loader size={32} className="spin" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, letterSpacing: 2, opacity: 0.8 }}>DECRYPTING...</span>
+            </div>
+          ) : msgs.length === 0 ? (
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: 'var(--muted)', opacity: 0.5 }}>
+               <Icons.Diamond size={48} />
+               <span style={{ fontSize: '0.9rem', fontWeight: 500, letterSpacing: 1 }}>Your secure space is ready</span>
+            </div>
+          ) : (
+            [...msgs].reverse().map((msg, i) => {
             const me            = isMe(msg);
             const isSecure      = msg.is_once_view;
             const isSpent       = isSecure && msg.views_used >= msg.view_limit;
