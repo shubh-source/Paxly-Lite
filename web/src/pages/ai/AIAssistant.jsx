@@ -198,7 +198,10 @@ export default function AIAssistant() {
       setMsgs(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setLoading(false);
-      inputRef.current?.focus();
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+        inputRef.current.focus();
+      }
     }
   };
 
@@ -389,13 +392,23 @@ export default function AIAssistant() {
             <Icons.Paperclip size={20} />
           </label>
           <input type="file" id="ai-attach" hidden accept="image/*,video/*,application/pdf" onChange={handleFileSelect} />
-          <input
+          <textarea
             ref={inputRef}
             value={text}
             onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+            onInput={e => {
+              e.target.style.height = 'auto';
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            rows={1}
             placeholder="Kuch bhi bolo..."
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '1rem', outline: 'none', padding: '6px 0', minWidth: 0 }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '1rem', outline: 'none', padding: '6px 0', minWidth: 0, resize: 'none', fontFamily: 'inherit', lineHeight: '1.4' }}
           />
           <button
             onClick={() => send()}

@@ -101,6 +101,7 @@ export default function Chat() {
   const typingTimer = useRef(null);
   const fileRef    = useRef(null);
   const scrollRef  = useRef(null);
+  const inputRef   = useRef(null);
 
   // Prevent body scrolling while in immersive chat (REMOVED to fix black screen bug)
 
@@ -212,6 +213,10 @@ export default function Chat() {
     setText('');
     setReplyingTo(null);
     setSending(false);
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.focus();
+    }
   };
 
   const onFileSelect = e => {
@@ -484,19 +489,21 @@ export default function Chat() {
           box-shadow: 0 6px 24px rgba(0,0,0,0.4);
           width: 100%;
         }
-        .chat-input-inner input {
+        .chat-input-inner textarea {
           flex: 1; display: flex; flex-direction: column;
           background: transparent;
           border: none;
           outline: none;
           font-size: 0.97rem;
           color: #fff;
-          padding: 5px 0;
+          padding: 8px 0;
           min-width: 0;
+          font-family: inherit;
           /* prevent iOS auto-zoom on focus (font-size must be >= 16px to avoid zoom) */
           font-size: 16px;
+          max-height: 120px;
         }
-        .chat-input-inner input::placeholder { color: rgba(255,255,255,0.35); }
+        .chat-input-inner textarea::placeholder { color: rgba(255,255,255,0.35); }
 
         /* icon buttons in input */
         .chat-icon-btn {
@@ -561,7 +568,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           .chat-header { margin: 0; width: 100%; border-radius: 0; }
           .chat-input-bar { padding: 5px 8px 8px; }
           .chat-bubble { max-width: 80%; }
-          .chat-input-inner input { font-size: 16px; } /* prevent iOS zoom */
+          .chat-input-inner textarea { font-size: 16px; } /* prevent iOS zoom */
         }
 
         /* ── Modal ── */
@@ -980,11 +987,23 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   <Icons.Gallery size={20} color={activeTheme.accent || 'var(--muted)'} />
                 </button>
     
-                <input
+                <textarea
+                  ref={inputRef}
                   value={text}
-                  onChange={handleType}
-                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                  onChange={e => {
+                    handleType(e);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  rows={1}
                   placeholder="Message"
+                  style={{ resize: 'none', overflowY: 'auto', fontFamily: 'inherit', lineHeight: '1.4' }}
                 />
               </>
             )}
