@@ -124,8 +124,8 @@ export const markAllNotificationsRead = () =>
 
 // Payments
 export const createPremiumOrder = () => 
-  api.post('/payments/create-premium-order', { amount: 149 }).then(r => r.data);
+  api.post('/payments/create-order', { amount: 149 }).then(r => r.data);
 export const verifyPremiumPayment = (payload) => 
-  api.post('/payments/verify-premium', payload).then(r => r.data);
+  api.post('/payments/verify', payload).then(r => r.data);
 
 export default api;
