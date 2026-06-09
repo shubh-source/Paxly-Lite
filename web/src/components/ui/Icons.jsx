@@ -19,6 +19,17 @@ const IconWrapper = ({ children, size = 24, color = 'currentColor', stroke = 2, 
 );
 
 export const Icons = {
+  Close: (props) => (
+    <IconWrapper {...props}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </IconWrapper>
+  ),
+  Paperclip: (props) => (
+    <IconWrapper {...props}>
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </IconWrapper>
+  ),
   Menu: ({ size = 24, color = "currentColor", ...props }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <line x1="3" y1="12" x2="21" y2="12"></line>

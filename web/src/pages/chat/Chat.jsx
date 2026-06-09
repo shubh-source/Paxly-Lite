@@ -898,7 +898,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 ) : null}
                 {recordState === 'locked' && (
                   <button className="chat-icon-btn" onClick={cancelVoiceRecord} style={{ color: '#ff5a3c', marginLeft: 'auto', marginRight: 10 }}>
-                    <Icons.Trash2 size={20} />
+                    <Icons.Trash size={20} />
                   </button>
                 )}
               </div>
