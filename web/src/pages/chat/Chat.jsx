@@ -132,6 +132,9 @@ export default function Chat() {
         setMsgs(p => p.map(m => m.id === d.message_id
           ? { ...m, reactions: { ...m.reactions, [d.user_id]: d.emoji } } : m))
       ),
+      wsService.on('message_deleted', d => {
+        setMsgs(p => p.filter(m => m.id !== d.message_id));
+      }),
       wsService.on('media_save_request', d => {
         if (d.sender_id !== user?.id)
           setSaveRequest({ from: partner?.name || 'Partner', ...d });

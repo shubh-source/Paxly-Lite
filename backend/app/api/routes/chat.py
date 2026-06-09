@@ -148,6 +148,27 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
         await db.commit()
     return {"ok": True}
 
+@router.delete("/messages/{message_id}")
+async def delete_message(message_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    space_id = ensure_space(cu)
+    res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
+    msg = res.scalars().first()
+    if not msg: raise HTTPException(404, "Message not found.")
+    if msg.sender_id != cu.id: raise HTTPException(403, "You can only delete your own messages.")
+    
+    # Delete from DB
+    await db.delete(msg)
+    await db.commit()
+    
+    # Send WebSocket event to partner to remove message
+    from app.websocket.manager import manager
+    await manager.send_to_user(msg.couple_space_id.replace(cu.id, ''), {
+        "type": "message_deleted",
+        "message_id": message_id
+    })
+    
+    return {"ok": True}
+
 @router.get("/space")
 async def get_chat_space(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = ensure_space(cu)
