@@ -399,6 +399,16 @@ export const Icons = {
       <circle cx="19" cy="21" r="1" />
       <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.1-5.38H5.12" />
     </IconWrapper>
+  ),
+
+  Diamond: (props) => (
+    <IconWrapper {...props}>
+      <path d="M6 3h12l4 6-10 12L2 9l4-6z" />
+      <path d="M12 21l4-12H8l4 12z" />
+      <path d="M2 9h20" />
+      <path d="M6 3l4 6" />
+      <path d="M18 3l-4 6" />
+    </IconWrapper>
   )
 };
 

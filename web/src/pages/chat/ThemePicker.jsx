@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CHAT_THEMES } from '../../data/chatThemes';
+import { Icons } from '../../components/ui/Icons';
 import axios from 'axios';
 
 const THEME_ICONS = {
@@ -88,9 +89,9 @@ export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate,
               background: activeTab === 'premium' ? 'var(--accent)' : 'rgba(255,255,255,0.05)',
               color: activeTab === 'premium' ? '#000' : '#fff',
               fontWeight: 700, border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
-            }}
-          >Premium <span style={{ fontSize: '0.8rem', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>💎</span></button>
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+          }}
+        >Premium <span style={{ display: 'inline-flex', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}><Icons.Diamond size={14} color="#00E5FF" /></span></button>
         </div>
 
         <div style={{ maxHeight: '55vh', overflowY: 'auto', paddingRight: 5 }}>
@@ -177,7 +178,7 @@ export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate,
                       {icon.emoji} {theme.name}
                     </span>
                     {isActive && <div style={{ position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: '50%', background: '#C9A96E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', color: '#000', fontWeight: 900 }}>✓</div>}
-                    {!isPremium && <span style={{ position: 'absolute', top: 6, left: 6, fontSize: '0.75rem', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>💎</span>}
+                    {!isPremium && <span style={{ position: 'absolute', top: 6, left: 6, display: 'inline-flex', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}><Icons.Diamond size={12} color="#00E5FF" /></span>}
                   </div>
                 );
               })}
@@ -193,7 +194,7 @@ export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate,
                   <span style={{ fontSize: '0.62rem', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
                     {loading ? 'Uploading...' : 'Custom Photo'}
                   </span>
-                  {!isPremium && <span style={{ position: 'absolute', top: 6, left: 6, fontSize: '0.75rem', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>💎</span>}
+                  {!isPremium && <span style={{ position: 'absolute', top: 6, left: 6, display: 'inline-flex', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}><Icons.Diamond size={12} color="#00E5FF" /></span>}
                 </label>
               </div>
             </div>
