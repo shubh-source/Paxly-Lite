@@ -11,7 +11,8 @@ export const CHAT_THEMES = {
   },
 
   lavender: {
-    name: 'Lavender Mist',
+    premium: true,
+    name: '3D Lavender Mist',
     bg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
     bubbleMe: '#9d8df1',
     textMe: '#fff',
@@ -33,7 +34,8 @@ export const CHAT_THEMES = {
   },
 
   ocean: {
-    name: 'Deep Ocean',
+    premium: true,
+    name: '3D Deep Ocean',
     bg: 'linear-gradient(135deg, #0f172a 0%, #020617 100%)',
     bubbleMe: '#38bdf8',
     textMe: '#020617',
@@ -56,7 +58,8 @@ export const CHAT_THEMES = {
   },
 
   midnight: {
-    name: 'Midnight Rose',
+    premium: true,
+    name: '3D Midnight Rose',
     bg: 'linear-gradient(160deg, #1a0a14 0%, #0d0610 50%, #1a0a14 100%)',
     bubbleMe: '#e8517a',
     textMe: '#fff',
@@ -67,7 +70,8 @@ export const CHAT_THEMES = {
   },
 
   arctic: {
-    name: 'Arctic Frost',
+    premium: true,
+    name: '3D Arctic Frost',
     bg: 'linear-gradient(160deg, #0a1628 0%, #061020 50%, #0a1628 100%)',
     bubbleMe: '#e2f0ff',
     textMe: '#0a1628',
@@ -100,7 +104,8 @@ export const CHAT_THEMES = {
   },
 
   galaxy: {
-    name: 'Galaxy',
+    premium: true,
+    name: '3D Galaxy',
     bg: 'linear-gradient(160deg, #060818 0%, #0a0420 50%, #080614 100%)',
     bubbleMe: 'linear-gradient(135deg, #667eea, #764ba2)',
     textMe: '#fff',
@@ -114,7 +119,8 @@ export const CHAT_THEMES = {
   // ── Love & Romantic Themes ──────────────────────────────
 
   cherry: {
-    name: 'Cherry Blossom',
+    premium: true,
+    name: '3D Cherry Blossom',
     bg: 'linear-gradient(160deg, #1a0a12 0%, #2d0f1f 40%, #1a0814 100%)',
     bubbleMe: '#ff6b9d',
     textMe: '#fff',
@@ -126,7 +132,8 @@ export const CHAT_THEMES = {
 
 
   heartbeat: {
-    name: 'Heartbeat',
+    premium: true,
+    name: '3D Heartbeat',
     bg: 'linear-gradient(160deg, #1a0508 0%, #2d0a10 50%, #1a0508 100%)',
     bubbleMe: '#ff3d6b',
     textMe: '#fff',
@@ -138,7 +145,8 @@ export const CHAT_THEMES = {
   },
 
   pastel: {
-    name: 'Pastel Love',
+    premium: true,
+    name: '3D Pastel Love',
     bg: 'linear-gradient(160deg, #1a1228 0%, #221530 50%, #1a1228 100%)',
     bubbleMe: '#ffb3de',
     textMe: '#1a1228',
@@ -149,7 +157,8 @@ export const CHAT_THEMES = {
   },
 
   moonlit: {
-    name: 'Moonlit',
+    premium: true,
+    name: '3D Moonlit',
     bg: 'linear-gradient(160deg, #0a0a18 0%, #12103a 50%, #0a0a18 100%)',
     bubbleMe: '#c8b6ff',
     textMe: '#0a0a18',
@@ -160,7 +169,8 @@ export const CHAT_THEMES = {
   },
 
   loveblush: {
-    name: 'Love Blush',
+    premium: true,
+    name: '3D Love Blush',
     bg: 'linear-gradient(160deg, #1c0e16 0%, #280d1e 50%, #1c0e16 100%)',
     bubbleMe: '#f4a7b9',
     textMe: '#1c0e16',
@@ -220,7 +230,7 @@ export const CHAT_THEMES = {
   },
 
   midnight_starlight: {
-    name: 'Midnight Stars',
+    name: '3D Midnight Stars',
     bg: '#050a1a',
     bubbleMe: 'linear-gradient(145deg, #102a6b, #0a1b4d)',
     textMe: '#e6f0ff',
@@ -236,7 +246,7 @@ export const CHAT_THEMES = {
   },
 
   ocean_breeze: {
-    name: 'Ocean Breeze',
+    name: '3D Ocean Breeze',
     bg: '#02161c',
     bubbleMe: 'linear-gradient(145deg, #00596b, #003d4a)',
     textMe: '#d4fbff',
@@ -252,7 +262,7 @@ export const CHAT_THEMES = {
   },
 
   cozy_fireplace: {
-    name: 'Cozy Fireplace',
+    name: '3D Cozy Fireplace',
     bg: '#140802',
     bubbleMe: 'linear-gradient(145deg, #8b2b00, #5c1b00)',
     textMe: '#ffebdb',

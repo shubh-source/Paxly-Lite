@@ -99,7 +99,7 @@ export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate,
           {activeTab === 'normal' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
               {Object.entries(CHAT_THEMES)
-                .filter(([id]) => !['velvet_rose', 'crystal_love', 'golden_anniversary', 'midnight_starlight', 'ocean_breeze', 'cozy_fireplace'].includes(id))
+                .filter(([id, theme]) => !theme.premium)
                 .map(([id, theme]) => {
                 const isActive = currentTheme === id;
                 const icon = THEME_ICONS[id] || { emoji: '🎨', desc: '' };
@@ -140,7 +140,7 @@ export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate,
           {activeTab === 'premium' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
               {Object.entries(CHAT_THEMES)
-                .filter(([id]) => ['velvet_rose', 'crystal_love', 'golden_anniversary', 'midnight_starlight', 'ocean_breeze', 'cozy_fireplace'].includes(id))
+                .filter(([id, theme]) => theme.premium)
                 .map(([id, theme]) => {
                 const isActive = currentTheme === id;
                 const icon = THEME_ICONS[id] || { emoji: '🎨', desc: '' };
