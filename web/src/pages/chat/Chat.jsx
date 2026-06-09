@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { wsService } from '../../services/websocket';
-import { getMessages, getSpace, uploadMedia } from '../../services/api';
+import api, { getMessages, getSpace, uploadMedia } from '../../services/api';
 import { format } from 'date-fns';
 import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
