@@ -17,42 +17,44 @@ export default function Welcome() {
       justifyContent: 'center', 
       padding: '40px 24px', 
       position: 'relative', 
-      overflow: 'hidden',
+      overflowY: 'auto',
+      overflowX: 'hidden',
       textAlign: 'center'
     }}>
       {/* BACKGROUND ELEMENTS - They will blur when actions show */}
       <motion.div 
         animate={{ filter: showActions ? 'blur(15px) grayscale(0.5)' : 'blur(0px) grayscale(0)' }}
         transition={{ duration: 1, ease: "easeInOut" }}
-        style={{ width: '100%', height: '100%', position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+        style={{ width: '100%', minHeight: '100vh', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0' }}
       >
         {/* Moving Ambient Glows */}
         <motion.div
           animate={{ x: [0, 100, 0], y: [0, -50, 0], opacity: [0.05, 0.1, 0.05] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          style={{ position: 'fixed', top: '20%', left: '10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)', pointerEvents: 'none', filter: 'blur(80px)' }} 
+          style={{ position: 'absolute', top: '20%', left: '10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)', pointerEvents: 'none', filter: 'blur(80px)' }} 
         />
         <motion.div
           animate={{ x: [0, -100, 0], y: [0, 50, 0], opacity: [0.05, 0.1, 0.05] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          style={{ position: 'fixed', bottom: '10%', right: '10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)', pointerEvents: 'none', filter: 'blur(80px)' }} 
+          style={{ position: 'absolute', bottom: '10%', right: '10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)', pointerEvents: 'none', filter: 'blur(80px)' }} 
         />
 
-        <div style={{ maxWidth: '400px', width: '100%', zIndex: 5 }}>
-          <WeavingHeart />
+        <div style={{ maxWidth: '400px', width: '100%', zIndex: 5, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ marginBottom: '40px' }}>
+            <WeavingHeart />
+          </div>
           
           <AnimatePresence>
             {!showActions && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.5 }}
-                style={{ marginTop: '56px' }}
+                transition={{ duration: 0.8, delay: 1.5, ease: "easeOut" }}
               >
                 <h1 style={{ fontSize: '3.5rem', fontWeight: 200, marginBottom: '4px', fontFamily: 'serif', letterSpacing: '-0.03em' }}>Vlynxly</h1>
                 <p style={{ color: 'var(--accent)', fontSize: '0.85rem', letterSpacing: '6px', fontWeight: 500, textTransform: 'uppercase', marginBottom: '48px' }}>Together We Better</p>
-                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.95rem', lineHeight: 2, marginBottom: '60px', fontWeight: 300 }}>Your private space for two.<br/>Encrypted intimacy for modern couples.</p>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.95rem', lineHeight: 2, marginBottom: '40px', fontWeight: 300 }}>Your private space for two.<br/>Encrypted intimacy for modern couples.</p>
 
                 <motion.button
                   whileHover={{ scale: 1.02, boxShadow: '0 0 40px rgba(201,169,110,0.5)' }}
@@ -75,6 +77,19 @@ export default function Welcome() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* TRUST BADGE FOOTER */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: showActions ? 0 : 0.6 }}
+          transition={{ duration: 0.8, delay: 2 }}
+          style={{ 
+            marginTop: 'auto', paddingTop: '40px', fontSize: '10px', letterSpacing: '2px', 
+            color: 'rgba(201,169,110,0.9)', textTransform: 'uppercase', fontWeight: 600, zIndex: 25, width: '100%'
+          }}
+        >
+          E2E Encrypted • Zero Data Sell • Your Private Oasis
+        </motion.div>
       </motion.div>
 
       {/* ACTION OVERLAY - Appears on top with background blur */}
@@ -86,7 +101,7 @@ export default function Welcome() {
             exit={{ opacity: 0, scale: 0.9, backdropFilter: 'blur(0px)' }}
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             style={{ 
-              position: 'fixed', zIndex: 20, width: '100%', height: '100%', 
+              position: 'fixed', zIndex: 20, width: '100%', height: '100%', top: 0, left: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)'
             }}
           >
@@ -115,19 +130,6 @@ export default function Welcome() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* TRUST BADGE FOOTER - More readable */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: showActions ? 0.2 : 0.6 }}
-        transition={{ duration: 0.5 }}
-        style={{ 
-          position: 'fixed', bottom: '32px', fontSize: '11px', letterSpacing: '2px', 
-          color: 'rgba(201,169,110,0.9)', textTransform: 'uppercase', fontWeight: 600, zIndex: 25
-        }}
-      >
-        E2E Encrypted • Zero Data Sell • Your Private Oasis
-      </motion.div>
     </div>
   );
 }
