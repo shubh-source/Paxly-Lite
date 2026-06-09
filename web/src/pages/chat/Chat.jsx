@@ -839,10 +839,32 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     {(!msg.message_type || msg.message_type === 'text') && (
                       <span style={{ fontSize:'0.96rem', whiteSpace:'pre-wrap', lineHeight:1.55 }}>{msg.text}</span>
                     )}
+
+                    {/* Reactions Display */}
+                    {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: -12,
+                        right: me ? 12 : 'auto',
+                        left: me ? 'auto' : 12,
+                        background: 'rgba(20, 16, 14, 0.95)',
+                        border: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.1)'}40`,
+                        borderRadius: 12,
+                        padding: '2px 6px',
+                        display: 'flex',
+                        gap: 2,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                        zIndex: 2
+                      }}>
+                        {Object.values(msg.reactions).map((emoji, idx) => (
+                          <span key={idx} style={{ fontSize: '0.85rem' }}>{emoji}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Timestamp */}
-                  <span style={{ fontSize:'0.65rem', color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)', marginTop:4, opacity:.6, fontWeight:500 }}>
+                  <span style={{ fontSize:'0.65rem', color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)', marginTop: (msg.reactions && Object.keys(msg.reactions).length > 0) ? 16 : 4, opacity:.6, fontWeight:500 }}>
                     {ts(msg)}
                   </span>
                 </div>
