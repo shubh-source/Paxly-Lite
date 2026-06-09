@@ -71,8 +71,10 @@ app.add_middleware(
         "http://localhost",
         "capacitor://localhost",
         "https://paxly-lite.vercel.app",
-        "https://vlynxly-web.vercel.app"
+        "https://vlynxly-web.vercel.app",
+        "null"
     ],
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
