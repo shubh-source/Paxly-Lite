@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
 
     # Razorpay
-    RAZORPAY_KEY_ID: str = ""
-    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_KEY_ID: str = "rzp_test_SZlNsaYYbenJQA"
+    RAZORPAY_KEY_SECRET: str = "r8l9u3RlbXAvciop0eexonVi"
     RAZORPAY_WEBHOOK_SECRET: str = ""
     RAZORPAY_ACCOUNT_NO: str = ""
 

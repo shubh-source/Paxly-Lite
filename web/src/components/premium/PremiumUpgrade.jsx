@@ -22,7 +22,7 @@ export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
       const order = await createPremiumOrder();
       
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_...', // Keep env var, fallback shouldn't hit
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SZlNsaYYbenJQA',
         amount: order.amount,
         currency: order.currency,
         name: 'Paxly Premium',
