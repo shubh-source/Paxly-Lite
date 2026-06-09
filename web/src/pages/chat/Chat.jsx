@@ -475,16 +475,16 @@ export default function Chat() {
         /* ── Header ── */
         .chat-header {
           position: fixed;
-          top: 0;
+          top: env(safe-area-inset-top, 0px);
           left: 0;
           right: 0;
           z-index: 100;
-          margin: 25px 16px 0;
-          background: rgba(255,255,255,0.04);
-          backdrop-filter: blur(32px) saturate(180%);
-          -webkit-backdrop-filter: blur(32px) saturate(180%);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 18px;
+          margin: 16px 16px 0;
+          background: rgba(20, 15, 25, 0.45);
+          backdrop-filter: blur(28px) saturate(200%);
+          -webkit-backdrop-filter: blur(28px) saturate(200%);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 24px;
           padding: 10px 20px;
           box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07);
           display: flex;
@@ -610,7 +610,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         /* ── Mobile tweaks ── */
         @media (max-width: 767px) {
-          .chat-header { margin: 0; width: 100%; border-radius: 0; }
+          .chat-header { margin: 12px; width: calc(100% - 24px); border-radius: 22px; }
           .chat-input-bar { padding: 5px 8px 8px; }
           .chat-bubble { max-width: 80%; }
           .chat-input-inner textarea { font-size: 16px; } /* prevent iOS zoom */
@@ -679,8 +679,6 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         <div
           className="chat-header"
           style={{
-            background: '#1a1a20',
-            borderBottom: `1px solid rgba(255,255,255,0.1)`,
             boxShadow: `0 8px 32px rgba(0,0,0,0.5)`,
           }}
         >
