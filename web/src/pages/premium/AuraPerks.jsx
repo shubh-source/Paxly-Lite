@@ -15,7 +15,7 @@ export default function AuraPerks() {
   ];
 
   return (
-    <div className="page" style={{ position: 'relative', height: '100dvh', overflowY: 'auto', paddingBottom: 120 }}>
+    <div className="page" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflowY: 'auto', paddingBottom: 120 }}>
       {/* Ambient background */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50vh', background: 'radial-gradient(circle at top, rgba(201,169,110,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
       
