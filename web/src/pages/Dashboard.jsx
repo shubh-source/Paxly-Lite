@@ -42,9 +42,11 @@ export default function Dashboard() {
     api.get('/dates/').then(res => {
       if (!Array.isArray(res.data)) return;
       
-      NotificationService.requestPermissions().then(() => {
-        NotificationService.scheduleAnniversaryNotifications(res.data);
-      });
+      if (user?.is_premium) {
+        NotificationService.requestPermissions().then(() => {
+          NotificationService.scheduleAnniversaryNotifications(res.data);
+        });
+      }
 
       const today = new Date();
       const upcoming = res.data.find(d => {

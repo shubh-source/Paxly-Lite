@@ -6,7 +6,7 @@ export default function AuraPerks() {
   const nav = useNavigate();
 
   const features = [
-    { icon: <Icons.Aura size={24} />, title: "AI Avatars & Aesthetics", desc: "Transform photos into magical avatars and unlock premium custom chat themes." },
+    { icon: <Icons.Aura size={24} />, title: "Proactive AI & Auto-Save", desc: "Aura will remind you of upcoming dates and auto-save special moments told in chat." },
     { icon: <Icons.Heart size={24} />, title: "Deep Relationship Lab", desc: "Unlimited AI counseling, emotional tracking, and bond analysis." },
     { icon: <Icons.Gallery size={24} />, title: "Cinematic Love Pages", desc: "Host infinite beautiful interactive websites for your partner." },
     { icon: <Icons.Camera size={24} />, title: "Ultra HD Media Sharing", desc: "Share high-quality 10MB videos and photos without heavy compression." },
