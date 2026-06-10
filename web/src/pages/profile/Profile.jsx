@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { updateMe } from '../../services/api';
 import { Icons } from '../../components/ui/Icons';
-
+import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 
 export function Profile() {
   const { user, logoutUser, setUser } = useAuth();
@@ -11,6 +11,7 @@ export function Profile() {
   const [name, setName] = useState(user?.name || '');
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState('');
+  const [showPremium, setShowPremium] = useState(false);
 
   const save = async () => {
     setSaving(true);
@@ -99,6 +100,22 @@ export function Profile() {
         
         {/* Action Links */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          
+          {!user?.is_premium && (
+            <button onClick={() => setShowPremium(true)} className="card card-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', textDecoration: 'none', color: '#000', background: 'linear-gradient(135deg, var(--accent), var(--purple))', borderRadius: 24, border: 'none', cursor: 'pointer', boxShadow: '0 10px 30px rgba(201,169,110,0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icons.Diamond size={20} color="#fff" />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ fontWeight: 800, fontSize: '1rem', display: 'block' }}>Upgrade to Premium</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.8, fontWeight: 500 }}>Unlock VIP Features</span>
+                </div>
+              </div>
+              <span style={{ color: '#fff', display: 'flex' }}><Icons.Back size={20} style={{ transform: 'rotate(180deg)' }} /></span>
+            </button>
+          )}
+
           <Link to="/legal" className="card card-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', textDecoration: 'none', color: 'var(--text)', background: 'rgba(255,255,255,0.03)', borderRadius: 24, border: '1px solid rgba(255,255,255,0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,169,110,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -114,6 +131,18 @@ export function Profile() {
           </button>
         </div>
       </div>
+
+      {showPremium && (
+        <PremiumUpgrade 
+          onCancel={() => setShowPremium(false)} 
+          onUpgradeSuccess={() => {
+            setShowPremium(false);
+            setUser({ ...user, is_premium: true });
+            setOk("Premium Activated! 🎉");
+            setTimeout(() => setOk(''), 5000);
+          }} 
+        />
+      )}
     </div>
   );
 }
