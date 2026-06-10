@@ -68,7 +68,12 @@ export function Profile() {
             </div>
             <Link to="/settings" style={{ position: 'absolute', bottom: 0, right: 0, width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', border: '3px solid var(--bg)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', textDecoration: 'none', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>✏️</Link>
           </div>
-          <h2 style={{ marginBottom: 4, fontSize: '1.6rem', fontWeight: 800 }}>{user?.name}</h2>
+          <h2 style={{ marginBottom: 4, fontSize: '1.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {user?.name}
+            {user?.is_premium && (
+              <span style={{ fontSize: '0.7rem', background: 'linear-gradient(135deg, #C9A96E, #a484c2)', color: '#000', padding: '2px 8px', borderRadius: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1, boxShadow: '0 4px 10px rgba(201,169,110,0.3)' }}>VIP</span>
+            )}
+          </h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>{user?.email}</p>
         </div>
 
