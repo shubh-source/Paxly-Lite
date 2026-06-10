@@ -43,6 +43,9 @@ export default function Chat() {
   const recordInterval                          = useRef(null);
   const recordStartY                            = useRef(0);
   const recordStartX                            = useRef(0);
+  const voiceRecordAction                       = useRef('send');
+  const [audioPreviewUrl, setAudioPreviewUrl]   = useState(null);
+  const [audioPreviewBlob, setAudioPreviewBlob] = useState(null);
   const isRecordingAudio = recordState !== 'idle';
 
   // Security / media
@@ -269,22 +272,40 @@ export default function Chat() {
     }
     
     try {
+      voiceRecordAction.current = 'send';
       const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunks.current = [];
       recorder.ondataavailable = ev => audioChunks.current.push(ev.data);
       
       recorder.onstop = async () => {
+        clearInterval(recordInterval.current);
+        const action = voiceRecordAction.current;
+        if (action === 'cancel') {
+          audioChunks.current = [];
+          setRecordTime(0);
+          setRecordState('idle');
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
         if (audioChunks.current.length > 0) {
           const blob = new Blob(audioChunks.current, { type: 'audio/webm' });
-          const file = new File([blob], 'voice_note.webm', { type: 'audio/webm' });
-          const { media_url } = await uploadMedia(file);
-          wsService.sendMessage('', 'audio', media_url, false, 0);
+          if (action === 'preview') {
+            setAudioPreviewBlob(blob);
+            setAudioPreviewUrl(URL.createObjectURL(blob));
+            setRecordState('preview');
+          } else if (action === 'send') {
+            setRecordState('idle');
+            const file = new File([blob], 'voice_note.webm', { type: 'audio/webm' });
+            const { media_url } = await uploadMedia(file);
+            wsService.sendMessage('', 'audio', media_url, false, 0);
+          }
+        } else {
+          setRecordState('idle');
         }
         stream.getTracks().forEach(t => t.stop());
-        clearInterval(recordInterval.current);
         setRecordTime(0);
-        setRecordState('idle');
         audioChunks.current = []; 
       };
       
@@ -310,21 +331,50 @@ export default function Chat() {
   };
 
   const stopVoiceRecord = () => {
-    if (recordState === 'holding' && audioRecorder) {
+    if (recordState === 'holding' && audioRecorder && audioRecorder.state !== 'inactive') {
+      voiceRecordAction.current = 'send';
       audioRecorder.stop(); 
     }
   };
 
   const cancelVoiceRecord = () => {
-    if (audioRecorder) {
-      audioChunks.current = []; 
+    voiceRecordAction.current = 'cancel';
+    if (audioRecorder && audioRecorder.state !== 'inactive') {
       audioRecorder.stop();
+    } else if (recordState === 'preview') {
+      setRecordState('idle');
+      setAudioPreviewBlob(null);
+      setAudioPreviewUrl(null);
     }
   };
   
-  const sendLockedVoiceRecord = () => {
-    if (recordState === 'locked' && audioRecorder) {
+  const previewLockedVoiceRecord = () => {
+    if (recordState === 'locked' && audioRecorder && audioRecorder.state !== 'inactive') {
+      voiceRecordAction.current = 'preview';
       audioRecorder.stop();
+    }
+  };
+
+  const sendPreviewVoiceRecord = async () => {
+    if (!audioPreviewBlob) return;
+    setSending(true);
+    setRecordState('idle');
+    try {
+      const file = new File([audioPreviewBlob], 'voice_note.webm', { type: 'audio/webm' });
+      const { media_url } = await uploadMedia(file);
+      wsService.sendMessage('', 'audio', media_url, false, 0);
+    } catch (err) {}
+    setAudioPreviewBlob(null);
+    setAudioPreviewUrl(null);
+    setSending(false);
+  };
+
+  const sendLockedVoiceRecord = () => {
+    if (recordState === 'locked' && audioRecorder && audioRecorder.state !== 'inactive') {
+      voiceRecordAction.current = 'send';
+      audioRecorder.stop();
+    } else if (recordState === 'preview') {
+      sendPreviewVoiceRecord();
     }
   };
 
@@ -1046,17 +1096,23 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   </button>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                  <div className="rec-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5a3c', animation: 'recPulse 1s infinite' }} />
-                  <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{formatRecordTime(recordTime)}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 10, height: 16 }}>
-                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.9s infinite ease-in-out 0.1s` }} />
-                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.7s infinite ease-in-out 0.5s` }} />
-                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 1.1s infinite ease-in-out 0.2s` }} />
-                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.8s infinite ease-in-out 0.6s` }} />
-                    <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 1.0s infinite ease-in-out 0.3s` }} />
+                {recordState === 'preview' ? (
+                  <div style={{ flex: 1, paddingRight: 10, display: 'flex', alignItems: 'center' }}>
+                    <audio src={audioPreviewUrl} controls style={{ width: '100%', height: 35, outline: 'none' }} />
                   </div>
-                </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                    <div className="rec-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5a3c', animation: 'recPulse 1s infinite' }} />
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{formatRecordTime(recordTime)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 10, height: 16 }}>
+                      <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.9s infinite ease-in-out 0.1s` }} />
+                      <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.7s infinite ease-in-out 0.5s` }} />
+                      <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 1.1s infinite ease-in-out 0.2s` }} />
+                      <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 0.8s infinite ease-in-out 0.6s` }} />
+                      <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 1.0s infinite ease-in-out 0.3s` }} />
+                    </div>
+                  </div>
+                )}
 
                 {recordState === 'holding' ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 10px', color: 'var(--muted)', fontSize: '0.8rem', animation: 'fadeIn 0.2s' }}>
@@ -1072,7 +1128,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 ) : null}
 
                 {recordState === 'locked' && (
-                  <button className="chat-icon-btn" onClick={sendLockedVoiceRecord} style={{ color: '#ff5a3c', marginLeft: 'auto', marginRight: 10 }}>
+                  <button className="chat-icon-btn" onClick={previewLockedVoiceRecord} style={{ color: '#ff5a3c', marginLeft: 'auto', marginRight: 10 }}>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10"></circle>
                       <rect x="9" y="9" width="6" height="6" fill="currentColor"></rect>
@@ -1116,10 +1172,10 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               onPointerMove={!text.trim() && recordState === 'holding' ? handleRecordMove : undefined}
               onPointerUp={recordState === 'holding' ? stopVoiceRecord : undefined}
               onPointerLeave={recordState === 'holding' ? stopVoiceRecord : undefined}
-              onClick={recordState === 'locked' ? sendLockedVoiceRecord : (text.trim() ? send : undefined)}
+              onClick={recordState === 'locked' || recordState === 'preview' ? sendLockedVoiceRecord : (text.trim() ? send : undefined)}
               disabled={sending && !!text.trim()}
               style={{
-                background: isRecordingAudio
+                background: recordState === 'preview' ? (activeTheme.accent || 'var(--accent)') : isRecordingAudio
                   ? '#ff5a3c'
                   : text.trim()
                     ? activeTheme.accent || 'var(--accent)'
@@ -1130,8 +1186,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 touchAction: recordState === 'holding' ? 'none' : 'auto'
               }}
             >
-              {text.trim() || recordState === 'locked'
-                ? <Icons.Send size={18} color={isRecordingAudio ? '#fff' : (activeTheme.textMe || '#000')} />
+              {text.trim() || recordState === 'locked' || recordState === 'preview'
+                ? <Icons.Send size={18} color={isRecordingAudio && recordState !== 'preview' ? '#fff' : (activeTheme.textMe || '#000')} />
                 : <Icons.Mic size={18} color={isRecordingAudio ? '#fff' : (activeTheme.accent || 'var(--muted)')} />}
             </button>
           </div>
