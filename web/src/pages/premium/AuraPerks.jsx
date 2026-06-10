@@ -15,7 +15,7 @@ export default function AuraPerks() {
   ];
 
   return (
-    <div className="page" style={{ position: 'relative', overflowY: 'auto', paddingBottom: 120 }}>
+    <div className="page" style={{ position: 'relative', height: '100dvh', overflowY: 'auto', paddingBottom: 120 }}>
       {/* Ambient background */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50vh', background: 'radial-gradient(circle at top, rgba(201,169,110,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
       
@@ -62,12 +62,12 @@ export default function AuraPerks() {
         </div>
       </div>
 
-      {/* Sticky Bottom Action */}
+      {/* Floating Action Button */}
       <motion.div 
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', damping: 20, delay: 0.6 }}
-        style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '24px', background: 'rgba(14,12,17,0.85)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.08)', zIndex: 10 }}
+        style={{ position: 'fixed', bottom: 30, left: 0, right: 0, padding: '0 24px', zIndex: 10 }}
       >
         <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
           <button 
