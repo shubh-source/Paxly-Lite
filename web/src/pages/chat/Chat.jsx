@@ -1038,8 +1038,15 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             }}
           >
             {isRecordingAudio ? (
-              <div style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '0 8px', justifyContent: 'space-between', color: '#ff5a3c' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '0 8px', color: '#ff5a3c' }}>
+                
+                {recordState === 'locked' && (
+                  <button className="chat-icon-btn" onClick={cancelVoiceRecord} style={{ color: 'var(--muted)', marginRight: 12 }}>
+                    <Icons.Trash size={20} />
+                  </button>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                   <div className="rec-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5a3c', animation: 'recPulse 1s infinite' }} />
                   <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{formatRecordTime(recordTime)}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 10, height: 16 }}>
@@ -1050,21 +1057,26 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     <div style={{ width: 2.5, height: '100%', background: '#ff5a3c', borderRadius: 2, transformOrigin: 'center', animation: `audioWave 1.0s infinite ease-in-out 0.3s` }} />
                   </div>
                 </div>
+
                 {recordState === 'holding' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, padding: '0 10px', color: 'var(--muted)', fontSize: '0.8rem', animation: 'fadeIn 0.2s' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 10px', color: 'var(--muted)', fontSize: '0.8rem', animation: 'fadeIn 0.2s' }}>
                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.8, color: '#ff5a3c' }}>
                         <span style={{ fontSize: 16 }}>&larr;</span>
                         <span>Cancel</span>
                      </div>
-                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginLeft: 'auto', marginRight: 15, animation: 'slideUpFade 1.5s infinite', opacity: 0.8 }}>
+                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginLeft: 10, marginRight: 5, animation: 'slideUpFade 1.5s infinite', opacity: 0.8 }}>
                         <span style={{ fontSize: 16, lineHeight: 1 }}>&uarr;</span>
                         <span>Lock</span>
                      </div>
                   </div>
                 ) : null}
+
                 {recordState === 'locked' && (
-                  <button className="chat-icon-btn" onClick={cancelVoiceRecord} style={{ color: '#ff5a3c', marginLeft: 'auto', marginRight: 10 }}>
-                    <Icons.Trash size={20} />
+                  <button className="chat-icon-btn" onClick={sendLockedVoiceRecord} style={{ color: '#ff5a3c', marginLeft: 'auto', marginRight: 10 }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <rect x="9" y="9" width="6" height="6" fill="currentColor"></rect>
+                    </svg>
                   </button>
                 )}
               </div>
