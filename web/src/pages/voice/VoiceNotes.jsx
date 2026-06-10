@@ -65,6 +65,7 @@ function VoicePlayer({ id, url, customName, fromName, createdAt, size, onDelete,
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: '0.95rem', color: isMe ? 'var(--accent)' : 'var(--purple)', fontWeight: 700 }}>{customName || fromName}</span>
               <button onClick={() => onRename(id, customName)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: 8, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Edit size={14} /></button>
+              {isMe && <button onClick={() => onDelete(id)} style={{ background: 'rgba(255,59,48,0.1)', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: 8, color: '#FF3B30', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Trash size={14} /></button>}
               {url.includes('chat_media') && <span style={{ fontSize: '0.6rem', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4, color: 'var(--muted)', letterSpacing: 0.5 }}>CHAT</span>}
             </div>
             <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 500 }}>{new Date(createdAt).toLocaleDateString()}</span>
@@ -86,8 +87,6 @@ function VoicePlayer({ id, url, customName, fromName, createdAt, size, onDelete,
             <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{duration ? formatTime(duration) : formatSize(size)}</span>
           </div>
         </div>
-
-        {/* Delete functionality removed as per user's request: Memories are precious */}
       </div>
     </div>
   );
@@ -126,21 +125,23 @@ export default function VoiceNotes() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
+      const mr = new MediaRecorder(stream); // Safer without explicit mimeType
       chunksRef.current = [];
-      mr.ondataavailable = e => chunksRef.current.push(e.data);
+      mr.ondataavailable = e => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType });
-        await uploadVoice(blob, mr.mimeType);
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        await uploadVoice(blob, mr.mimeType || 'audio/webm');
       };
-      mr.start();
+      mr.start(100);
       mediaRef.current = mr;
       setRecording(true);
       setRecordTime(0);
       timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-    } catch {
-      alert('Microphone permission required.');
+    } catch (e) {
+      alert('Microphone permission required or recording failed: ' + e.message);
     }
   };
 
@@ -153,7 +154,7 @@ export default function VoiceNotes() {
   const uploadVoice = async (blob, mimeType) => {
     setUploading(true);
     try {
-      const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+      const ext = (mimeType || '').includes('ogg') ? 'ogg' : (mimeType || '').includes('mp4') ? 'mp4' : 'webm';
       const form = new FormData();
       form.append('file', blob, `voice_note.${ext}`);
       await api.post('/voice-notes/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -166,8 +167,13 @@ export default function VoiceNotes() {
   };
 
   const deleteNote = async (id) => {
-    // Disabled: Memories are permanent
-    console.log("Delete disabled for precious memories");
+    if (!window.confirm('Are you sure you want to delete this voice note?')) return;
+    try {
+      await api.delete(`/voice-notes/${id}`);
+      setNotes(prev => prev.filter(n => n.id !== id));
+    } catch (err) {
+      alert('Failed to delete note');
+    }
   };
 
   const renameNote = async (id, current) => {
@@ -263,6 +269,7 @@ export default function VoiceNotes() {
             size={note.size}
             isMe={note.sender_id === myId}
             onRename={renameNote}
+            onDelete={deleteNote}
           />
         ))}
       </div>
