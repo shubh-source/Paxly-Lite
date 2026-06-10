@@ -823,6 +823,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             return (
               <div
                 key={msg.id}
+                id={`msg-${msg.id}`}
                 className="chat-msg"
                 onMouseEnter={() => setHoveredMsgId(msg.id)}
                 onMouseLeave={() => setHoveredMsgId(null)}
@@ -913,9 +914,22 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         const quoteMsg = msgs.find(m => m.id === msg.reply_to_id);
                         if (!quoteMsg) return null;
                         return (
-                          <div style={{
-                            background: 'rgba(0,0,0,0.15)',
-                            borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const target = document.getElementById(`msg-${msg.reply_to_id}`);
+                              if (target) {
+                                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                target.animate([
+                                  { backgroundColor: 'rgba(201,169,110,0.3)', transform: 'scale(1.02)' },
+                                  { backgroundColor: 'transparent', transform: 'scale(1)' }
+                                ], { duration: 1000, easing: 'ease-out' });
+                              }
+                            }}
+                            style={{
+                              cursor: 'pointer',
+                              background: 'rgba(0,0,0,0.15)',
+                              borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
                             padding: '6px 10px',
                             borderRadius: '6px',
                             marginBottom: '6px',
