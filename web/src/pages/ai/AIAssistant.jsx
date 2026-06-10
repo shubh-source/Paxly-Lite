@@ -208,6 +208,11 @@ export default function AIAssistant() {
         const otherThreads = threads.filter(t => t.id !== activeThreadId).slice(0, 3);
         let pastMsgs = [];
         otherThreads.forEach(t => pastMsgs.push(...t.messages.slice(-4)));
+        if (pastMsgs.length > 0) {
+           globalContext += "Context from user's OTHER recent chats (do NOT mention you read this unless relevant): " + pastMsgs.map(m => m.content).join(' | ');
+        }
+      }
+      
       // App Knowledge
       globalContext += "\nApp Knowledge: Vlynxly Premium features: Deep Lab (counseling), Vibe Sites (webpages for partner), Stealth Mode, E2EE chats. You are Aura, the AI guide.";
 
