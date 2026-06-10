@@ -261,7 +261,6 @@ export default function Dashboard() {
                   <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 500 }}>{item.sub}</p>
                 </div>
                 {item.full && <span style={{ marginLeft: 'auto', color: 'var(--muted)', display: 'flex', opacity: 0.5 }}><Icons.Back size={18} style={{ transform: 'rotate(180deg)' }} /></span>}
-              </div>
             </Link>
           ))}
         </div>
