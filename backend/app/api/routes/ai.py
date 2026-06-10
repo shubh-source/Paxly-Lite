@@ -118,7 +118,9 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
 
     # 2. Try Groq (Ultra Fast)
     if settings.GROQ_API_KEY and not reply_text:
-        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        import httpx
+        custom_client = httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
+        client = AsyncGroq(api_key=settings.GROQ_API_KEY, http_client=custom_client)
         try:
             # Fix surrogates that cause Groq python client to crash
             clean_messages = []
