@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 
 export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
   const [loading, setLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const { user } = useAuth();
   
   useEffect(() => {
@@ -31,7 +32,7 @@ export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
         handler: async (response) => {
           try {
             await verifyPremiumPayment(response);
-            if (onUpgradeSuccess) onUpgradeSuccess();
+            setShowSuccess(true);
           } catch (e) {
             alert('Verification failed. Contact support.');
             setLoading(false);
@@ -57,6 +58,39 @@ export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
       setLoading(false);
     }
   };
+
+  if (showSuccess) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0E0C11', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        {/* Background Ambient Orbs */}
+        <div style={{ position: 'absolute', top: '20%', left: '20%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, rgba(201,169,110,0.3) 0%, transparent 60%)', borderRadius: '50%', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '20%', right: '20%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, rgba(164,132,194,0.3) 0%, transparent 60%)', borderRadius: '50%', pointerEvents: 'none' }} />
+        
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }} 
+          animate={{ scale: 1, opacity: 1 }} 
+          transition={{ type: 'spring', damping: 15 }}
+          style={{ textAlign: 'center', zIndex: 2, padding: 40 }}
+        >
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 120, height: 120, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(201,169,110,0.2), rgba(164,132,194,0.2))', border: '2px solid rgba(201,169,110,0.6)', marginBottom: 30, boxShadow: '0 0 60px rgba(201,169,110,0.5)' }}>
+            <Icons.Aura size={60} color="#C9A96E" />
+          </div>
+          <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: '0 0 16px', background: 'linear-gradient(135deg, #FFF, #C9A96E)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Welcome to Aura
+          </h1>
+          <p style={{ color: 'var(--muted)', fontSize: '1.2rem', maxWidth: 400, margin: '0 auto 40px', lineHeight: 1.6 }}>
+            Congratulations! You are now an exclusive Vlynxly Aura member. Enjoy your unlimited premium perks.
+          </p>
+          <button 
+            onClick={() => onUpgradeSuccess && onUpgradeSuccess()} 
+            style={{ padding: '18px 48px', borderRadius: 99, background: 'linear-gradient(135deg, #C9A96E, #a484c2)', color: '#000', fontWeight: 800, fontSize: '1.2rem', border: 'none', cursor: 'pointer', boxShadow: '0 8px 30px rgba(201,169,110,0.4)', transition: 'transform 0.2s' }}
+          >
+            Start Exploring
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   const features = [
     { icon: <Icons.Aura size={24} />, title: "AI Avatars & Aesthetics", desc: "Transform photos into magical avatars and unlock premium custom chat themes." },
