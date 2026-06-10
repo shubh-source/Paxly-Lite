@@ -79,12 +79,22 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
+            
+            # Merge frontend system prompts
+            frontend_system_prompt = ""
+            for m in data.messages:
+                if m.role == "system":
+                    frontend_system_prompt += "\n" + m.content
+            
+            final_system_prompt = dynamic_prompt + frontend_system_prompt
+
             model = genai.GenerativeModel(
                 model_name="gemini-2.5-flash",
-                system_instruction=dynamic_prompt
+                system_instruction=final_system_prompt
             )
             chat_history = []
             for m in data.messages[:-1]:
+                if m.role == "system": continue
                 parts = [m.content]
                 if m.attachments:
                     for att in m.attachments:
@@ -111,10 +121,21 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         try:
             # Fix surrogates that cause Groq python client to crash
-            clean_messages = [{"role": "system", "content": dynamic_prompt}]
+            clean_messages = []
+            
+            # Merge frontend system prompts into the dynamic prompt
+            frontend_system_prompt = ""
             for m in data.messages:
-                clean_content = m.content.encode('utf-16', 'surrogatepass').decode('utf-16')
-                clean_messages.append({"role": m.role, "content": clean_content})
+                if m.role == "system":
+                    frontend_system_prompt += "\n" + m.content
+                    
+            final_system_prompt = dynamic_prompt + frontend_system_prompt
+            clean_messages.append({"role": "system", "content": final_system_prompt})
+            
+            for m in data.messages:
+                if m.role != "system":
+                    clean_content = m.content.encode('utf-16', 'surrogatepass').decode('utf-16')
+                    clean_messages.append({"role": m.role, "content": clean_content})
 
             response = await client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
