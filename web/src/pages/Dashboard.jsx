@@ -71,16 +71,30 @@ export default function Dashboard() {
   return (
     <div className="page" style={{ paddingBottom: 100 }}>
       {/* Dynamic Background Effects */}
-      <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.08) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
-      <div style={{ position: 'fixed', bottom: '10%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+      {user?.role === 'admin' ? (
+        <>
+          <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.15) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'fixed', bottom: '10%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(164,132,194,0.1) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+        </>
+      ) : (
+        <>
+          <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.08) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'fixed', bottom: '10%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+        </>
+      )}
 
       {/* Hero Header */}
       <div style={{ padding: '40px 24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
         <div>
-          <p style={{ margin: '0 0 4px', fontSize: '0.9rem', color: 'var(--muted)', fontWeight: 500, letterSpacing: 1 }}>{greeting.toUpperCase()}</p>
+          <p style={{ margin: '0 0 4px', fontSize: '0.9rem', color: 'var(--muted)', fontWeight: 500, letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {greeting.toUpperCase()}
+            {user?.role === 'admin' && (
+              <span style={{ fontSize: '0.65rem', background: 'linear-gradient(135deg, #C9A96E, #a484c2)', color: '#000', padding: '2px 6px', borderRadius: 8, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5, boxShadow: '0 2px 10px rgba(201,169,110,0.3)' }}>VIP</span>
+            )}
+          </p>
           <h1 style={{ margin: 0, fontSize: '2.4rem', letterSpacing: '-1px', fontWeight: 700, lineHeight: 1 }}>
             Hey, <span style={{ 
-              background: 'linear-gradient(to right, var(--accent), #fff)', 
+              background: user?.role === 'admin' ? 'linear-gradient(135deg, #FFF, #C9A96E)' : 'linear-gradient(to right, var(--accent), #fff)', 
               WebkitBackgroundClip: 'text', 
               WebkitTextFillColor: 'transparent' 
             }}>{user?.name?.split(' ')[0]}</span>
@@ -212,35 +226,41 @@ export default function Dashboard() {
       <div style={{ padding: '0 24px', position: 'relative', zIndex: 1 }}>
         <p style={{ margin: '0 0 16px 4px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5 }}>QUICK ACCESS</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {CORE_QUICK.map((q, idx) => (
-            <Link key={q.to} to={q.to} style={{ textDecoration: 'none', gridColumn: q.full ? 'span 2' : 'span 1' }}>
-              <div className="card card-hover" style={{ 
-                padding: q.full ? '24px 28px' : '20px', 
+          {CORE_QUICK.map((item, i) => (
+            <Link 
+              key={i} 
+              to={item.to} 
+              className="card card-hover" 
+              style={{ 
+                gridColumn: item.full ? '1 / -1' : 'auto', 
+                padding: '20px', 
                 display: 'flex', 
-                flexDirection: q.full ? 'row' : 'column', 
-                gap: q.full ? 20 : 12, 
-                alignItems: q.full ? 'center' : 'flex-start',
+                alignItems: 'center', 
+                gap: 16, 
+                textDecoration: 'none', 
+                color: 'var(--text)',
                 background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: 24,
-                height: '100%'
-              }}>
+                border: user?.role === 'admin' ? '1px solid rgba(201,169,110,0.15)' : '1px solid rgba(255,255,255,0.05)',
+                boxShadow: user?.role === 'admin' ? '0 4px 20px rgba(201,169,110,0.05)' : 'none'
+              }}
+            >
                 <div style={{ 
                   background: 'rgba(255,255,255,0.04)', 
-                  width: q.full ? 56 : 48, 
-                  height: q.full ? 56 : 48, 
+                  width: item.full ? 56 : 48, 
+                  height: item.full ? 56 : 48, 
                   borderRadius: 16, 
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: q.full ? '1.8rem' : '1.5rem',
+                  fontSize: item.full ? '1.8rem' : '1.5rem',
                   boxShadow: '0 8px 20px rgba(0,0,0,0.2)'
                 }}>
-                  {q.icon}
+                  {item.icon}
                 </div>
                 <div>
-                  <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: q.full ? '1.1rem' : '0.95rem', color: '#fff' }}>{q.label}</p>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 500 }}>{q.sub}</p>
+                  <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: item.full ? '1.1rem' : '0.95rem', color: '#fff' }}>{item.label}</p>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 500 }}>{item.sub}</p>
                 </div>
-                {q.full && <span style={{ marginLeft: 'auto', color: 'var(--muted)', display: 'flex', opacity: 0.5 }}><Icons.Back size={18} style={{ transform: 'rotate(180deg)' }} /></span>}
+                {item.full && <span style={{ marginLeft: 'auto', color: 'var(--muted)', display: 'flex', opacity: 0.5 }}><Icons.Back size={18} style={{ transform: 'rotate(180deg)' }} /></span>}
               </div>
             </Link>
           ))}

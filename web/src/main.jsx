@@ -44,6 +44,7 @@ import OrderSuccess   from './pages/shop/OrderSuccess';
 import Notifications  from './pages/Notifications';
 import IconShowcase   from './pages/debug/IconShowcase';
 import Legal          from './pages/Legal';
+import AuraPerks      from './pages/premium/AuraPerks';
 
 function Guard({ children, needsPartner = false }) {
   const { user, loading } = useAuth();
@@ -112,6 +113,7 @@ function AnimatedRoutes() {
         <Route path="/profile"    element={<Guard needsPartner><Layout><Profile /></Layout></Guard>} />
         <Route path="/settings"   element={<Guard needsPartner><Layout><Settings /></Layout></Guard>} />
         <Route path="/settings-demo" element={<Guard needsPartner><Layout><SettingsDemo /></Layout></Guard>} />
+        <Route path="/aura-perks" element={<Guard needsPartner><Layout><AuraPerks /></Layout></Guard>} />
 
         {/* Core Couple Features */}
         <Route path="/chat"       element={<Guard needsPartner><Layout><Chat /></Layout></Guard>} />

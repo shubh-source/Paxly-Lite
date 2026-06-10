@@ -70,7 +70,7 @@ export function Profile() {
           </div>
           <h2 style={{ marginBottom: 4, fontSize: '1.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {user?.name}
-            {user?.is_premium && (
+            {user?.role === 'admin' && (
               <span style={{ fontSize: '0.7rem', background: 'linear-gradient(135deg, #C9A96E, #a484c2)', color: '#000', padding: '2px 8px', borderRadius: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1, boxShadow: '0 4px 10px rgba(201,169,110,0.3)' }}>VIP</span>
             )}
           </h2>
@@ -106,8 +106,8 @@ export function Profile() {
         {/* Action Links */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           
-          {user?.is_premium ? (
-            <button onClick={() => setShowPremium(true)} className="card card-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', textDecoration: 'none', color: '#C9A96E', background: 'rgba(201,169,110,0.1)', borderRadius: 24, border: '1px solid rgba(201,169,110,0.2)', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+          {user?.role === 'admin' && (
+            <button onClick={() => nav('/aura-perks')} className="card card-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', textDecoration: 'none', color: '#C9A96E', background: 'rgba(201,169,110,0.1)', borderRadius: 24, border: '1px solid rgba(201,169,110,0.2)', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,169,110,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icons.Aura size={20} color="#C9A96E" />
@@ -119,7 +119,9 @@ export function Profile() {
               </div>
               <span style={{ color: '#C9A96E', display: 'flex' }}><Icons.Back size={20} style={{ transform: 'rotate(180deg)' }} /></span>
             </button>
-          ) : (
+          )}
+
+          {!user?.is_premium && (
             <button onClick={() => setShowPremium(true)} className="card card-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', textDecoration: 'none', color: '#000', background: 'linear-gradient(135deg, var(--accent), var(--purple))', borderRadius: 24, border: 'none', cursor: 'pointer', boxShadow: '0 10px 30px rgba(201,169,110,0.3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -156,8 +158,7 @@ export function Profile() {
           onUpgradeSuccess={() => {
             setShowPremium(false);
             setUser({ ...user, is_premium: true });
-            setOk("Premium Activated! 🎉");
-            setTimeout(() => setOk(''), 5000);
+            nav('/aura-perks');
           }} 
         />
       )}
