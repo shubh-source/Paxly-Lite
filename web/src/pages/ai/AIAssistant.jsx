@@ -208,16 +208,8 @@ export default function AIAssistant() {
         const otherThreads = threads.filter(t => t.id !== activeThreadId).slice(0, 3);
         let pastMsgs = [];
         otherThreads.forEach(t => pastMsgs.push(...t.messages.slice(-4)));
-        if (pastMsgs.length > 0) {
-           globalContext += "Context from user's OTHER recent chats (do NOT mention you read this unless relevant): " + pastMsgs.map(m => m.content).join(' | ');
-        }
-      }
-      
-      // App Knowledge & Auto-Save Instruction
+      // App Knowledge
       globalContext += "\nApp Knowledge: Vlynxly Premium features: Deep Lab (counseling), Vibe Sites (webpages for partner), Stealth Mode, E2EE chats. You are Aura, the AI guide.";
-      if (user?.is_premium) {
-        globalContext += "\nCRITICAL: If the user tells you about an upcoming important date (birthday, anniversary, etc) and you want to remember it for them, you MUST include this exact string anywhere in your reply: [ACTION:SAVE_DATE|Event Title|YYYY-MM-DD]. Example: [ACTION:SAVE_DATE|Wife's Birthday|2026-11-20]. The system will intercept this and save it.";
-      }
 
       const aiRequestPayload = updated.map(m => {
         const payload = { role: m.role, content: m.content };
@@ -233,15 +225,6 @@ export default function AIAssistant() {
       const { reply } = await askAI(aiRequestPayload);
       
       let finalReply = reply;
-      const saveMatch = finalReply.match(/\[ACTION:SAVE_DATE\|([^|]+)\|([^\]]+)\]/);
-      if (saveMatch) {
-        finalReply = finalReply.replace(saveMatch[0], '').trim();
-        if (user?.is_premium) {
-          api.post('/dates/', { title: saveMatch[1].trim(), date: saveMatch[2].trim(), emoji: '⭐', recurring: true }).catch(() => {});
-          // Fetch fresh dates next time
-        }
-      }
-
       if (needsCounseling && !msgs.some(m => m.isLabPrompt)) {
         finalReply += "\n\nI can help you analyze the situation, but I'll need your **One-Time Permission** to read your recent chat history. Want me to request access for the last (7, 30, or 90) days?";
       }

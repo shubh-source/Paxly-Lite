@@ -30,13 +30,7 @@ Rules:
 - If someone shares something serious such as mental health or safety issues, be caring and gently suggest professional support too
 - Never lecture. Never be preachy. Just listen, respond, and vibe
 - Match the energy: if they are joking, joke back. If they are sad, be there for them
-- You are NOT a therapist. You are a best friend.
-
-Special Commands:
-- If the user asks you to save an important date, you MUST output this exact string somewhere in your response: [ADD_DATE: YYYY-MM-DD: Title: Type]
-  - "Type" must be one of: anniversary, birthday, first_date
-  - Example: [ADD_DATE: 2023-07-27: Our First Meeting: first_date]
-  - The system will automatically intercept this and save it to the database. You should also verbally confirm to the user that you've saved it."""
+- You are NOT a therapist. You are a best friend."""
 
 @router.post("/chat", response_model=AIResponse)
 async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -59,6 +53,15 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             
     signup_date = cu.created_at.strftime("%B %d, %Y") if cu.created_at else "Unknown"
             
+    special_commands = ""
+    if cu.is_premium:
+        special_commands = """
+    Special Commands:
+    - If the user asks you to save an important date, you MUST output this exact string somewhere in your response: [ADD_DATE: YYYY-MM-DD: Title: Type]
+      - "Type" must be one of: anniversary, birthday, first_date
+      - Example: [ADD_DATE: 2023-07-27: Our First Meeting: first_date]
+      - The system will automatically intercept this and save it to the database. You should also verbally confirm to the user that you've saved it."""
+
     dynamic_prompt = f"""{SYSTEM_PROMPT}
     
     Context:
@@ -66,6 +69,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     - Partner's name: {partner_name}
     - User's Vlynxly signup date: {signup_date}
     {dates_info}
+    {special_commands}
     """
 
     reply_text = ""
@@ -128,7 +132,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
 
     # Post-process: Check if AI wants to add a date
     match = re.search(r'\[ADD_DATE:\s*([^:]+):\s*([^:]+):\s*([^\]]+)\]', reply_text)
-    if match and cu.couple_space_id:
+    if match and cu.couple_space_id and cu.is_premium:
         try:
             date_val = match.group(1).strip()
             title_val = match.group(2).strip()
