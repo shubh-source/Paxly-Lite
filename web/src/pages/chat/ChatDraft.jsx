@@ -380,7 +380,6 @@ export default function ChatDraft() {
           z-index: 1;
         }
 
-        /* ── Input bar ── */
         .chat-input-bar {
           position: fixed;
           bottom: 0;
@@ -389,6 +388,7 @@ export default function ChatDraft() {
           z-index: 100;
           padding: 8px 16px;
           display: flex;
+          flex-direction: column;
           justify-content: center;
         }
         .chat-input-inner {

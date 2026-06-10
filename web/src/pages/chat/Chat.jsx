@@ -536,6 +536,7 @@ export default function Chat() {
           z-index: 100;
           padding: 8px 16px;
           display: flex;
+          flex-direction: column;
           justify-content: center;
         }
         .chat-input-inner {
@@ -1003,27 +1004,26 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           {/* Reply Banner */}
           {replyingTo && (
             <div style={{
-              background: 'rgba(20,20,20,0.85)',
-              backdropFilter: 'blur(12px)',
-              borderTopLeftRadius: '16px',
-              borderTopRightRadius: '16px',
-              padding: '10px 16px',
-              marginBottom: '-10px',
-              paddingBottom: '16px',
+              background: 'rgba(30, 30, 33, 0.9)',
+              borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
+              borderRadius: '8px',
+              padding: '10px 12px',
+              marginBottom: '8px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              border: `1px solid ${activeTheme.accent || '#C9A96E'}40`,
-              borderBottom: 'none',
-              transform: 'scale(0.89) translateY(10px)',
+              width: '100%',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <span style={{ color: activeTheme.accent || '#C9A96E', fontSize: '0.8rem', fontWeight: 600 }}>Replying to {replyingTo.sender_id === user?.id ? 'Yourself' : partner?.name || 'Partner'}</span>
-                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ color: activeTheme.accent || '#C9A96E', fontSize: '0.85rem', fontWeight: 700 }}>
+                  {replyingTo.sender_id === user?.id ? 'You' : partner?.name || 'Partner'}
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>
                   {replyingTo.message_type === 'image' ? '📷 Image' : replyingTo.message_type === 'video' ? '🎥 Video' : replyingTo.message_type === 'audio' ? '🎵 Voice Note' : replyingTo.text}
                 </span>
               </div>
-              <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 4 }}>
+              <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 8 }}>
                 <Icons.Close size={18} />
               </button>
             </div>
