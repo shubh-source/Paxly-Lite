@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { askAI } from '../../services/api';
+import api, { askAI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
@@ -17,8 +17,15 @@ export default function AIAssistant() {
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [importantDates, setImportantDates] = useState([]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+
+  useEffect(() => {
+    api.get('/dates/').then(res => {
+      if (Array.isArray(res.data)) setImportantDates(res.data);
+    }).catch(() => {});
+  }, []);
 
   // Load threads on mount
   useEffect(() => {
@@ -157,12 +164,15 @@ export default function AIAssistant() {
 
       // Global Context Injection
       let globalContext = '';
+      if (importantDates.length > 0) {
+        globalContext += "User's Important Dates (anniversaries, birthdays, etc): " + importantDates.map(d => `${d.title} on ${d.date}`).join(' | ') + ". ";
+      }
       if (threads.length > 0) {
         const otherThreads = threads.filter(t => t.id !== activeThreadId).slice(0, 3);
         let pastMsgs = [];
         otherThreads.forEach(t => pastMsgs.push(...t.messages.slice(-4)));
         if (pastMsgs.length > 0) {
-           globalContext = "Context from user's OTHER recent chats (do NOT mention you read this unless relevant): " + pastMsgs.map(m => m.content).join(' | ');
+           globalContext += "Context from user's OTHER recent chats (do NOT mention you read this unless relevant): " + pastMsgs.map(m => m.content).join(' | ');
         }
       }
 
