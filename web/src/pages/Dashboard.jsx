@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Icons } from '../components/ui/Icons';
 import api, { getTodayMoods, getSpace, getNotifications } from '../services/api';
+import NotificationService from '../services/NotificationService';
 
 const CORE_QUICK = [
   { to: '/chat',    icon: <Icons.Chat size={32} color="var(--accent)" />, label: 'Secret Chat',  sub: 'Encrypted & Private', full: true },
@@ -40,6 +41,11 @@ export default function Dashboard() {
     // Fetch AI Suggestions (dates, apologies, etc)
     api.get('/dates/').then(res => {
       if (!Array.isArray(res.data)) return;
+      
+      NotificationService.requestPermissions().then(() => {
+        NotificationService.scheduleAnniversaryNotifications(res.data);
+      });
+
       const today = new Date();
       const upcoming = res.data.find(d => {
         const annDate = new Date(d.date);

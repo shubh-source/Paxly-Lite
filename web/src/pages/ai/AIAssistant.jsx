@@ -23,7 +23,44 @@ export default function AIAssistant() {
 
   useEffect(() => {
     api.get('/dates/').then(res => {
-      if (Array.isArray(res.data)) setImportantDates(res.data);
+      if (Array.isArray(res.data)) {
+        setImportantDates(res.data);
+        
+        // Proactive AI check
+        const today = new Date();
+        const upcoming = res.data.find(d => {
+          if (!d.date) return false;
+          const annDate = new Date(d.date);
+          annDate.setFullYear(today.getFullYear());
+          if (annDate < today) annDate.setFullYear(today.getFullYear() + 1);
+          const diff = Math.ceil((annDate - today) / (1000 * 60 * 60 * 24));
+          return diff >= 0 && diff <= 7;
+        });
+
+        if (upcoming) {
+          const cacheKey = `paxly_aura_proactive_${upcoming.id}`;
+          const lastReminded = localStorage.getItem(cacheKey);
+          
+          if (!lastReminded || (today.getTime() - parseInt(lastReminded)) > 7 * 24 * 60 * 60 * 1000) {
+            setTimeout(() => {
+              const annDate = new Date(upcoming.date);
+              annDate.setFullYear(today.getFullYear());
+              if (annDate < today) annDate.setFullYear(today.getFullYear() + 1);
+              const diff = Math.ceil((annDate - today) / (1000 * 60 * 60 * 24));
+              
+              const daysText = diff === 0 ? "TODAY" : `in ${diff} days`;
+              const msg = `Hey! Mujhe yaad aaya ki aapka **${upcoming.title}** aa raha hai ${daysText}! 🎉\nKya humein iske liye koi special surprise, gift ya Vibe Site plan karni chahiye?`;
+              
+              setMsgs(prev => {
+                if (prev.some(m => m.content === msg)) return prev;
+                return [...prev, { role: 'assistant', content: msg }];
+              });
+              
+              localStorage.setItem(cacheKey, today.getTime().toString());
+            }, 1000);
+          }
+        }
+      }
     }).catch(() => {});
   }, []);
 

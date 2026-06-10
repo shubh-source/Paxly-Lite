@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
+import NotificationService from '../../services/NotificationService';
 import { Icons } from '../../components/ui/Icons';
 
 const EMOJIS = ['💍', '🎂', '❤️', '🌹', '✈️', '🏠', '🐾', '🎉', '📅', '⭐'];
@@ -26,6 +27,9 @@ export default function AnniversaryTracker() {
     try {
       const { data } = await api.get('/dates/');
       setDates(data);
+      if (Array.isArray(data)) {
+        NotificationService.scheduleAnniversaryNotifications(data);
+      }
     } catch (err) {
       console.error("Failed to fetch dates", err);
     }
