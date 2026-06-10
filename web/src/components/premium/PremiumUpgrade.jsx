@@ -93,7 +93,7 @@ export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
               <Icons.Diamond size={40} color="#C9A96E" />
             </div>
             <h1 style={{ fontSize: '2.5rem', fontWeight: 800, margin: '0 0 10px', background: 'linear-gradient(135deg, #FFF, #C9A96E)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Vlynxly VIP
+              Vlynxly Aura
             </h1>
             <p style={{ color: 'var(--muted)', fontSize: '1.1rem', maxWidth: 400, margin: '0 auto' }}>
               The ultimate uncompromised experience. Unlock everything.
@@ -171,7 +171,7 @@ export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
                 gap: 10
               }}
             >
-              {loading ? <Icons.Loader size={20} className="spin" /> : <><Icons.Diamond size={20} /> Upgrade to VIP</>}
+              {loading ? <Icons.Loader size={20} className="spin" /> : <><Icons.Diamond size={20} /> Upgrade to Aura</>}
             </button>
           </div>
         </motion.div>

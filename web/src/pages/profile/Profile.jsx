@@ -101,14 +101,27 @@ export function Profile() {
         {/* Action Links */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           
-          {!user?.is_premium && (
+          {user?.is_premium ? (
+            <button onClick={() => setShowPremium(true)} className="card card-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', textDecoration: 'none', color: '#C9A96E', background: 'rgba(201,169,110,0.1)', borderRadius: 24, border: '1px solid rgba(201,169,110,0.2)', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,169,110,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icons.Aura size={20} color="#C9A96E" />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ fontWeight: 800, fontSize: '1rem', display: 'block', color: '#fff' }}>Vlynxly Aura Member</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.8, fontWeight: 500 }}>Tap to view your exclusive perks</span>
+                </div>
+              </div>
+              <span style={{ color: '#C9A96E', display: 'flex' }}><Icons.Back size={20} style={{ transform: 'rotate(180deg)' }} /></span>
+            </button>
+          ) : (
             <button onClick={() => setShowPremium(true)} className="card card-hover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', textDecoration: 'none', color: '#000', background: 'linear-gradient(135deg, var(--accent), var(--purple))', borderRadius: 24, border: 'none', cursor: 'pointer', boxShadow: '0 10px 30px rgba(201,169,110,0.3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icons.Diamond size={20} color="#fff" />
                 </div>
                 <div style={{ textAlign: 'left' }}>
-                  <span style={{ fontWeight: 800, fontSize: '1rem', display: 'block' }}>Upgrade to Premium</span>
+                  <span style={{ fontWeight: 800, fontSize: '1rem', display: 'block' }}>Unlock Vlynxly Aura</span>
                   <span style={{ fontSize: '0.8rem', opacity: 0.8, fontWeight: 500 }}>Unlock VIP Features</span>
                 </div>
               </div>
