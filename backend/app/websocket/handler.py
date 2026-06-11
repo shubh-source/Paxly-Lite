@@ -125,6 +125,24 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                         "type": "typing", "user_id": user_id, "is_typing": payload.get("is_typing", False)
                     }, exclude_user=user_id)
 
+                elif p_type == "reaction":
+                    message_id = payload.get("message_id")
+                    emoji = payload.get("emoji")
+                    if message_id and emoji:
+                        msg = await db.execute(select(Message).filter(Message.id == message_id))
+                        msg = msg.scalars().first()
+                        if msg:
+                            new_reactions = dict(msg.reactions or {})
+                            new_reactions[user_id] = emoji
+                            msg.reactions = new_reactions
+                            await db.commit()
+                            await manager.send_to_space(space_id, {
+                                "type": "reaction",
+                                "message_id": message_id,
+                                "user_id": user_id,
+                                "emoji": emoji
+                            })
+
                 elif p_type == "mood_update":
                     await manager.send_to_space(space_id, {
                         "type": "mood_update", "user_id": user_id, 
