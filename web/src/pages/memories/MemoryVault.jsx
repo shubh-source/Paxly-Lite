@@ -17,13 +17,29 @@ export function MemoryVault() {
   const [partnerName, setPartnerName] = useState('Partner');
 
   useEffect(() => { 
-    // Fetch manually saved memories (messages)
-    getMemories().then(setMemories);
-    
-    // Fetch photos
-    import('../../services/api').then(module => {
-        module.default.get('/memories/media?type=image').then(res => setPhotos(res.data)).catch(console.error);
-        module.default.get('/memories/media?type=video').then(res => setVideos(res.data)).catch(console.error);
+    getMemories().then(data => {
+      // Only keep text memories for the "Messages" tab
+      const texts = data.filter(m => !m.image_url);
+      setMemories(texts);
+
+      // Route explicitly saved media into Photos / Videos
+      const savedMedia = data.filter(m => m.image_url);
+      const savedPhotos = savedMedia.filter(m => !m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
+      const savedVideos = savedMedia.filter(m => m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
+
+      import('../../services/api').then(module => {
+          module.default.get('/memories/media?type=image').then(res => {
+              const allPhotos = [...savedPhotos, ...res.data];
+              const uniquePhotos = Array.from(new Map(allPhotos.map(item => [item.image_url, item])).values());
+              setPhotos(uniquePhotos);
+          }).catch(console.error);
+
+          module.default.get('/memories/media?type=video').then(res => {
+              const allVideos = [...savedVideos, ...res.data];
+              const uniqueVideos = Array.from(new Map(allVideos.map(item => [item.image_url, item])).values());
+              setVideos(uniqueVideos);
+          }).catch(console.error);
+      });
     });
     
     const offs = [

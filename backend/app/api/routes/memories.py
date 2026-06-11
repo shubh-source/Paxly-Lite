@@ -152,6 +152,7 @@ async def get_chat_media(type: str = "image", cu: User = Depends(get_current_use
         .filter(Message.couple_space_id == space_id)
         .filter(Message.message_type == type)
         .filter(Message.media_url.isnot(None))
+        .filter(Message.is_once_view == False)
         .order_by(Message.timestamp.desc())
     )
     mems = result.scalars().all()

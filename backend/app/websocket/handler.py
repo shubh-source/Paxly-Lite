@@ -66,21 +66,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                         reply_to_id=payload.get("reply_to_id")
                     )
                     
-                    # Auto-save image to memory vault if not once-view
-                    if msg.media_url and not msg.is_once_view and msg.message_type in ["image", "video"]:
-                        from app.models.orm import Memory
-                        mem = Memory(
-                            id=str(uuid.uuid4()),
-                            couple_space_id=space_id,
-                            title="Chat Memory",
-                            description="Automatically saved from chat",
-                            date=msg.timestamp.strftime("%Y-%m-%d"),
-                            image_url=msg.media_url,
-                            created_by=user_id,
-                            created_at=msg.timestamp
-                        )
-                        db.add(mem)
-                        
                     # Auto-save audio to voice notes
                     if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
                         from app.models.orm import VoiceNote
