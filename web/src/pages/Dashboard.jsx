@@ -23,12 +23,24 @@ export default function Dashboard() {
   const [suggestion, setSuggestion] = useState(null);
   const [hasUnread, setHasUnread] = useState(false);
 
+const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'}, low:{emoji:'😔'}, support:{emoji:'🤗'} };
+
   useEffect(() => {
     getNotifications().then(data => {
       if (data.some(n => !n.read)) setHasUnread(true);
     }).catch(() => {});
 
-    getTodayMoods().then(setMoods).catch(() => {});
+    getTodayMoods().then(data => {
+      if (Array.isArray(data)) {
+        const myMoodObj = data.find(m => m.user_id === user?.id);
+        const partnerMoodObj = data.find(m => m.user_id !== user?.id);
+        setMoods({
+          my_mood: myMoodObj ? MOODS[myMoodObj.mood_type] : null,
+          partner_mood: partnerMoodObj ? MOODS[partnerMoodObj.mood_type] : null
+        });
+      }
+    }).catch(() => {});
+
     getSpace().then(d => setPartner(d.partner)).catch(() => {});
     
     // Fetch shared note alerts
