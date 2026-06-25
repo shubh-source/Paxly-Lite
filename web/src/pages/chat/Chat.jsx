@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { wsService } from '../../services/websocket';
 import api, { getMessages, getSpace, uploadMedia } from '../../services/api';
 import { format } from 'date-fns';
+import { encryptMessage, decryptMessage, encryptMediaBlob } from '../../services/crypto';
+import EncryptedMedia from '../../components/chat/EncryptedMedia';
 import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
 import VoiceNotePlayer from '../../components/chat/VoiceNotePlayer';
@@ -122,16 +124,32 @@ export default function Chat() {
       localStorage.setItem('cached_partner', JSON.stringify(d.partner));
       setSpace(d.space);
       localStorage.setItem('cached_space', JSON.stringify(d));
+      
+      // Decrypt history once partner info is available
+      const sk = localStorage.getItem('paxly_sk');
+      const pk = d.partner?.public_key;
+      getMessages(0, 500).then(data => {
+        const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const decryptedMsgs = sorted.map(m => {
+          if (m.message_type === 'text' && m.text && sk && pk) {
+            m.text = decryptMessage(m.text, sk, pk);
+          }
+          return m;
+        });
+        setMsgs(decryptedMsgs);
+        localStorage.setItem('cached_messages', JSON.stringify(decryptedMsgs));
+        setLoadingHistory(false);
+      }).catch(() => setLoadingHistory(false));
     });
-    getMessages(0, 500).then(data => {
-      const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      setMsgs(sorted);
-      localStorage.setItem('cached_messages', JSON.stringify(sorted));
-      setLoadingHistory(false);
-    }).catch(() => setLoadingHistory(false));
 
     const offs = [
       wsService.on('chat_message', msg => {
+        const sk = localStorage.getItem('paxly_sk');
+        const pk = JSON.parse(localStorage.getItem('cached_partner'))?.public_key;
+        if (msg.message_type === 'text' && msg.text && sk && pk) {
+           msg.text = decryptMessage(msg.text, sk, pk);
+        }
+        
         setMsgs(p => {
           if (msg.sender_id === user?.id) {
             const optIdx = p.findIndex(m => m.isOptimistic && m.message_type === msg.message_type && (m.message_type === 'text' ? m.text === msg.text : true));
@@ -234,10 +252,11 @@ export default function Chat() {
     setSending(true);
     
     // OPTIMISTIC UPDATE
+    const rawText = text.trim();
     const tempMsg = {
       id: `temp_${Date.now()}`,
       sender_id: user?.id,
-      text: text.trim(),
+      text: rawText,
       message_type: 'text',
       timestamp: new Date().toISOString(),
       isOptimistic: true,
@@ -245,7 +264,17 @@ export default function Chat() {
     };
     setMsgs(p => [...p, tempMsg]);
 
-    wsService.sendMessage(text.trim(), 'text', null, false, 1, replyingTo?.id);
+    const sk = localStorage.getItem('paxly_sk');
+    const pk = partner?.public_key;
+    let payloadText = rawText;
+    
+    if (sk && pk) {
+       payloadText = encryptMessage(rawText, sk, pk);
+    } else {
+       console.warn("Missing E2EE keys, sending plaintext fallback");
+    }
+
+    wsService.sendMessage(payloadText, 'text', null, false, 1, replyingTo?.id);
     setText('');
     setReplyingTo(null);
     setSending(false);
@@ -258,6 +287,19 @@ export default function Chat() {
   const onFileSelect = e => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Premium Check: File Size limits
+    const limitMB = user?.is_premium ? 50 : 5;
+    if (file.size > limitMB * 1024 * 1024) {
+      if (!user?.is_premium && file.size <= 50 * 1024 * 1024) {
+        alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB).\n\nFree users are limited to 5MB.\n💎 Upgrade to Premium for 50MB High-Fidelity uploads!`);
+      } else {
+        alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). The limit is ${limitMB}MB.`);
+      }
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+
     setPendingFile(file);
     setShowGallerySecureModal(true);
   };
@@ -297,9 +339,19 @@ export default function Chat() {
             setRecordState('preview');
           } else if (action === 'send') {
             setRecordState('idle');
-            const file = new File([blob], 'voice_note.webm', { type: 'audio/webm' });
+            setSending(true);
+            const { encryptedBlob, symmetricKey } = await encryptMediaBlob(blob);
+            const file = new File([encryptedBlob], 'voice_note.webm', { type: 'audio/webm' });
             const { media_url } = await uploadMedia(file);
-            wsService.sendMessage('', 'audio', media_url, false, 0);
+            
+            const sk = localStorage.getItem('paxly_sk');
+            const pk = partner?.public_key;
+            let payloadText = `E2EE_KEY:${symmetricKey}`;
+            if (sk && pk) {
+               payloadText = encryptMessage(payloadText, sk, pk);
+            }
+            wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
+            setSending(false);
           }
         } else {
           setRecordState('idle');
@@ -360,9 +412,17 @@ export default function Chat() {
     setSending(true);
     setRecordState('idle');
     try {
-      const file = new File([audioPreviewBlob], 'voice_note.webm', { type: 'audio/webm' });
+      const { encryptedBlob, symmetricKey } = await encryptMediaBlob(audioPreviewBlob);
+      const file = new File([encryptedBlob], 'voice_note.webm', { type: 'audio/webm' });
       const { media_url } = await uploadMedia(file);
-      wsService.sendMessage('', 'audio', media_url, false, 0);
+      
+      const sk = localStorage.getItem('paxly_sk');
+      const pk = partner?.public_key;
+      let payloadText = `E2EE_KEY:${symmetricKey}`;
+      if (sk && pk) {
+         payloadText = encryptMessage(payloadText, sk, pk);
+      }
+      wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
     } catch (err) {}
     setAudioPreviewBlob(null);
     setAudioPreviewUrl(null);
@@ -403,7 +463,8 @@ export default function Chat() {
     setMsgs(p => [...p, tempMsg]);
 
     try {
-      const { media_url } = await uploadMedia(f);
+      const { encryptedBlob, symmetricKey } = await encryptMediaBlob(f);
+      const { media_url } = await uploadMedia(encryptedBlob);
       const isOnceView = mode !== 'standard' && mode !== 'permanent';
       const limit      = mode === 'twice' ? 2 : 1;
       let finalUrl     = media_url;
@@ -413,7 +474,15 @@ export default function Chat() {
         finalUrl = (import.meta.env.VITE_API_URL || '') + media_url;
       }
       const type = f.type?.startsWith('video') ? 'video' : 'image';
-      wsService.sendMessage('', type, finalUrl, isOnceView, limit, replyingTo?.id);
+      
+      const sk = localStorage.getItem('paxly_sk');
+      const pk = partner?.public_key;
+      let payloadText = `E2EE_KEY:${symmetricKey}`;
+      if (sk && pk) {
+         payloadText = encryptMessage(payloadText, sk, pk);
+      }
+
+      wsService.sendMessage(payloadText, type, finalUrl, isOnceView, limit, replyingTo?.id);
       setReplyingTo(null);
     } catch (err) {
       alert('Upload failed: ' + (err.response?.data?.detail || err.message));
@@ -433,7 +502,7 @@ export default function Chat() {
   const onSecurityEvent = async action => {
     if (!viewingSecureMsg) return;
     try {
-      await axios.post(`/api/chat/messages/${viewingSecureMsg.id}/secure-event?action=${action}`);
+      await api.post(`/chat/messages/${viewingSecureMsg.id}/secure-event?action=${action}`);
       if (action === 'view')
         setMsgs(p => p.map(m => m.id === viewingSecureMsg.id ? { ...m, views_used: m.views_used + 1 } : m));
       else if (action === 'compromise')
@@ -452,7 +521,7 @@ export default function Chat() {
     } catch {}
     // Save to server (best-effort)
     try {
-      await axios.patch('/api/chat/space/theme', { theme_id: id });
+      await api.patch('/chat/space/theme', { theme_id: id });
     } catch (err) {
       console.warn('Theme save to server failed (UI already updated):', err?.response?.data || err.message);
     }
@@ -818,7 +887,15 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             const isSecure      = msg.is_once_view;
             const isSpent       = isSecure && msg.views_used >= msg.view_limit;
             const isCompromised = msg.is_compromised;
-            const isMedia       = msg.message_type === 'image' || msg.message_type === 'video';
+            const isMedia       = msg.message_type === 'image' || msg.message_type === 'video' || msg.message_type === 'audio';
+            
+            let encryptionKey = null;
+            if (isMedia && msg.text && msg.text.startsWith('E2EE_KEY:')) {
+               encryptionKey = msg.text.substring(9);
+            }
+            
+            // For texts, if it starts with E2EE_KEY:, we don't display it.
+            const displayMsgText = (msg.message_type === 'text' || !msg.message_type) && (!msg.text?.startsWith('E2EE_KEY:'));
 
             return (
               <div
@@ -951,14 +1028,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
                     ) : (
                       <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
-                        <div style={{ position: 'relative' }}>
-                          <video src={fixUrl(msg.media_url)} controls={!msg.isUploading} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12, opacity: msg.isUploading ? 0.5 : 1 }} />
-                          {msg.isUploading && (
-                            <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', background:'rgba(0,0,0,0.6)', padding:'10px 16px', borderRadius:'20px', color:'#fff', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px' }}>
-                              <Icons.Loader size={16} className="spin" /> Sending...
-                            </div>
-                          )}
-                        </div>
+                        <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
                       </MediaWrap>
                     ))}
 
@@ -967,14 +1037,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
                     ) : (
                       <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
-                        <div style={{ position: 'relative' }}>
-                          <img src={fixUrl(msg.media_url)} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12, opacity: msg.isUploading ? 0.5 : 1 }} />
-                          {msg.isUploading && (
-                            <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', background:'rgba(0,0,0,0.6)', padding:'10px 16px', borderRadius:'20px', color:'#fff', fontSize:'0.8rem', display:'flex', alignItems:'center', gap:'8px' }}>
-                              <Icons.Loader size={16} className="spin" /> Sending...
-                            </div>
-                          )}
-                        </div>
+                        <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
                         {!me && (
                           <button
                             onClick={e => { e.stopPropagation(); requestSave(msg); }}
@@ -988,11 +1051,11 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                     {/* AUDIO */}
                     {msg.message_type === 'audio' && (
-                      <VoiceNotePlayer src={msg.media_url} isMe={me} theme={activeTheme} />
+                      <VoiceNotePlayer src={msg.media_url} isMe={me} theme={activeTheme} encryptionKey={encryptionKey} />
                     )}
 
                     {/* TEXT */}
-                    {(!msg.message_type || msg.message_type === 'text') && (
+                    {displayMsgText && (
                       <span style={{ fontSize:'0.96rem', whiteSpace:'pre-wrap', lineHeight:1.55 }}>{msg.text}</span>
                     )}
 

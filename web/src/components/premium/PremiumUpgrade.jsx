@@ -22,6 +22,25 @@ export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
     try {
       const order = await createPremiumOrder();
       
+      if (order.id.startsWith("order_mock_")) {
+        // Mock payment flow for local testing without real Razorpay keys
+        setTimeout(async () => {
+          try {
+            await verifyPremiumPayment({
+              razorpay_order_id: order.id,
+              razorpay_payment_id: "pay_mock_12345",
+              razorpay_signature: "mock_signature"
+            });
+            setShowSuccess(true);
+          } catch (e) {
+            alert('Mock verification failed.');
+          } finally {
+            setLoading(false);
+          }
+        }, 1500); // simulate network delay
+        return;
+      }
+      
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SZlNsaYYbenJQA',
         amount: order.amount,
@@ -93,12 +112,12 @@ export default function PremiumUpgrade({ onUpgradeSuccess, onCancel }) {
   }
 
   const features = [
-    { icon: <Icons.Aura size={24} />, title: "Proactive AI & Auto-Save", desc: "Aura will remind you of upcoming dates and auto-save special moments told in chat." },
     { icon: <Icons.Heart size={24} />, title: "Deep Relationship Lab", desc: "Unlimited AI counseling, emotional tracking, and bond analysis." },
-    { icon: <Icons.Gallery size={24} />, title: "Cinematic Love Pages", desc: "Host infinite beautiful interactive websites for your partner." },
-    { icon: <Icons.Camera size={24} />, title: "Ultra HD Media Sharing", desc: "Share high-quality 10MB videos and photos without heavy compression." },
-    { icon: <Icons.Shield size={24} />, title: "Stealth & Privacy Pro", desc: "Advanced blur-sensitive filters, invisible mode, and intruder alerts." },
-    { icon: <Icons.Diamond size={24} />, title: "VIP Identity", desc: "Exclusive golden profile badge and priority fast-lane support." },
+    { icon: <Icons.Gallery size={24} />, title: "High-Fidelity Vault", desc: "Upload uncompressed 4K media up to 50MB per file to your Memory Vault." },
+    { icon: <Icons.Shield size={24} />, title: "Stealth Mode & Fake PIN", desc: "Disguise the app as a functional calculator with a secret PIN to protect your privacy." },
+    { icon: <Icons.LoveNote size={24} />, title: "Time-Capsule Love Notes", desc: "Send beautiful love notes that are securely locked until a specific future date." },
+    { icon: <Icons.Smile size={24} />, title: "Mood Sync History", desc: "Unlock the full emotional timeline to see exactly how your partner has been feeling over time." },
+    { icon: <Icons.Mic size={24} />, title: "Voice Note Organization", desc: "Unlock unlimited voice note renaming to keep all your audio memories perfectly organized." },
   ];
 
   return (

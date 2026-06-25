@@ -66,7 +66,20 @@ export default function AILab() {
     setLoading(true);
     setPhase('analyzing');
     try {
-      const res = await startAISession(days);
+      const cached = localStorage.getItem('cached_messages');
+      const cachedMsgs = cached ? JSON.parse(cached) : [];
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      
+      const filtered = cachedMsgs.filter(m => 
+        m.message_type === 'text' && 
+        m.text && 
+        new Date(m.timestamp) >= cutoff
+      );
+      
+      const chat_history = filtered.map(m => `${m.sender_id === user.id ? 'Partner 1' : 'Partner 2'}: ${m.text}`).join('\n');
+      
+      const res = await startAISession(days, chat_history);
       setSessionId(res.session_id);
       setMsgs([{ role: 'assistant', content: "Hello. I have analyzed your recent chat history. To help me understand your perspective better, could you tell me how you've been feeling about the relationship recently? What do you feel is the main thing we should address?" }]);
       setPhase('interview');

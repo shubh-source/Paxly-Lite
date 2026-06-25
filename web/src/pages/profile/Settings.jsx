@@ -307,8 +307,21 @@ function PrivacySub({ user, setUser, onBack }) {
       </header>
       <div className="content" style={{ maxWidth: 500, padding: '0 20px' }}>
         <Category title="Visual Privacy">
-          <SettingRow icon={<Icons.Aura size={20} />} title="Stealth Mode" desc="Disguises app title & icon as 'Notes'" 
+          <SettingRow icon={<Icons.Aura size={20} />} title="Stealth Mode" desc="Disguises app title & lock screen" 
             right={<Toggle value={user?.stealth_mode} onChange={v => update('stealth_mode', v)} />} />
+          {user?.stealth_mode && (
+            <div style={{ padding: '0 20px 16px', marginTop: '-8px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 8 }}>Disguise Lock Screen As</label>
+              <select 
+                value={user?.stealth_mode_app || 'calculator'} 
+                onChange={e => update('stealth_mode_app', e.target.value)}
+                style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, outline: 'none' }}
+              >
+                <option value="calculator" style={{ background: '#111' }}>Calculator (Math App)</option>
+              </select>
+              <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: 'var(--purple)' }}>Enter your PIN on the calculator and press '=' to unlock.</p>
+            </div>
+          )}
           <Divider />
           <SettingRow icon={<Icons.Vault size={20} />} title="Media Blurring" desc="Blur images in chat until tapped" 
             right={<Toggle value={user?.blur_sensitive} onChange={v => update('blur_sensitive', v)} />} />

@@ -30,12 +30,15 @@ class WSService {
     
     const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
     const wsHost = apiUrl.replace(/^https?:\/\//, '');
-    const wsUrl = `${wsProtocol}//${wsHost}/ws?token=${token}`;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
     
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
       console.log('✅ WebSocket connected');
+      // Send token in payload instead of URL for better security
+      this.send({ type: 'auth', token: token });
+      
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;

@@ -66,33 +66,56 @@ export default function AIAssistant() {
 
   // Load threads on mount
   useEffect(() => {
-    const cachedThreads = localStorage.getItem('paxly_aura_threads');
-    if (cachedThreads) {
+    const initThreads = async () => {
       try {
-        const parsed = JSON.parse(cachedThreads);
-        setThreads(parsed);
-        if (parsed.length > 0) {
-          setActiveThreadId(parsed[0].id);
-          setMsgs(parsed[0].messages || []);
-        }
-      } catch(e) {}
-    } else {
-      // Migrate old array
-      const oldCached = localStorage.getItem('paxly_aura_chat_history');
-      if (oldCached) {
-        try {
-          const oldMsgs = JSON.parse(oldCached);
-          if (oldMsgs.length > 0) {
-            const newThread = { id: 'thread_' + Date.now(), title: oldMsgs[0].content.substring(0, 30) + '...', messages: oldMsgs, updated_at: Date.now() };
-            setThreads([newThread]);
-            setActiveThreadId(newThread.id);
-            setMsgs(oldMsgs);
-            localStorage.setItem('paxly_aura_threads', JSON.stringify([newThread]));
-            localStorage.removeItem('paxly_aura_chat_history');
+        const { data } = await api.get('/ai/threads');
+        if (data && data.length > 0) {
+          setThreads(data);
+          setActiveThreadId(data[0].id);
+          setMsgs(data[0].messages || []);
+          localStorage.setItem('paxly_aura_threads', JSON.stringify(data));
+        } else {
+          // Fallback to local and sync up if server is empty
+          let parsed = [];
+          const cachedThreads = localStorage.getItem('paxly_aura_threads');
+          if (cachedThreads) {
+            parsed = JSON.parse(cachedThreads);
+          } else {
+            const oldCached = localStorage.getItem('paxly_aura_chat_history');
+            if (oldCached) {
+              const oldMsgs = JSON.parse(oldCached);
+              if (oldMsgs.length > 0) {
+                parsed = [{ id: 'thread_' + Date.now(), title: oldMsgs[0].content.substring(0, 30) + '...', messages: oldMsgs, updated_at: Date.now() }];
+                localStorage.removeItem('paxly_aura_chat_history');
+              }
+            }
           }
-        } catch(e) {}
+          if (parsed.length > 0) {
+            setThreads(parsed);
+            setActiveThreadId(parsed[0].id);
+            setMsgs(parsed[0].messages || []);
+            localStorage.setItem('paxly_aura_threads', JSON.stringify(parsed));
+            // Sync up
+            parsed.forEach(t => api.post('/ai/threads/sync', {id: t.id, title: t.title, messages: t.messages}).catch(()=>{}));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load threads from server", err);
+        // Load local on error
+        const cachedThreads = localStorage.getItem('paxly_aura_threads');
+        if (cachedThreads) {
+          try {
+            const parsed = JSON.parse(cachedThreads);
+            setThreads(parsed);
+            if (parsed.length > 0) {
+              setActiveThreadId(parsed[0].id);
+              setMsgs(parsed[0].messages || []);
+            }
+          } catch(e) {}
+        }
       }
-    }
+    };
+    initThreads();
   }, []);
 
   // Sync active thread messages
@@ -108,12 +131,23 @@ export default function AIAssistant() {
         return next;
       });
       setActiveThreadId(id);
+      api.post('/ai/threads/sync', {id, title, messages: msgs}).catch(()=>{});
     } else {
+      let currentThread = null;
       setThreads(prev => {
-        const next = prev.map(t => t.id === activeThreadId ? { ...t, messages: msgs, updated_at: Date.now() } : t);
+        const next = prev.map(t => {
+          if (t.id === activeThreadId) {
+            currentThread = { ...t, messages: msgs, updated_at: Date.now() };
+            return currentThread;
+          }
+          return t;
+        });
         localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
         return next;
       });
+      if (currentThread) {
+        api.post('/ai/threads/sync', {id: currentThread.id, title: currentThread.title, messages: currentThread.messages}).catch(()=>{});
+      }
     }
   }, [msgs, activeThreadId]);
 
@@ -267,6 +301,25 @@ export default function AIAssistant() {
     }
   };
 
+  const handleDeepAnalytics = async () => {
+    if (!user?.is_premium) {
+      setShowPremiumModal(true);
+      return;
+    }
+    setLoading(true);
+    try {
+      const { getDeepAnalytics } = await import('../../services/api');
+      const data = await getDeepAnalytics();
+      setMsgs(prev => [...prev, {
+        role: 'assistant',
+        content: `**Deep Relationship Analytics Report** 🧠\n\n**Engagement Score:** ${data.engagement_score}/100\n\n**Analysis:**\n${data.analysis}\n\n**Proactive Suggestion:**\n${data.proactive_suggestion}`
+      }]);
+    } catch (err) {
+      setMsgs(prev => [...prev, { role: 'assistant', content: "Failed to generate Deep Analytics. " + (err.response?.data?.detail || err.message) }]);
+    }
+    setLoading(false);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
 
@@ -286,6 +339,7 @@ export default function AIAssistant() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={handleDeepAnalytics} style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600, background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}>Analytics</button>
           <Link to="/ai/lab" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', background: 'rgba(201,169,110,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(201,169,110,0.2)' }}>Deep Lab</Link>
         </div>
       </header>

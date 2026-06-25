@@ -35,7 +35,8 @@ def user_to_out(u: User) -> UserOut:
         ai_personality=u.ai_personality,
         milestone_alerts=u.milestone_alerts,
         avatar_url=u.avatar_url,
-        has_pin=bool(u.app_pin)
+        has_pin=bool(u.app_pin),
+        public_key=u.public_key
     )
 
 @router.post("/register", response_model=Token, status_code=201)
@@ -48,6 +49,7 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
         name=data.name.strip(),
         email=data.email.lower(),
         password=hash_password(data.password),
+        public_key=data.public_key,
         role=data.role if data.role in ["user", "partner"] else "user",
         business_category=data.business_category
     )
@@ -92,6 +94,11 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
             
         await db.commit()
         raise HTTPException(status_code=401, detail=f"Invalid email or password. ({failures}/3 attempts used)")
+
+    if data.public_key and data.public_key != user.public_key:
+        await db.execute(update(User).where(User.id == user.id).values(public_key=data.public_key))
+        await db.commit()
+        user.public_key = data.public_key
 
     token = create_access_token({"sub": str(user.id)})
     return Token(access_token=token, user=user_to_out(user))

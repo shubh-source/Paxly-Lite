@@ -15,6 +15,7 @@ class NoteCreate(BaseModel):
     title: str
     content: str
     color: Optional[str] = "#ffffff"
+    unlock_at: Optional[datetime] = None
     share_with_partner: bool = False
     display_hours: Optional[int] = 24 # How long to show on partner's dashboard
 
@@ -33,6 +34,7 @@ async def create_note(data: NoteCreate, cu: User = Depends(get_current_user), db
         title=data.title,
         content=data.content,
         color=data.color,
+        unlock_at=data.unlock_at,
         is_newly_shared=data.share_with_partner,
         shared_display_until=until
     )
@@ -51,7 +53,14 @@ async def get_notes(cu: User = Depends(get_current_user), db: AsyncSession = Dep
         .filter(Note.couple_space_id == cu.couple_space_id)
         .order_by(Note.is_pinned.desc(), Note.updated_at.desc())
     )
-    return result.scalars().all()
+    notes = result.scalars().all()
+    now = datetime.utcnow()
+    # Strip content for locked notes to guarantee security
+    for note in notes:
+        if note.unlock_at and note.unlock_at > now:
+            note.content = ""
+            
+    return notes
 
 @router.get("/dashboard-alerts")
 async def get_dashboard_notes(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { deriveKeyFromPassword, generateKeyPair } from '../../services/crypto';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,7 +27,16 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      const data = await login(email, password);
+      // 1. E2EE Key Generation
+      const derivedKey = await deriveKeyFromPassword(password, email);
+      const { publicKey, secretKey } = generateKeyPair(derivedKey);
+      
+      // 2. Login and send public_key to server to update/ensure it's latest
+      const data = await login(email, password, publicKey);
+      
+      // 3. Save secret key locally
+      localStorage.setItem('paxly_sk', secretKey);
+      
       loginUser(data.access_token, data.user);
       navigate('/dashboard', { replace: true });
     } catch (err) {

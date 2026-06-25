@@ -20,18 +20,32 @@ export default function AnniversaryTracker() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', date: '', emoji: '💍', note: '', recurring: true });
   const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  useEffect(() => { fetchDates(); }, []);
+  useEffect(() => { 
+    // Load from cache first for instant UX
+    const cached = localStorage.getItem('cached_dates');
+    if (cached) {
+      try {
+        setDates(JSON.parse(cached));
+        setInitialLoad(false);
+      } catch {}
+    }
+    fetchDates(); 
+  }, []);
 
   const fetchDates = async () => {
     try {
       const { data } = await api.get('/dates/');
+      localStorage.setItem('cached_dates', JSON.stringify(data));
       setDates(data);
       if (Array.isArray(data)) {
         NotificationService.scheduleAnniversaryNotifications(data);
       }
     } catch (err) {
       console.error("Failed to fetch dates", err);
+    } finally {
+      setInitialLoad(false);
     }
   };
 
@@ -141,7 +155,12 @@ export default function AnniversaryTracker() {
       )}
 
       <div style={{ padding: '10px 20px' }}>
-        {sorted.length === 0 ? (
+        {initialLoad ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '100px 0', opacity: 0.7 }}>
+            <div className="spin" style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(201,169,110,0.2)', borderTopColor: 'var(--accent)' }}></div>
+            <p style={{ marginTop: 16, color: 'var(--muted)', fontSize: '0.9rem' }}>Loading timeline...</p>
+          </div>
+        ) : sorted.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.8 }}>
             <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.Milestone size={64} color="var(--accent)" stroke={1} /></div>
             <h3 style={{ marginBottom: 8 }}>Your timeline is empty</h3>

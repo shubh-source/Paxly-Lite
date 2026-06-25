@@ -14,11 +14,11 @@ api.interceptors.request.use(cfg => {
 });
 
 // Auth
-export const register = (name, email, password) =>
-  api.post('/auth/register', { name, email, password }).then(r => r.data);
+export const register = (name, email, password, public_key) =>
+  api.post('/auth/register', { name, email, password, public_key }).then(r => r.data);
 
-export const login = (email, password) =>
-  api.post('/auth/login', { email, password }).then(r => r.data);
+export const login = (email, password, public_key) =>
+  api.post('/auth/login', { email, password, public_key }).then(r => r.data);
 
 export const getMe = () =>
   api.get('/auth/me').then(r => r.data);
@@ -105,8 +105,8 @@ export const askAI = (messages) =>
 export const getActiveAISession = () =>
   api.get('/ai/session/active').then(r => r.data);
 
-export const startAISession = (days) =>
-  api.post('/ai/session/start', { days }).then(r => r.data);
+export const startAISession = (days, chat_history) =>
+  api.post('/ai/session/start', { days, chat_history }).then(r => r.data);
 
 export const sendAIInterviewMessage = (session_id, message) =>
   api.post('/ai/session/interview', { session_id, message }).then(r => r.data);
@@ -114,6 +114,7 @@ export const sendAIInterviewMessage = (session_id, message) =>
 export const finishAIInterview = (sessionId, pov) => 
   api.post('/ai/session/finish-interview', null, { params: { session_id: sessionId, pov } }).then(r => r.data);
 export const getAIHistory = () => api.get('/ai/session/history').then(r => r.data);
+export const getDeepAnalytics = () => api.get('/ai/analytics').then(r => r.data);
 
 // Notifications
 export const getNotifications = () =>

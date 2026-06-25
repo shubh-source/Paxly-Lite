@@ -130,10 +130,11 @@ export default function AppGuard({ children }) {
   };
 
   const handleKey = (num) => {
-    if (pin.length < 4) {
+    if (pin.length < 6) {
       const newPin = pin + num;
       setPin(newPin);
-      if (newPin.length === 4) {
+      const isCalculator = user?.stealth_mode && user?.stealth_mode_app === 'calculator';
+      if (!isCalculator && newPin.length === 4) {
         verifyPin(newPin);
       }
     }
@@ -168,11 +169,29 @@ export default function AppGuard({ children }) {
 
   return (
     <>
-      <div style={{ display: showLock ? 'none' : 'flex', flex: 1, flexDirection: 'column', width: '100%', minHeight: '100vh' }}>
-        {children}
-      </div>
+      {!showLock && (
+        <div style={{ display: 'flex', flex: 1, flexDirection: 'column', width: '100%', minHeight: '100vh' }}>
+          {children}
+        </div>
+      )}
 
       {showLock && (
+        user?.stealth_mode && user?.stealth_mode_app === 'calculator' ? (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#000', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, padding: '40px 20px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'flex-end' }}>
+              <div style={{ fontSize: '4.5rem', color: '#fff', fontWeight: 300, letterSpacing: 2 }}>{pin || '0'}</div>
+            </div>
+            <div style={{ padding: '0 16px 32px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+              {['AC', '+/-', '%', '÷'].map(k => <button key={k} onClick={() => setPin('')} style={{ aspectRatio: '1', background: '#a5a5a5', color: '#000', border: 'none', borderRadius: '50%', fontSize: '1.6rem', cursor: 'pointer' }}>{k}</button>)}
+              {['7', '8', '9', '×'].map(k => <button key={k} onClick={() => ['×'].includes(k) ? null : handleKey(k)} style={{ aspectRatio: '1', background: k==='×' ? '#FF9F0A' : '#333', color: k==='×' ? '#fff' : '#fff', border: 'none', borderRadius: '50%', fontSize: '1.6rem', cursor: 'pointer' }}>{k}</button>)}
+              {['4', '5', '6', '-'].map(k => <button key={k} onClick={() => ['-'].includes(k) ? null : handleKey(k)} style={{ aspectRatio: '1', background: k==='-' ? '#FF9F0A' : '#333', color: '#fff', border: 'none', borderRadius: '50%', fontSize: '1.6rem', cursor: 'pointer' }}>{k}</button>)}
+              {['1', '2', '3', '+'].map(k => <button key={k} onClick={() => ['+'].includes(k) ? null : handleKey(k)} style={{ aspectRatio: '1', background: k==='+' ? '#FF9F0A' : '#333', color: '#fff', border: 'none', borderRadius: '50%', fontSize: '1.6rem', cursor: 'pointer' }}>{k}</button>)}
+              <button onClick={() => handleKey('0')} style={{ gridColumn: 'span 2', aspectRatio: '2.2', background: '#333', color: '#fff', border: 'none', borderRadius: 40, fontSize: '1.6rem', textAlign: 'left', paddingLeft: 28, cursor: 'pointer' }}>0</button>
+              <button onClick={() => null} style={{ aspectRatio: '1', background: '#333', color: '#fff', border: 'none', borderRadius: '50%', fontSize: '1.6rem', cursor: 'pointer' }}>.</button>
+              <button onClick={() => verifyPin()} disabled={pinLoading} style={{ aspectRatio: '1', background: '#FF9F0A', color: '#fff', border: 'none', borderRadius: '50%', fontSize: '1.6rem', cursor: 'pointer' }}>=</button>
+            </div>
+          </div>
+        ) : (
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: '#0D0D0F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{ marginBottom: 16 }}>
@@ -220,7 +239,7 @@ export default function AppGuard({ children }) {
           .pin-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.1); }
         `}</style>
       </div>
-      )}
+      ))}
 
       {incomingCall && (
         <div style={{

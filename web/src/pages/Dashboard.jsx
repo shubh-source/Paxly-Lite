@@ -41,7 +41,10 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       }
     }).catch(() => {});
 
-    getSpace().then(d => setPartner(d.partner)).catch(() => {});
+    try {
+      const p = JSON.parse(localStorage.getItem('cached_partner'));
+      if (p) setPartner(p);
+    } catch {}
     
     // Fetch shared note alerts
     api.get('/notes/dashboard-alerts')
@@ -51,17 +54,15 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       .catch(() => {});
 
     // Fetch AI Suggestions (dates, apologies, etc)
-    api.get('/dates/').then(res => {
-      if (!Array.isArray(res.data)) return;
-      
+    const checkDates = (data) => {
+      if (!Array.isArray(data)) return;
       if (user?.is_premium) {
         NotificationService.requestPermissions().then(() => {
-          NotificationService.scheduleAnniversaryNotifications(res.data);
+          NotificationService.scheduleAnniversaryNotifications(data);
         });
       }
-
       const today = new Date();
-      const upcoming = res.data.find(d => {
+      const upcoming = data.find(d => {
         const annDate = new Date(d.date);
         annDate.setFullYear(today.getFullYear());
         const diff = (annDate - today) / (1000 * 60 * 60 * 24);
@@ -75,7 +76,14 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
           action: '/website/vibe'
         });
       }
-    }).catch(() => {});
+    };
+
+    const cachedDates = localStorage.getItem('cached_dates');
+    if (cachedDates) {
+      try { checkDates(JSON.parse(cachedDates)); } catch {}
+    } else {
+      api.get('/dates/').then(res => checkDates(res.data)).catch(() => {});
+    }
   }, [partner?.name]);
 
   const dismissNote = async (id) => {

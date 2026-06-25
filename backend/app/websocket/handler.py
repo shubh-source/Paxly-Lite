@@ -22,7 +22,26 @@ async def get_user_from_token(token: str, db: AsyncSession):
     except Exception: return None
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    
+    # Wait for the first authentication payload
+    try:
+        auth_msg = await websocket.receive_text()
+        auth_payload = json.loads(auth_msg)
+        if auth_payload.get("type") != "auth":
+            await websocket.close(code=4001, reason="Expected auth message first")
+            return
+            
+        token = auth_payload.get("token")
+        if not token:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+            
+    except Exception:
+        await websocket.close(code=4001, reason="Invalid auth format")
+        return
+
     user_id = None
     space_id = None
     try:

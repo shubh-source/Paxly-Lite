@@ -28,6 +28,10 @@ def get_razorpay_client():
 
 @router.post("/create-order")
 async def create_order(req: CreateOrderRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if settings.RAZORPAY_KEY_ID == "placeholder_id" or not settings.RAZORPAY_KEY_ID:
+        # Mock response for local development without actual keys
+        return {"id": "order_mock_" + user.id[:8], "amount": req.amount * 100, "currency": req.currency}
+        
     client = get_razorpay_client()
     try:
         # Create Order
@@ -53,6 +57,12 @@ async def create_order(req: CreateOrderRequest, user: User = Depends(get_current
 
 @router.post("/verify")
 async def verify_payment(req: VerifyPaymentRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if req.razorpay_order_id.startswith("order_mock_") or settings.RAZORPAY_KEY_ID == "placeholder_id":
+        # Mock verification
+        await db.execute(update(User).where(User.id == user.id).values(is_premium=True))
+        await db.commit()
+        return {"status": "success", "message": "Mock payment verified and Premium unlocked!"}
+
     client = get_razorpay_client()
     try:
         # Verify Signature

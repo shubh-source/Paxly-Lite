@@ -124,6 +124,7 @@ function AnimatedRoutes() {
         <Route path="/shop"       element={<Guard needsPartner><Layout><LoveShop /></Layout></Guard>} />
         <Route path="/shop/checkout" element={<Guard needsPartner><Layout><Checkout /></Layout></Guard>} />
         <Route path="/voice"         element={<Guard needsPartner><Layout><VoiceNotes /></Layout></Guard>} />
+        <Route path="/notes"         element={<Guard needsPartner><Layout><LoveNotes /></Layout></Guard>} />
         <Route path="/shop/success"  element={<Guard needsPartner><Layout><OrderSuccess /></Layout></Guard>} />
         
         <Route path="/notifications" element={<Guard needsPartner><Layout><Notifications /></Layout></Guard>} />

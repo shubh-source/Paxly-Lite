@@ -120,7 +120,7 @@ async def get_space(cu: User = Depends(get_current_user), db: AsyncSession = Dep
         "space_id": cu.couple_space_id,
         "created_at": space.created_at,
         "allow_media_save": space.allow_media_save,
-        "partner": {"id": partner.id, "name": partner.name, "email": partner.email, "avatar_url": partner.avatar_url} if partner else None
+        "partner": {"id": partner.id, "name": partner.name, "email": partner.email, "avatar_url": partner.avatar_url, "public_key": partner.public_key} if partner else None
     }
 
 @router.patch("/privacy")

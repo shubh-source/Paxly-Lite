@@ -4,7 +4,8 @@ from app.models.schemas import AIRequest, AIResponse, AISessionStart, AIIntervie
 from app.core.security import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.orm import User, AICounselingSession, Message, Notification, Anniversary
+from app.models.orm import User, AICounselingSession, Message, Notification, Anniversary, AIChatThread
+from app.core.encryption import encrypt_data, decrypt_data
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, desc
@@ -179,10 +180,8 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
 
 # ── COUNSELING SESSION LOGIC ────────────────────────────────
 
-async def summarize_history(messages: list) -> str:
-    from app.core.encryption import decrypt_data
-    formatted = "\n".join([f"{m.sender_name or m.sender_id}: {decrypt_data(m.text)}" for m in messages if m.text])
-    prompt = f"Analyze this chat history between a couple. Summarize the recurring themes, their emotional tone, and identify the main points of friction:\n\n{formatted}"
+async def summarize_history(history_text: str) -> str:
+    prompt = f"Analyze this chat history between a couple. Summarize the recurring themes, their emotional tone, and identify the main points of friction:\n\n{history_text}"
     
     system = "You are a senior relationship analyst. Your tone is extremely friendly, warm, and insightful."
     
@@ -241,24 +240,20 @@ async def get_session_history(cu: User = Depends(get_current_user), db: AsyncSes
 async def start_session(data: AISessionStart, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not cu.couple_space_id: raise HTTPException(400, "Partner connection required.")
     
-    # 1. Fetch History
-    since = datetime.utcnow() - timedelta(days=data.days)
-    res = await db.execute(select(Message).filter(Message.couple_space_id == cu.couple_space_id, Message.timestamp >= since).order_by(Message.timestamp))
-    msgs = res.scalars().all()
-    
-    if not msgs: raise HTTPException(400, "No chat history found for this period.")
+    if not data.chat_history:
+        raise HTTPException(400, "No chat history provided.")
 
-    # 2. Summarize
+    # 2. Generate Summary
     try:
-        synopsis = await summarize_history(msgs)
+        summary = await summarize_history(data.chat_history)
     except Exception as e:
-        raise HTTPException(500, f"AI Error: {str(e)}")
+        raise HTTPException(500, f"AI generation failed: {str(e)}")
     
     # 3. Create Session
     session = AICounselingSession(
         couple_space_id=cu.couple_space_id,
         history_window_days=data.days,
-        history_synopsis=synopsis,
+        history_synopsis=summary,
         partner_a_id=cu.id,
         partner_b_id=cu.partner_id,
         status="interviewing"
@@ -381,3 +376,136 @@ async def finalize_session(session: AICounselingSession, db: AsyncSession):
     
     await db.commit()
     return report_data
+
+@router.get("/analytics")
+async def deep_analytics(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not cu.is_premium:
+        raise HTTPException(403, "Premium feature only")
+    if not cu.couple_space_id:
+        raise HTTPException(400, "Partner connection required.")
+
+    # 1. Fetch last 30 days chat metadata
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    messages_res = await db.execute(select(Message).filter(
+        Message.couple_space_id == cu.couple_space_id,
+        Message.timestamp >= thirty_days_ago
+    ))
+    messages = messages_res.scalars().all()
+    
+    # Generate metadata summary (no actual message content to save tokens, or maybe just message counts and types)
+    user_msg_count = sum(1 for m in messages if m.sender_id == cu.id)
+    partner_msg_count = len(messages) - user_msg_count
+    total_images = sum(1 for m in messages if m.message_type == 'image')
+    total_videos = sum(1 for m in messages if m.message_type == 'video')
+
+    # 2. Fetch Dates
+    dates_res = await db.execute(select(Anniversary).filter(Anniversary.couple_space_id == cu.couple_space_id))
+    dates = dates_res.scalars().all()
+    dates_info = "Important Dates:\n" + "\n".join([f"- {d.title} ({d.type}): {d.date}" for d in dates]) if dates else "No important dates saved."
+
+    prompt = f"""Generate a Deep Relationship Analytics report.
+    
+    DATA (Last 30 Days):
+    - User messages sent: {user_msg_count}
+    - Partner messages sent: {partner_msg_count}
+    - Photos shared: {total_images}
+    - Videos shared: {total_videos}
+    - {dates_info}
+    
+    As Aura, the relationship counselor, analyze this engagement data and any upcoming dates.
+    Output in JSON format ONLY with these keys:
+    - engagement_score: a number out of 100
+    - analysis: a paragraph analyzing their digital communication balance
+    - proactive_suggestion: a highly actionable, creative suggestion for a date or surprise based on this data.
+    """
+
+    system = "You are Aura, a world-class relationship AI. Provide a structured JSON analysis based ONLY on the provided metadata. Your tone should be extremely friendly, warm, and insightful. Output ONLY raw JSON."
+
+    report_data = None
+    if settings.GOOGLE_API_KEY:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            resp = await model.generate_content_async(prompt)
+            cleaned = resp.text.strip()
+            if cleaned.startswith("```json"): cleaned = cleaned[7:]
+            if cleaned.startswith("```"): cleaned = cleaned[3:]
+            if cleaned.endswith("```"): cleaned = cleaned[:-3]
+            report_data = json.loads(cleaned.strip())
+        except Exception as e:
+            print(f"Gemini fallback error: {e}")
+            pass
+            
+    if not report_data and settings.GROQ_API_KEY:
+        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        resp = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
+        )
+        report_data = json.loads(resp.choices[0].message.content)
+        
+    if not report_data:
+        raise HTTPException(500, "Could not generate deep analytics report")
+
+    return report_data
+
+class AIThreadSyncRequest(BaseModel):
+    id: str
+    title: str
+    messages: list
+
+@router.get("/threads")
+async def get_threads(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(AIChatThread).filter(AIChatThread.user_id == cu.id).order_by(desc(AIChatThread.updated_at))
+    )
+    threads = result.scalars().all()
+    
+    decrypted_threads = []
+    for t in threads:
+        try:
+            # Decrypt the payload
+            decrypted_json = decrypt_data(t.encrypted_messages)
+            msgs = json.loads(decrypted_json) if decrypted_json else []
+            decrypted_threads.append({
+                "id": t.id,
+                "title": t.title,
+                "messages": msgs,
+                "updated_at": int(t.updated_at.timestamp() * 1000)
+            })
+        except Exception as e:
+            print(f"Error decrypting thread {t.id}: {e}")
+            pass
+            
+    return decrypted_threads
+
+@router.post("/threads/sync")
+async def sync_thread(req: AIThreadSyncRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    # Encrypt the messages array
+    json_msgs = json.dumps(req.messages)
+    encrypted_msgs = encrypt_data(json_msgs)
+    
+    # Upsert logic
+    result = await db.execute(select(AIChatThread).filter(AIChatThread.id == req.id))
+    existing = result.scalars().first()
+    
+    if existing:
+        if existing.user_id != cu.id:
+            raise HTTPException(403, "Unauthorized")
+        existing.title = req.title
+        existing.encrypted_messages = encrypted_msgs
+        existing.updated_at = datetime.utcnow()
+    else:
+        new_thread = AIChatThread(
+            id=req.id,
+            user_id=cu.id,
+            title=req.title,
+            encrypted_messages=encrypted_msgs,
+            updated_at=datetime.utcnow()
+        )
+        db.add(new_thread)
+        
+    await db.commit()
+    return {"status": "success"}

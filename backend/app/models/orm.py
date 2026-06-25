@@ -22,6 +22,9 @@ class User(Base):
     device_bound_at = Column(DateTime, nullable=True)
     avatar_url = Column(String, nullable=True)
 
+    # E2EE Key Management
+    public_key = Column(String, nullable=True)
+
     # Couple logic
     couple_space_id = Column(String, nullable=True)
     partner_id = Column(String, nullable=True)
@@ -44,6 +47,7 @@ class User(Base):
 
     # Premium Preferences
     stealth_mode = Column(Boolean, default=False)
+    stealth_mode_app = Column(String, default="calculator") # 'calculator', 'weather', etc.
     blur_sensitive = Column(Boolean, default=False)
     hide_activity = Column(Boolean, default=False)
     ai_personality = Column(String, default="compassionate")
@@ -231,6 +235,15 @@ class AICounselingSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
+class AIChatThread(Base):
+    __tablename__ = "ai_chat_threads"
+    id = Column(String, primary_key=True)
+    user_id = Column(String, index=True)
+    title = Column(String)
+    # The entire messages array will be JSON stringified and encrypted.
+    encrypted_messages = Column(Text) 
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
 class LovePage(Base):
     __tablename__ = "love_pages"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -276,6 +289,7 @@ class Note(Base):
     is_pinned = Column(Boolean, default=False)
     is_newly_shared = Column(Boolean, default=False)
     is_opened = Column(Boolean, default=False) # Track unboxing
+    unlock_at = Column(DateTime, nullable=True) # Time-Capsule Love Notes
     shared_display_until = Column(DateTime, nullable=True) # Banner disappears after this
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

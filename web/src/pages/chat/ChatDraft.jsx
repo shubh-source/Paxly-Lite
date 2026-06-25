@@ -192,6 +192,19 @@ export default function ChatDraft() {
   const onFileSelect = e => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Premium Check: File Size limits
+    const limitMB = user?.is_premium ? 50 : 5;
+    if (file.size > limitMB * 1024 * 1024) {
+      if (!user?.is_premium && file.size <= 50 * 1024 * 1024) {
+        alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB).\n\nFree users are limited to 5MB.\n💎 Upgrade to Premium for 50MB High-Fidelity uploads!`);
+      } else {
+        alert(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). The limit is ${limitMB}MB.`);
+      }
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+
     setPendingFile(file);
     setShowGallerySecureModal(true);
   };

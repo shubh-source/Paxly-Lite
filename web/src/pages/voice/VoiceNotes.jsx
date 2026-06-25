@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
 
 function formatTime(seconds) {
@@ -93,11 +94,13 @@ function VoicePlayer({ id, url, customName, fromName, createdAt, size, onDelete,
 }
 
 export default function VoiceNotes() {
+  const { user } = useAuth();
   const nav = useNavigate();
   const [notes, setNotes] = useState([]);
   const [recording, setRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -109,16 +112,29 @@ export default function VoiceNotes() {
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
 
-  useEffect(() => { fetchNotes(); }, [searchQuery, fromDate, toDate]);
+  useEffect(() => { 
+    // Load from cache first for instant UX
+    const cached = localStorage.getItem('cached_voicenotes');
+    if (cached) {
+      try {
+        setNotes(JSON.parse(cached));
+        setLoading(false);
+      } catch {}
+    }
+    fetchNotes(); 
+  }, [searchQuery, fromDate, toDate]);
 
   const fetchNotes = async () => {
     try {
       const { data } = await api.get('/voice-notes/', {
         params: { query: searchQuery, from_date: fromDate, to_date: toDate }
       });
+      localStorage.setItem('cached_voicenotes', JSON.stringify(data));
       setNotes(data);
     } catch (err) {
       console.error("Failed to fetch voice notes", err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -177,10 +193,28 @@ export default function VoiceNotes() {
   };
 
   const renameNote = async (id, current) => {
+    // Premium Gating: 10 renames per month for free users
+    if (!user?.is_premium) {
+      const monthKey = `paxly_renames_${new Date().toISOString().slice(0, 7)}`;
+      let count = parseInt(localStorage.getItem(monthKey) || '0', 10);
+      if (count >= 10) {
+        alert("💎 You've used all 10 free Voice Note renames this month. Upgrade to Premium for unlimited organization and customization!");
+        return;
+      }
+    }
+
     const newName = prompt('Enter a name for this recording:', current || '');
     if (newName === null) return;
     try {
       await api.patch(`/voice-notes/${id}/rename`, { custom_name: newName });
+      
+      // Increment counter for free users
+      if (!user?.is_premium) {
+        const monthKey = `paxly_renames_${new Date().toISOString().slice(0, 7)}`;
+        let count = parseInt(localStorage.getItem(monthKey) || '0', 10);
+        localStorage.setItem(monthKey, (count + 1).toString());
+      }
+      
       fetchNotes();
     } catch (err) {
       alert('Failed to rename');
@@ -252,7 +286,12 @@ export default function VoiceNotes() {
 
       {/* Voice notes list */}
       <div style={{ padding: '0 20px' }}>
-        {notes.length === 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0', opacity: 0.7 }}>
+            <div className="spin" style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(201,169,110,0.2)', borderTopColor: 'var(--accent)' }}></div>
+            <p style={{ marginTop: 16, color: 'var(--muted)', fontSize: '0.9rem' }}>Loading whispers...</p>
+          </div>
+        ) : notes.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', opacity: 0.7 }}>
             <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.Mic size={64} color="var(--accent)" stroke={1} /></div>
             <h3 style={{ marginBottom: 8 }}>Silent space</h3>

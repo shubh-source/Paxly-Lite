@@ -7,12 +7,14 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    public_key: Optional[str] = None
     role: Optional[str] = "user"
     business_category: Optional[str] = None # theatre | restaurant | cafe
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    public_key: Optional[str] = None
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
@@ -35,6 +37,7 @@ class UserOut(BaseModel):
     business_category: Optional[str] = None
     created_at: datetime
     has_pin: bool = False
+    public_key: Optional[str] = None
 
 # ── Auth ──────────────────────────────────────────────────────
 class Token(BaseModel):
@@ -135,6 +138,7 @@ class AIResponse(BaseModel):
 # ── AI Counseling Lab ──────────────────────────────────────────
 class AISessionStart(BaseModel):
     days: int
+    chat_history: str = None
 
 class AIInterviewRequest(BaseModel):
     session_id: str

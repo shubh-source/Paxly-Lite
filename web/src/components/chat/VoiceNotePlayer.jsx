@@ -1,11 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Icons } from '../ui/Icons';
+import { decryptMediaBlob } from '../../services/crypto';
 
-export default function VoiceNotePlayer({ src, isMe, theme }) {
+export default function VoiceNotePlayer({ src, isMe, theme, encryptionKey }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [localSrc, setLocalSrc] = useState(src);
   const audioRef = useRef(null);
+
+  useEffect(() => {
+    if (encryptionKey && src) {
+      fetch(src)
+        .then(res => res.blob())
+        .then(blob => decryptMediaBlob(blob, encryptionKey))
+        .then(decryptedBlob => {
+          const url = URL.createObjectURL(decryptedBlob);
+          setLocalSrc(url);
+        })
+        .catch(err => console.error("Audio decryption failed:", err));
+    }
+  }, [src, encryptionKey]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -56,7 +71,7 @@ export default function VoiceNotePlayer({ src, isMe, theme }) {
   
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 220 }} onClick={e => e.stopPropagation()}>
-      <audio ref={audioRef} src={src} preload="metadata" />
+      <audio ref={audioRef} src={localSrc} preload="metadata" />
       
       {/* Play/Pause Button */}
       <button 

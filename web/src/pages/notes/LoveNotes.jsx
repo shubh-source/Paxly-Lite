@@ -12,6 +12,7 @@ export default function LoveNotes() {
   const [showForm, setShowForm] = useState(false);
   const [content, setContent] = useState('');
   const [mood, setMood] = useState('💌');
+  const [unlockDate, setUnlockDate] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => { fetchNotes(); }, []);
@@ -29,9 +30,14 @@ export default function LoveNotes() {
     if (!content.trim()) return;
     setLoading(true);
     try {
-      await api.post('/notes/', { content, mood });
+      await api.post('/notes/', { 
+        title: mood, 
+        content,
+        unlock_at: unlockDate ? new Date(unlockDate).toISOString() : null
+      });
       setContent(''); 
       setMood('💌'); 
+      setUnlockDate('');
       setShowForm(false);
       await fetchNotes();
     } catch (err) {
@@ -139,6 +145,27 @@ export default function LoveNotes() {
                 marginBottom: 20
               }}
             />
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', marginBottom: 8, color: 'var(--muted)', fontSize: '0.9rem', fontWeight: 600 }}>Lock as Time Capsule (Optional)</label>
+              <input 
+                type="datetime-local" 
+                value={unlockDate}
+                onChange={e => setUnlockDate(e.target.value)}
+                style={{ 
+                  width: '100%', 
+                  padding: '12px 16px', 
+                  background: 'rgba(255,255,255,0.03)', 
+                  border: '1px solid rgba(255,255,255,0.1)', 
+                  borderRadius: 16, 
+                  color: '#fff',
+                  fontFamily: 'var(--font-b)',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }} 
+              />
+              <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--purple)' }}>If set, the note will remain a locked gift box until this exact time.</p>
+            </div>
             
             <button className="btn btn-p btn-full" onClick={send} disabled={loading || !content.trim()} style={{ padding: '16px', borderRadius: 18, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               {loading ? 'Sending...' : (
@@ -183,23 +210,41 @@ export default function LoveNotes() {
                   visibility: (!note.is_opened && note.created_by !== localStorage.getItem('ros_user_id')) ? 'hidden' : 'visible' 
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: '1.8rem' }}>{note.mood}</span>
+                    <span style={{ fontSize: '1.8rem' }}>{note.title || '💌'}</span>
                     <div>
-                      <span style={{ fontSize: '0.88rem', color: 'var(--accent)', fontWeight: 600, display: 'block' }}>{note.from_name}</span>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--accent)', fontWeight: 600, display: 'block' }}>{note.sender_name || 'Partner'}</span>
                       <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{new Date(note.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                   <button onClick={() => deleteNote(note.id)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--muted)', cursor: 'pointer', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Trash size={16} /></button>
                 </div>
-                <p style={{ 
-                  margin: 0, 
-                  lineHeight: 1.7, 
-                  fontSize: '1rem', 
-                  color: 'var(--text)',
-                  visibility: (!note.is_opened && note.created_by !== localStorage.getItem('ros_user_id')) ? 'hidden' : 'visible' 
-                }}>
-                  {note.content}
-                </p>
+                {note.unlock_at && new Date(note.unlock_at) > new Date() ? (
+                  <div style={{ 
+                    padding: 20, 
+                    background: 'rgba(0,0,0,0.2)', 
+                    borderRadius: 16, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 16, 
+                    border: '1px dashed rgba(201,169,110,0.3)' 
+                  }}>
+                    <Icons.Lock size={32} color="var(--muted)" />
+                    <div>
+                      <h4 style={{ margin: '0 0 4px', color: 'var(--accent)' }}>Time Capsule Locked</h4>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>Unlocks on {new Date(note.unlock_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ 
+                    margin: 0, 
+                    lineHeight: 1.7, 
+                    fontSize: '1rem', 
+                    color: 'var(--text)',
+                    visibility: (!note.is_opened && note.created_by !== localStorage.getItem('ros_user_id')) ? 'hidden' : 'visible' 
+                  }}>
+                    {note.content}
+                  </p>
+                )}
               </div>
             ))}
           </div>

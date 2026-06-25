@@ -110,15 +110,28 @@ async def secure_event(message_id: str, action: str, cu: User = Depends(get_curr
             msg.views_used += 1
             if msg.views_used >= msg.view_limit:
                 # Delete from storage
-                filename = msg.media_url.split("/")[-1]
-                await storage.delete_file(filename, "chat")
-                # Note: We don't delete the DB record so the sender knows it was viewed.
+                if msg.media_url:
+                    try:
+                        filename = msg.media_url.split("/")[-1]
+                        await storage.delete_file(filename, "chat")
+                    except Exception as e:
+                        print(f"Failed to delete {msg.media_url}: {e}")
+                # True Server-Side Ephemeral: Wipe content from database
+                msg.text = None
+                msg.media_url = None
 
     elif action == "compromise":
         msg.is_compromised = True
         # Immediately delete from storage
-        filename = msg.media_url.split("/")[-1]
-        await storage.delete_file(filename, "chat")
+        if msg.media_url:
+            try:
+                filename = msg.media_url.split("/")[-1]
+                await storage.delete_file(filename, "chat")
+            except Exception as e:
+                print(f"Failed to delete {msg.media_url}: {e}")
+        # Wipe content from database
+        msg.text = None
+        msg.media_url = None
 
     await db.commit()
     return {"ok": True, "views_used": msg.views_used}

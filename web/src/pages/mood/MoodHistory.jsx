@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getMoodHistory } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
+import { Icons } from '../../components/ui/Icons';
 
 
 const MOODS = { happy:{emoji:'😊',color:'#F59E0B',label:'Happy'}, calm:{emoji:'😌',color:'#6EE7B7',label:'Calm'}, neutral:{emoji:'😐',color:'#94A3B8',label:'Neutral'}, low:{emoji:'😔',color:'#818CF8',label:'Low'}, support:{emoji:'🤗',color:'#F87171',label:'Need Support'} };
@@ -10,8 +12,44 @@ export default function MoodHistory() {
   const { user } = useAuth();
   const [moods, setMoods] = useState([]);
   const [filter, setFilter] = useState('both');
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
 
-  useEffect(() => { getMoodHistory(60).then(setMoods); }, []);
+  useEffect(() => { 
+    if (user?.is_premium) {
+      getMoodHistory(60).then(setMoods); 
+    }
+  }, [user?.is_premium]);
+
+  if (!user?.is_premium) {
+    return (
+      <div className="page" style={{ paddingBottom:80 }}>
+        <header className="header" style={{ background:'rgba(22,22,24,0.4)', borderBottom:'1px solid rgba(255,255,255,0.05)', margin:'20px 20px 12px', borderRadius:'24px', padding:'16px 20px', boxShadow:'0 10px 30px rgba(0,0,0,0.3)' }}>
+          <Link to="/mood" style={{ color:'var(--muted)', fontSize:'1.2rem', padding:'0 8px', textDecoration:'none' }}>←</Link>
+          <span className="header-title" style={{ color:'var(--text)' }}>Mood History</span>
+          <div style={{ width:32 }} />
+        </header>
+        <div className="content center" style={{ textAlign: 'center', marginTop: 60, padding: '0 20px' }}>
+          <div style={{ fontSize: '4rem', marginBottom: 20 }}>🕰️</div>
+          <h2>Mood Sync History</h2>
+          <p style={{ color: 'var(--muted)', marginBottom: 30, lineHeight: 1.6 }}>
+            Track how you and your partner have been feeling over time to better understand each other's emotional patterns. Upgrade to view your full relational mood history.
+          </p>
+          <button className="btn btn-p btn-full" onClick={() => setShowPremiumModal(true)}>
+            Unlock Premium ✨
+          </button>
+        </div>
+        {showPremiumModal && (
+          <PremiumUpgrade 
+            onCancel={() => setShowPremiumModal(false)}
+            onUpgradeSuccess={() => {
+              setShowPremiumModal(false);
+              window.location.reload();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
 
   const filtered = moods.filter(m => {
     if (filter === 'me') return m.user_id === user?.id;

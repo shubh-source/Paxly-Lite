@@ -46,11 +46,22 @@ export const AuthProvider = ({ children }) => {
         }
         
         // Background Notifications (Non-blocking)
-        const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        api.get('/notifications').then(res => {
-          localStorage.setItem('cached_notifications', JSON.stringify(res.data));
-        }).catch(()=>{});
+        // Delay pre-fetching so it doesn't block the lock screen PIN verification network queue
+        setTimeout(() => {
+          const customApi = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
+          customApi.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          Promise.all([
+            customApi.get('/notifications'),
+            customApi.get('/memories/'),
+            customApi.get('/voice-notes/'),
+            customApi.get('/dates/')
+          ]).then(([notifRes, memRes, voiceRes, datesRes]) => {
+            localStorage.setItem('cached_notifications', JSON.stringify(notifRes.data));
+            localStorage.setItem('cached_memories', JSON.stringify(memRes.data));
+            localStorage.setItem('cached_voicenotes', JSON.stringify(voiceRes.data));
+            localStorage.setItem('cached_dates', JSON.stringify(datesRes.data));
+          }).catch(()=>{});
+        }, 2500);
 
       })
       .catch((err) => {
