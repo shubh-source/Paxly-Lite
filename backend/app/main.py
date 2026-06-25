@@ -44,6 +44,8 @@ async def lifespan(app: FastAPI):
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_failed_attempts INTEGER DEFAULT 0",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS intruder_trigger BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode_app VARCHAR DEFAULT 'calculator'",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key VARCHAR",
             ]
             for q in alter_queries:
                 try:
