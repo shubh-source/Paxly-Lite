@@ -10,7 +10,7 @@ bcrypt==3.2.2
 python-multipart
 groq
 google-generativeai
-httpx
+httpx<0.28.0
 aiosmtplib
 cryptography
 alembic
