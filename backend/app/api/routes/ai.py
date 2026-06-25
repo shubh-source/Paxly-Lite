@@ -12,6 +12,7 @@ from sqlalchemy import update, desc
 from datetime import datetime, timedelta
 import json
 import re
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
