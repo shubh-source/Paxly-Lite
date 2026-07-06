@@ -14,7 +14,7 @@ class ClientErrorReport(BaseModel):
 @router.post("/report-client-error")
 async def report_client_error(report: ClientErrorReport, background_tasks: BackgroundTasks):
     """Endpoint for React ErrorBoundary to report crashes in real-time."""
-    admin_email = getattr(settings, "ADMIN_EMAIL", "vardaankatiyar0586@gmail.com")
+    admin_email = getattr(settings, "ADMIN_EMAIL", "shubhkatiyar6513@gmail.com")
     
     # Format the stack trace nicely
     stack = report.componentStack if report.componentStack else "No stack trace provided"

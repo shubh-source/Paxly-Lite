@@ -80,7 +80,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     error_msg = str(exc)
     
     # 2. Extract Admin Email (Fallback to developer email)
-    admin_email = getattr(settings, "ADMIN_EMAIL", "vardaankatiyar0586@gmail.com")
+    admin_email = getattr(settings, "ADMIN_EMAIL", "shubhkatiyar6513@gmail.com")
     
     # 3. Fire-and-forget email alert using an ad-hoc BackgroundTask so we don't block the response
     tasks = BackgroundTasks()
