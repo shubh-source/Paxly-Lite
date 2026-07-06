@@ -165,12 +165,13 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       {/* Mood Sync Status (Premium Glass) */}
       <div style={{ padding: '0 24px 32px', position: 'relative', zIndex: 1 }}>
         <div style={{ 
-          background: 'rgba(255, 255, 255, 0.03)', 
-          backdropFilter: 'blur(20px)',
+          background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)', 
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
           borderRadius: 32,
           padding: '24px',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+          boxShadow: '0 20px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
@@ -205,11 +206,14 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       {suggestion && (
         <div style={{ padding: '0 24px 24px', position: 'relative', zIndex: 1 }}>
           <div className="card" style={{ 
-            background: 'rgba(124,111,205,0.05)', 
-            border: '1px solid rgba(124,111,205,0.1)',
+            background: 'linear-gradient(145deg, rgba(124,111,205,0.08) 0%, rgba(124,111,205,0.02) 100%)', 
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(124,111,205,0.15)',
             borderLeft: '4px solid var(--purple)', 
             display: 'flex', gap: 16, alignItems: 'center', 
             padding: 20, borderRadius: 24,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
             animation: 'slideIn 0.5s ease' 
           }}>
             <Icons.Aura size={40} color="var(--accent)" />
@@ -231,8 +235,11 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
         <div style={{ padding: '0 24px 24px', position: 'relative', zIndex: 1 }}>
           {sharedNotes.map(note => (
             <div key={note.id} className="card" style={{ 
-              background: 'rgba(201,169,110,0.05)', 
+              background: 'linear-gradient(145deg, rgba(201,169,110,0.08) 0%, rgba(201,169,110,0.02) 100%)', 
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               border: '1px solid rgba(201,169,110,0.2)', 
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
               display: 'flex', gap: 16, alignItems: 'center', 
               marginBottom: 12, borderRadius: 24, padding: 20
             }}>
@@ -261,16 +268,18 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
               className="card card-hover" 
               style={{ 
                 gridColumn: item.full ? '1 / -1' : 'auto', 
-                padding: '20px', 
+                padding: '22px', 
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: 16, 
                 textDecoration: 'none', 
                 color: 'var(--text)',
-                background: 'rgba(255,255,255,0.03)',
+                background: 'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
                 borderRadius: 24,
-                border: user?.role === 'admin' ? '1px solid rgba(201,169,110,0.15)' : '1px solid rgba(255,255,255,0.05)',
-                boxShadow: user?.role === 'admin' ? '0 4px 20px rgba(201,169,110,0.05)' : 'none'
+                border: user?.role === 'admin' ? '1px solid rgba(201,169,110,0.2)' : '1px solid rgba(255,255,255,0.06)',
+                boxShadow: user?.role === 'admin' ? '0 10px 30px rgba(201,169,110,0.08)' : '0 8px 32px rgba(0,0,0,0.2)'
               }}
             >
                 <div style={{ 
