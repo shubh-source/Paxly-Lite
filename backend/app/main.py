@@ -113,6 +113,7 @@ async def fortress_middleware(request: Request, call_next):
     return response
 
 # --- GLOBAL STEALTH ERROR HANDLER ---
+@app.exception_handler(500)
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
