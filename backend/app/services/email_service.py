@@ -104,14 +104,17 @@ class EmailService:
         msg['Subject'] = subject
         msg.attach(MIMEText(html_content, 'html'))
 
-        try:
-            # Using synchronous smtplib but wrapped in a way that works for now
-            # In production, use an async library like aiosmtplib
+        import asyncio
+        
+        def blocking_send():
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
             server.starttls()
             server.login(self.smtp_user, self.smtp_password)
             server.send_message(msg)
             server.quit()
+
+        try:
+            await asyncio.to_thread(blocking_send)
         except Exception as e:
             print(f"FAILED TO SEND EMAIL: {e}")
 
