@@ -874,7 +874,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           {loadingHistory ? (
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: activeTheme.accent || 'var(--accent)' }}>
               <Icons.Loader size={32} className="spin" />
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, letterSpacing: 2, opacity: 0.8 }}>DECRYPTING...</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, letterSpacing: 2, opacity: 0.8 }}>SYNCING SECURE VAULT...</span>
             </div>
           ) : msgs.length === 0 ? (
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: 'var(--muted)', opacity: 0.5 }}>

@@ -213,7 +213,8 @@ async def get_chat_space(cu: User = Depends(get_current_user), db: AsyncSession 
         "partner": {
             "id": partner.id if partner else None,
             "name": partner.name if partner else "Unknown",
-            "avatar_url": getattr(partner, "avatar_url", None)
+            "avatar_url": getattr(partner, "avatar_url", None),
+            "public_key": getattr(partner, "public_key", None)
         }
     }
 

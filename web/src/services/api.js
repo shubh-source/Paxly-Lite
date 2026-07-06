@@ -47,7 +47,7 @@ export const openSite = (id) =>
   api.post(`/website/${id}/open`).then(r => r.data);
 
 export const getSpace = () =>
-  api.get('/couple/space').then(r => r.data);
+  api.get('/chat/space').then(r => r.data);
 
 // Chat
 export const getMessages = (skip = 0, limit = 50) =>
