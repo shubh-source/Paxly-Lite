@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, payments, place_partner, calls, website
+from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, payments, place_partner, calls, website, health
 import os
 
 from app.core.database import connect_db, engine, Base, AsyncSessionLocal
@@ -64,6 +64,34 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 app = FastAPI(title="Vlynxly Fortress API", version="1.1.1", lifespan=lifespan)
+
+import traceback
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.background import BackgroundTasks
+from app.services.email_service import email_service
+from app.core.config import settings
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Sentry-style real-time error monitor"""
+    # 1. Format the full stack trace including file and line number
+    tb_str = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    error_msg = str(exc)
+    
+    # 2. Extract Admin Email (Fallback to developer email)
+    admin_email = getattr(settings, "ADMIN_EMAIL", "vardaankatiyar0586@gmail.com")
+    
+    # 3. Fire-and-forget email alert using an ad-hoc BackgroundTask so we don't block the response
+    tasks = BackgroundTasks()
+    tasks.add_task(email_service.send_error_alert, admin_email, error_msg, tb_str, "Backend (FastAPI)")
+    
+    # 4. Return standard 500 error but process tasks
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+        background=tasks
+    )
 
 # 1. SECURITY: CORS (Must be at the TOP)
 app.add_middleware(
@@ -140,6 +168,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 # ── ROUTES ──────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
+app.include_router(health.router, prefix="/api")
 app.include_router(couple.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(mood.router, prefix="/api")

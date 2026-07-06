@@ -67,8 +67,30 @@ class EmailService:
                 YOUR PRIVATE OASIS • VLYNXLY SECURITY
             </p>
         </div>
+        </div>
         """
         await self._send_email(email, subject, html)
+
+    async def send_error_alert(self, admin_email: str, error_message: str, stack_trace: str, source: str):
+        """Sends a critical error alert to the admin with the exact stack trace."""
+        subject = f"🚨 VLYNXLY ALERT: Critical Crash in {source}"
+        
+        # Convert stack trace to HTML safe format
+        import html as html_lib
+        safe_stack_trace = html_lib.escape(stack_trace).replace('\\n', '<br>')
+        
+        html = f"""
+        <div style="background-color: #1a0505; color: #fff; padding: 30px; font-family: monospace;">
+            <h2 style="color: #ff4d4d; border-bottom: 1px solid #ff4d4d; padding-bottom: 10px;">🚨 CRITICAL APP CRASH ({source})</h2>
+            <p style="font-size: 16px; color: #ff9999;"><strong>Error:</strong> {html_lib.escape(error_message)}</p>
+            <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px; border: 1px solid #333; margin-top: 20px; overflow-x: auto;">
+                <p style="color: #888; font-size: 12px; margin-bottom: 10px;">Exact Stack Trace & Line Number:</p>
+                <code style="color: #f0f0f0; font-size: 13px; line-height: 1.5;">{safe_stack_trace}</code>
+            </div>
+            <p style="margin-top: 30px; font-size: 11px; color: #666;">Automated by Vlynxly Real-Time Sentry Monitor</p>
+        </div>
+        """
+        await self._send_email(admin_email, subject, html)
 
     async def _send_email(self, to_email: str, subject: str, html_content: str):
         """Core logic to send email using SMTP."""

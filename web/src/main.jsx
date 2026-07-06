@@ -142,11 +142,13 @@ function AnimatedRoutes() {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <ErrorBoundary><AppGuard>
-          <AnimatedRoutes />
-        </AppGuard></ErrorBoundary>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppGuard>
+            <AnimatedRoutes />
+          </AppGuard>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   </StrictMode>
 );
