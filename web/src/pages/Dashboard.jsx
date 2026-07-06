@@ -101,13 +101,13 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       {/* Dynamic Background Effects */}
       {user?.role === 'admin' ? (
         <>
-          <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.15) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
-          <div style={{ position: 'fixed', bottom: '10%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(164,132,194,0.1) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.15) 0%, transparent 70%)', filter: 'blur(100px)', WebkitFilter: 'blur(100px)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'fixed', bottom: '10%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(164,132,194,0.1) 0%, transparent 70%)', filter: 'blur(120px)', WebkitFilter: 'blur(120px)', pointerEvents: 'none', zIndex: 0 }} />
         </>
       ) : (
         <>
-          <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.08) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
-          <div style={{ position: 'fixed', bottom: '10%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(201,169,110,0.08) 0%, transparent 70%)', filter: 'blur(100px)', WebkitFilter: 'blur(100px)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'fixed', bottom: '10%', right: '-10%', width: '60%', height: '60%', background: 'radial-gradient(circle, rgba(124,111,205,0.06) 0%, transparent 70%)', filter: 'blur(120px)', WebkitFilter: 'blur(120px)', pointerEvents: 'none', zIndex: 0 }} />
         </>
       )}
 
