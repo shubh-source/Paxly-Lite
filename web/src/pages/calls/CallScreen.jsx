@@ -49,7 +49,12 @@ export default function CallScreen() {
     } else if (wsService.latestOffer) {
       setIncomingOffer(wsService.latestOffer);
       setCallType(wsService.latestOffer.call_type);
-      setCallState('incoming');
+      if (params.get('action') === 'answer') {
+        // We will let the useEffect below handle the auto-answer once incomingOffer is set
+        setCallState('connecting');
+      } else {
+        setCallState('incoming');
+      }
       wsService.latestOffer = null; // consume it
     } else if (params.get('type')) {
       startCall(params.get('type'));
@@ -63,7 +68,8 @@ export default function CallScreen() {
       }),
       wsService.on('webrtc_answer', async d => {
         if (pc.current) {
-          await pc.current.setRemoteDescription({ type: d.sdp.type || 'answer', sdp: d.sdp });
+          const remoteDesc = typeof d.sdp === 'string' ? { type: 'answer', sdp: d.sdp } : d.sdp;
+          await pc.current.setRemoteDescription(remoteDesc);
         }
       }),
       wsService.on('webrtc_ice', async d => {
@@ -132,6 +138,12 @@ export default function CallScreen() {
     }
   };
 
+  useEffect(() => {
+    if (incomingOffer && params.get('action') === 'answer' && callState === 'connecting') {
+      answerCall();
+    }
+  }, [incomingOffer]);
+
   const answerCall = async () => {
     if (!incomingOffer) return;
     setCallState('connecting');
@@ -143,7 +155,8 @@ export default function CallScreen() {
       if (localRef.current) localRef.current.srcObject = localStream.current;
       pc.current = createPC();
       localStream.current.getTracks().forEach(t => pc.current.addTrack(t, localStream.current));
-      await pc.current.setRemoteDescription({ type: 'offer', sdp: incomingOffer.sdp });
+      const remoteDesc = typeof incomingOffer.sdp === 'string' ? { type: 'offer', sdp: incomingOffer.sdp } : incomingOffer.sdp;
+      await pc.current.setRemoteDescription(remoteDesc);
       const answer = await pc.current.createAnswer();
       await pc.current.setLocalDescription(answer);
       wsService.sendAnswer(answer);

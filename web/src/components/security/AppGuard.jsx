@@ -60,7 +60,7 @@ export default function AppGuard({ children }) {
   }, [user, pathname]);
 
   const answerCall = () => {
-    navigate('/call');
+    navigate('/call?action=answer');
     setIncomingCall(null);
   };
 
