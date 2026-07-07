@@ -128,14 +128,22 @@ export default function Chat() {
       // Decrypt history once partner info is available
       const sk = localStorage.getItem('paxly_sk');
       const pk = d.partner?.public_key;
-      getMessages(0, 500).then(data => {
+      getMessages(0, 100).then(async data => {
         const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        const decryptedMsgs = sorted.map(m => {
-          if (m.message_type === 'text' && m.text && sk && pk) {
-            m.text = decryptMessage(m.text, sk, pk);
+        
+        // Chunked decryption to unblock UI thread
+        const decryptedMsgs = [];
+        for (let i = 0; i < sorted.length; i += 20) {
+          const chunk = sorted.slice(i, i + 20);
+          for (const m of chunk) {
+            if (m.message_type === 'text' && m.text && sk && pk) {
+              m.text = decryptMessage(m.text, sk, pk);
+            }
+            decryptedMsgs.push(m);
           }
-          return m;
-        });
+          await new Promise(resolve => setTimeout(resolve, 0)); // Yield to main thread
+        }
+        
         setMsgs(decryptedMsgs);
         localStorage.setItem('cached_messages', JSON.stringify(decryptedMsgs));
         setLoadingHistory(false);

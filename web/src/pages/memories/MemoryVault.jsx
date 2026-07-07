@@ -49,27 +49,37 @@ export function MemoryVault() {
       } catch {}
     }
 
-    getMemories().then(data => {
+    getMemories().then(async data => {
       localStorage.setItem('cached_memories', JSON.stringify(data));
       
-      const texts = data.filter(m => !m.image_url).map(decryptItem);
+      const decryptChunked = async (arr) => {
+        const result = [];
+        for (let i = 0; i < arr.length; i += 20) {
+          const chunk = arr.slice(i, i + 20);
+          for (const m of chunk) result.push(decryptItem(m));
+          await new Promise(r => setTimeout(r, 0));
+        }
+        return result;
+      };
+
+      const texts = await decryptChunked(data.filter(m => !m.image_url));
       setMemories(texts);
 
       // Route explicitly saved media into Photos / Videos
-      const savedMedia = data.filter(m => m.image_url).map(decryptItem);
+      const savedMedia = await decryptChunked(data.filter(m => m.image_url));
       const savedPhotos = savedMedia.filter(m => !m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
       const savedVideos = savedMedia.filter(m => m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
 
       import('../../services/api').then(module => {
-          module.default.get('/memories/media?type=image').then(res => {
-              const fetchedPhotos = res.data.map(decryptItem);
+          module.default.get('/memories/media?type=image').then(async res => {
+              const fetchedPhotos = await decryptChunked(res.data);
               const allPhotos = [...savedPhotos, ...fetchedPhotos];
               const uniquePhotos = Array.from(new Map(allPhotos.map(item => [item.image_url, item])).values());
               setPhotos(uniquePhotos);
           }).catch(console.error);
 
-          module.default.get('/memories/media?type=video').then(res => {
-              const fetchedVideos = res.data.map(decryptItem);
+          module.default.get('/memories/media?type=video').then(async res => {
+              const fetchedVideos = await decryptChunked(res.data);
               const allVideos = [...savedVideos, ...fetchedVideos];
               const uniqueVideos = Array.from(new Map(allVideos.map(item => [item.image_url, item])).values());
               setVideos(uniqueVideos);

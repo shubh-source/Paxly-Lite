@@ -29,11 +29,21 @@ export default function BucketList() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', emoji: '🎯', category: 'adventure' });
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { 
+    const cached = localStorage.getItem('cached_bucketlist');
+    if (cached) {
+      try {
+        setItems(JSON.parse(cached));
+        setInitLoad(false);
+      } catch {}
+    }
+    fetchItems(); 
+  }, []);
 
   const fetchItems = async () => {
     try {
       const { data } = await api.get('/bucket/');
+      localStorage.setItem('cached_bucketlist', JSON.stringify(data));
       setItems(data);
     } finally {
       setInitLoad(false);

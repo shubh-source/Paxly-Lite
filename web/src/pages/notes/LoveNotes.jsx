@@ -16,11 +16,21 @@ export default function LoveNotes() {
   const [loading, setLoading] = useState(false);
   const [initLoad, setInitLoad] = useState(true);
 
-  useEffect(() => { fetchNotes(); }, []);
+  useEffect(() => { 
+    const cached = localStorage.getItem('cached_lovenotes');
+    if (cached) {
+      try {
+        setNotes(JSON.parse(cached));
+        setInitLoad(false);
+      } catch {}
+    }
+    fetchNotes(); 
+  }, []);
 
   const fetchNotes = async () => {
     try {
       const { data } = await api.get('/notes/');
+      localStorage.setItem('cached_lovenotes', JSON.stringify(data));
       setNotes(data);
     } catch (err) {
       console.error("Failed to fetch notes", err);
