@@ -122,6 +122,32 @@ textarea.inp { resize: vertical; min-height: 80px; }
 .spinner { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.spin { animation: spin 1s linear infinite; transform-origin: center; }
+
+.aura-loader {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(201,169,110,0.1);
+  border-top-color: var(--accent);
+  border-right-color: var(--purple);
+  animation: aura-spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  box-shadow: 0 0 10px rgba(201,169,110,0.3);
+  display: inline-block;
+}
+@keyframes aura-spin {
+  0% { transform: rotate(0deg) scale(0.8); border-top-color: var(--accent); }
+  50% { transform: rotate(180deg) scale(1.1); border-top-color: var(--purple); box-shadow: 0 0 20px rgba(124,111,205,0.5); }
+  100% { transform: rotate(360deg) scale(0.8); border-top-color: var(--accent); }
+}
+
+.loader {
+  width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(201,169,110,0.1); border-top-color: var(--accent); border-right-color: var(--purple); animation: aura-spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite; box-shadow: 0 0 10px rgba(201,169,110,0.3); display: inline-block;
+}
+.loader-s {
+  width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(201,169,110,0.1); border-top-color: var(--accent); animation: spin 0.8s linear infinite; display: inline-block;
+}
+
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
