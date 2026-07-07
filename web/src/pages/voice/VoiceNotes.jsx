@@ -288,7 +288,7 @@ export default function VoiceNotes() {
       <div style={{ padding: '0 20px' }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0', opacity: 0.7 }}>
-            <div className="spin" style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(201,169,110,0.2)', borderTopColor: 'var(--accent)' }}></div>
+            <div className="loader" />
             <p style={{ marginTop: 16, color: 'var(--muted)', fontSize: '0.9rem' }}>Loading whispers...</p>
           </div>
         ) : notes.length === 0 ? (

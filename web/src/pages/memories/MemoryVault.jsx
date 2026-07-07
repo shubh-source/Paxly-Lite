@@ -167,7 +167,7 @@ export function MemoryVault() {
       <div style={{ padding: '0 20px' }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 100, opacity: 0.7 }}>
-            <div className="spin" style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(201,169,110,0.2)', borderTopColor: 'var(--accent)' }}></div>
+            <div className="loader" />
             <p style={{ marginTop: 16, color: 'var(--muted)', fontSize: '0.9rem' }}>Unlocking Vault...</p>
           </div>
         ) : items.length === 0 ? (

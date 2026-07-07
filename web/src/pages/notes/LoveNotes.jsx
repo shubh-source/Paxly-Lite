@@ -14,6 +14,7 @@ export default function LoveNotes() {
   const [mood, setMood] = useState('💌');
   const [unlockDate, setUnlockDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initLoad, setInitLoad] = useState(true);
 
   useEffect(() => { fetchNotes(); }, []);
 
@@ -23,6 +24,8 @@ export default function LoveNotes() {
       setNotes(data);
     } catch (err) {
       console.error("Failed to fetch notes", err);
+    } finally {
+      setInitLoad(false);
     }
   };
 
@@ -179,7 +182,11 @@ export default function LoveNotes() {
       )}
 
       <div style={{ padding: '10px 20px' }}>
-        {notes.length === 0 ? (
+        {initLoad ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
+            <div className="loader" />
+          </div>
+        ) : notes.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.8 }}>
             <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.LoveNote size={64} color="var(--accent)" stroke={1} /></div>
             <h3 style={{ marginBottom: 8 }}>Your inbox is waiting</h3>

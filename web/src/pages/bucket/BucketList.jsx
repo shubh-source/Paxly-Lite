@@ -24,6 +24,7 @@ const EMOJIS = ['🎯', '❤️', '✈️', '🏔️', '🍽️', '🎵', '🎨'
 export default function BucketList() {
   const nav = useNavigate();
   const [items, setItems] = useState([]);
+  const [initLoad, setInitLoad] = useState(true);
   const [cat, setCat] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', emoji: '🎯', category: 'adventure' });
@@ -31,8 +32,12 @@ export default function BucketList() {
   useEffect(() => { fetchItems(); }, []);
 
   const fetchItems = async () => {
-    const { data } = await api.get('/bucket/');
-    setItems(data);
+    try {
+      const { data } = await api.get('/bucket/');
+      setItems(data);
+    } finally {
+      setInitLoad(false);
+    }
   };
 
   const save = async () => {
@@ -110,7 +115,11 @@ export default function BucketList() {
       )}
 
       <div style={{ padding: '0 20px' }}>
-        {filtered.length === 0 ? (
+        {initLoad ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+            <div className="loader" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>
             <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'center' }}><Icons.Target size={64} color="var(--accent)" stroke={1} /></div>
             <p>No dreams here yet.</p>

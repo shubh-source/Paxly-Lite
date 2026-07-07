@@ -155,7 +155,7 @@ export function Explore() {
                 </button>
               ))}
             </div>
-            {loading && <div style={{ textAlign: 'center', padding: 40 }}><div className="spinner" style={{ margin: '0 auto' }} /></div>}
+            {loading && <div style={{ textAlign: 'center', padding: 40 }}><div className="loader" style={{ margin: '0 auto' }} /></div>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {places.map(p => (
                 <div key={p.id} className="card card-hover" style={{ cursor: 'pointer', padding: 0, overflow: 'hidden' }}
