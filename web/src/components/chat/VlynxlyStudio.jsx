@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { CAMERA_FILTERS, FONTS } from '../../data/filterStyles';
 import { Icons } from '../../components/ui/Icons';
 
-export default function VlynxlyStudio({ onCapture, onClose }) {
+export default function VlynxlyStudio({ initialFile, onCapture, onClose }) {
   const [stream, setStream] = useState(null);
   const [activeFilter, setActiveFilter] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -12,9 +12,10 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
   const [activeTextId, setActiveTextId] = useState(null);
   
   // Preview State
-  const [previewFile, setPreviewFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewFile, setPreviewFile] = useState(initialFile || null);
+  const [previewUrl, setPreviewUrl] = useState(initialFile ? URL.createObjectURL(initialFile) : null);
   const [viewMode, setViewMode] = useState('permanent'); // permanent | once | twice
+  const [showViewModeMenu, setShowViewModeMenu] = useState(false);
 
   const videoRef = useRef(null);
   const galleryRef = useRef(null);
@@ -24,9 +25,11 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
   const progressInterval = useRef(null);
 
   useEffect(() => {
-    startCamera();
+    if (!initialFile) {
+      startCamera();
+    }
     return () => stopCamera();
-  }, []);
+  }, [initialFile]);
 
   const startCamera = async () => {
     try {
@@ -168,9 +171,13 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
   };
 
   const closePreview = () => {
-    setPreviewFile(null);
-    setPreviewUrl(null);
-    startCamera();
+    if (initialFile) {
+      onClose(); // Just close the studio if we came from gallery
+    } else {
+      setPreviewFile(null);
+      setPreviewUrl(null);
+      startCamera();
+    }
   };
 
   // PREVIEW SCREEN
@@ -191,27 +198,62 @@ export default function VlynxlyStudio({ onCapture, onClose }) {
           {/* Bottom Control Bar */}
           <div style={{ position: 'absolute', bottom: 30, left: 20, right: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             
-            {/* View Mode Toggle Button */}
-            <button 
-              onClick={cycleViewMode} 
-              style={{ 
-                background: 'rgba(26,22,20,0.8)', 
-                border: '1px solid rgba(179,148,90,0.3)', 
-                borderRadius: 24, 
-                padding: '12px 20px', 
-                color: '#b3945a', 
-                fontSize: '0.9rem', 
-                fontWeight: 600, 
-                cursor: 'pointer', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8,
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-              }}
-            >
-              {viewMode === 'permanent' ? '∞ Permanent' : viewMode === 'once' ? '1x Once View' : '2x Twice View'}
-            </button>
+            {/* View Mode Toggle Button & Menu */}
+            <div style={{ position: 'relative' }}>
+              <button 
+                onClick={() => setShowViewModeMenu(!showViewModeMenu)} 
+                style={{ 
+                  background: 'rgba(26,22,20,0.8)', 
+                  border: '1px solid rgba(179,148,90,0.3)', 
+                  borderRadius: 24, 
+                  padding: '12px 20px', 
+                  color: '#b3945a', 
+                  fontSize: '0.9rem', 
+                  fontWeight: 600, 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 8,
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+                }}
+              >
+                {viewMode === 'permanent' ? '∞ Permanent' : viewMode === 'once' ? '1x View once' : '2x View twice'}
+              </button>
+
+              {showViewModeMenu && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '120%',
+                  left: 0,
+                  background: 'rgba(30,30,30,0.95)',
+                  backdropFilter: 'blur(15px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 16,
+                  padding: '8px 0',
+                  minWidth: 160,
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  zIndex: 2050
+                }}>
+                  <div style={{ padding: '8px 16px', fontSize: '0.8rem', color: 'var(--muted)', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>Set how many times this photo can be viewed.</div>
+                  
+                  <button onClick={() => { setViewMode('once'); setShowViewModeMenu(false); }} style={{ background:'transparent', border:'none', color:'#fff', padding:'12px 16px', textAlign:'left', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>1x View once</span>
+                    {viewMode === 'once' && <span style={{ color: 'var(--accent)' }}>✓</span>}
+                  </button>
+                  <button onClick={() => { setViewMode('twice'); setShowViewModeMenu(false); }} style={{ background:'transparent', border:'none', color:'#fff', padding:'12px 16px', textAlign:'left', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>2x View twice</span>
+                    {viewMode === 'twice' && <span style={{ color: 'var(--accent)' }}>✓</span>}
+                  </button>
+                  <button onClick={() => { setViewMode('permanent'); setShowViewModeMenu(false); }} style={{ background:'transparent', border:'none', color:'#fff', padding:'12px 16px', textAlign:'left', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>∞ Unlimited views</span>
+                    {viewMode === 'permanent' && <span style={{ color: 'var(--accent)' }}>✓</span>}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Send Button */}
             <button 

@@ -18,6 +18,10 @@ export default function AIAssistant() {
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [importantDates, setImportantDates] = useState([]);
+  
+  // Custom AI Personality
+  const [customPersonality, setCustomPersonality] = useState(() => localStorage.getItem('paxly_aura_personality') || '');
+  const [showPersonalityModal, setShowPersonalityModal] = useState(false);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
@@ -81,14 +85,9 @@ export default function AIAssistant() {
           if (cachedThreads) {
             parsed = JSON.parse(cachedThreads);
           } else {
-            const oldCached = localStorage.getItem('paxly_aura_chat_history');
-            if (oldCached) {
-              const oldMsgs = JSON.parse(oldCached);
-              if (oldMsgs.length > 0) {
-                parsed = [{ id: 'thread_' + Date.now(), title: oldMsgs[0].content.substring(0, 30) + '...', messages: oldMsgs, updated_at: Date.now() }];
-                localStorage.removeItem('paxly_aura_chat_history');
-              }
-            }
+            // WE MUST NOT LOAD 'paxly_aura_chat_history' as it contains old mediator dummy data.
+            // We'll just ignore it.
+            localStorage.removeItem('paxly_aura_chat_history');
           }
           if (parsed.length > 0) {
             setThreads(parsed);
@@ -133,21 +132,21 @@ export default function AIAssistant() {
       setActiveThreadId(id);
       api.post('/ai/threads/sync', {id, title, messages: msgs}).catch(()=>{});
     } else {
-      let currentThread = null;
+      const existingThread = threads.find(t => t.id === activeThreadId);
+      const title = existingThread ? existingThread.title : "Chat";
+
       setThreads(prev => {
         const next = prev.map(t => {
           if (t.id === activeThreadId) {
-            currentThread = { ...t, messages: msgs, updated_at: Date.now() };
-            return currentThread;
+            return { ...t, messages: msgs, updated_at: Date.now() };
           }
           return t;
         });
         localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
         return next;
       });
-      if (currentThread) {
-        api.post('/ai/threads/sync', {id: currentThread.id, title: currentThread.title, messages: currentThread.messages}).catch(()=>{});
-      }
+      
+      api.post('/ai/threads/sync', {id: activeThreadId, title, messages: msgs}).catch(()=>{});
     }
   }, [msgs, activeThreadId]);
 
@@ -241,14 +240,23 @@ export default function AIAssistant() {
       if (threads.length > 0) {
         const otherThreads = threads.filter(t => t.id !== activeThreadId).slice(0, 3);
         let pastMsgs = [];
-        otherThreads.forEach(t => pastMsgs.push(...t.messages.slice(-4)));
+        otherThreads.forEach(t => {
+          if (t.messages && t.messages.length > 0) {
+            pastMsgs.push(...t.messages.slice(-4));
+          }
+        });
         if (pastMsgs.length > 0) {
-           globalContext += "Context from user's OTHER recent chats (do NOT mention you read this unless relevant): " + pastMsgs.map(m => m.content).join(' | ');
+           globalContext += "\n\nCRITICAL CONTEXT FROM PAST CHATS (The user expects you to remember these past interactions even in this new chat thread): " + pastMsgs.map(m => `[${m.role}]: ${m.content}`).join(' | ');
         }
       }
-      
+
       // App Knowledge
-      globalContext += "\nApp Knowledge: Vlynxly Premium features: Deep Lab (counseling), Vibe Sites (webpages for partner), Stealth Mode, E2EE chats. You are Aura, the AI guide.";
+      globalContext += "\nApp Knowledge: Vlynxly Premium features: Deep Lab (counseling), Vibe Sites (webpages for partner), Stealth Mode, E2EE chats. You are Aura, the AI guide. CRITICAL RULE: You ONLY talk to the current user. You CANNOT and DO NOT communicate with their partner. NEVER pretend, joke, or hallucinate that you were talking to their partner.";
+      
+      // Custom User Instructions
+      if (customPersonality) {
+        globalContext += "\n\nCRITICAL USER INSTRUCTIONS FOR YOUR PERSONALITY/BEHAVIOR:\n" + customPersonality;
+      }
 
       const aiRequestPayload = updated.map(m => {
         const payload = { role: m.role, content: m.content };
@@ -327,6 +335,31 @@ export default function AIAssistant() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
 
+      {/* Personality Settings Modal */}
+      {showPersonalityModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--accent)' }}>Aura's Personality 🧠</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 16 }}>
+              Aap decide kar sakte hain ki Aura aapse kaise baat kare. Uska tone kaisa ho? (Eg: "Talk like a tapori", "Be strictly professional", "Use Gen-Z slang", "Only reply in Hindi").
+            </p>
+            <textarea 
+              value={customPersonality}
+              onChange={e => setCustomPersonality(e.target.value)}
+              placeholder="Example: Talk to me like a sassy best friend and use lots of emojis."
+              style={{ width: '100%', height: 120, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: 12, color: '#fff', fontSize: '0.9rem', resize: 'none', marginBottom: 16 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button onClick={() => setShowPersonalityModal(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '8px 16px', borderRadius: 20, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => {
+                localStorage.setItem('paxly_aura_personality', customPersonality);
+                setShowPersonalityModal(false);
+              }} style={{ background: 'var(--accent)', border: 'none', color: '#000', padding: '8px 24px', borderRadius: 20, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="header" style={{ background: 'rgba(22,22,24,0.6)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '16px 16px 0', borderRadius: '24px', padding: '14px 20px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -343,6 +376,13 @@ export default function AIAssistant() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button 
+            onClick={() => setShowPersonalityModal(true)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--muted)', padding: 5, cursor: 'pointer' }}
+            title="AI Personality Settings"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
           <button onClick={handleDeepAnalytics} style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600, background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}>Analytics</button>
           <Link to="/ai/lab" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', background: 'rgba(201,169,110,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(201,169,110,0.2)' }}>Deep Lab</Link>
         </div>

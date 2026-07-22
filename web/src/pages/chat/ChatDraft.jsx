@@ -8,6 +8,7 @@ import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePickerDraft';
 import DynamicPresence from '../../components/chat/DynamicPresence';
 import VlynxlyStudio from '../../components/chat/VlynxlyStudio';
+import AttachmentSheet from '../../components/chat/AttachmentSheet';
 import ChatBackground from '../../components/chat/ChatBackgroundDraft';
 import { CHAT_THEMES } from '../../data/chatThemesDraft';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
@@ -57,6 +58,7 @@ export default function ChatDraft() {
   const [partnerMood, setPartnerMood]           = useState('neutral');
   const [selfMood]                              = useState('neutral');
   const [showingStudio, setShowingStudio]       = useState(false);
+  const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
 
   // Save requests
   const [saveRequest, setSaveRequest]   = useState(null);
@@ -211,7 +213,7 @@ export default function ChatDraft() {
     }
 
     setPendingFile(file);
-    setShowGallerySecureModal(true);
+    setShowingStudio(true); // Open Studio for preview instead of popup
   };
 
   const startVoiceRecord = async () => {
@@ -742,6 +744,24 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {/* ── INPUT BAR ─────────────────────────────────────── */}
         <div className="chat-input-bar">
+          {/* Attachment Sheet */}
+          <AttachmentSheet 
+            isOpen={showAttachmentSheet}
+            onClose={() => setShowAttachmentSheet(false)}
+            onFileSelect={(file) => {
+              setShowAttachmentSheet(false);
+              setPendingFile(file);
+              setShowingStudio(true);
+            }}
+            onAction={(action) => {
+              setShowAttachmentSheet(false);
+              if (action === 'camera') setShowingStudio(true);
+              else if (action === 'gallery' || action === 'document' || action === 'ai') {
+                window.triggerFilePick(fileRef);
+              }
+            }}
+          />
+
           <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
 
           <div
@@ -755,7 +775,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
               <Icons.Camera size={20} color={activeTheme.accent || 'var(--muted)'} />
             </button>
-            <button className="chat-icon-btn" onClick={() => window.triggerFilePick(fileRef)}>
+            <button className="chat-icon-btn" onClick={() => {
+              if (window.Capacitor?.isNativePlatform()) {
+                setShowAttachmentSheet(true);
+              } else {
+                window.triggerFilePick(fileRef);
+              }
+            }}>
               <Icons.Gallery size={20} color={activeTheme.accent || 'var(--muted)'} />
             </button>
 
@@ -821,8 +847,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {showingStudio && (
           <VlynxlyStudio
-            onCapture={(f, mode) => { setShowingStudio(false); sendMedia(f, mode); }}
-            onClose={() => setShowingStudio(false)}
+            initialFile={pendingFile}
+            onCapture={(f, mode) => { setShowingStudio(false); setPendingFile(null); sendMedia(f, mode); }}
+            onClose={() => { setShowingStudio(false); setPendingFile(null); }}
           />
         )}
 
