@@ -11,6 +11,7 @@ import ThemePicker from './ThemePicker';
 import VoiceNotePlayer from '../../components/chat/VoiceNotePlayer';
 import DynamicPresence from '../../components/chat/DynamicPresence';
 import VlynxlyStudio from '../../components/chat/VlynxlyStudio';
+import AttachmentSheet from '../../components/chat/AttachmentSheet';
 import ChatBackground from '../../components/chat/ChatBackground';
 import { CHAT_THEMES } from '../../data/chatThemes';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
@@ -66,6 +67,7 @@ export default function Chat() {
   const [partnerMood, setPartnerMood]           = useState('neutral');
   const [selfMood]                              = useState('neutral');
   const [showingStudio, setShowingStudio]       = useState(false);
+  const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
   
   // Gestures & Reactions
   const [replyingTo, setReplyingTo] = useState(null);
@@ -211,7 +213,7 @@ export default function Chat() {
   }, [msgs]);
 
   /* ── auto scroll ──────────────────────────────────────────── */
-  // useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'auto' }); }, [msgs]);
 
   /* ── self presence ────────────────────────────────────────── */
   useEffect(() => {
@@ -235,7 +237,7 @@ export default function Chat() {
       if (scrollRef.current) {
         scrollRef.current.style.maxHeight = '';
         requestAnimationFrame(() => {
-          // bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+          bottomRef.current?.scrollIntoView({ behavior: 'auto' });
         });
       }
     };
@@ -314,7 +316,7 @@ export default function Chat() {
     }
 
     setPendingFile(file);
-    setShowGallerySecureModal(true);
+    setShowingStudio(true); // Open Studio for preview instead of popup
   };
 
   const startVoiceRecord = async (e) => {
@@ -922,7 +924,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   display:'flex', gap:7,
                   justifyContent: me ? 'flex-end' : 'flex-start',
                   animationDelay: `${Math.min(i * 0.025, 0.25)}s`,
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  position: 'relative',
+                  zIndex: msgs.length - i
                 }}
               >
                 {/* Partner avatar */}
@@ -1074,22 +1078,27 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                     {/* Reactions Display */}
                     {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                      <div style={{
-                        position: 'absolute',
-                        bottom: -12,
-                        right: me ? 12 : 'auto',
-                        left: me ? 'auto' : 12,
-                        background: 'rgba(20, 16, 14, 0.95)',
-                        border: `1px solid ${activeTheme.accent || 'rgba(255,255,255,0.1)'}40`,
-                        borderRadius: 12,
-                        padding: '2px 6px',
-                        display: 'flex',
-                        gap: 2,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-                        zIndex: 2
-                      }}>
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "emoji" });
+                        }}
+                        style={{
+                          position: 'absolute',
+                          bottom: -16,
+                          right: me ? 0 : 'auto',
+                          left: me ? 'auto' : 0,
+                          background: '#1a1a1a', // Dark blackish pill like screenshot
+                          borderRadius: 20,
+                          padding: '4px 8px',
+                          display: 'flex',
+                          gap: 4,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                          zIndex: 2,
+                          cursor: 'pointer'
+                        }}>
                         {Object.values(msg.reactions).map((emoji, idx) => (
-                          <span key={idx} style={{ fontSize: '0.85rem' }}>{emoji}</span>
+                          <span key={idx} style={{ fontSize: '1.15rem' }}>{emoji}</span>
                         ))}
                       </div>
                     )}
@@ -1228,10 +1237,34 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               </div>
             ) : (
               <>
+                {/* Attachment Sheet */}
+                <AttachmentSheet 
+                  isOpen={showAttachmentSheet}
+                  onClose={() => setShowAttachmentSheet(false)}
+                  onFileSelect={(file) => {
+                    setShowAttachmentSheet(false);
+                    setPendingFile(file);
+                    setShowingStudio(true);
+                  }}
+                  onAction={(action) => {
+                    setShowAttachmentSheet(false);
+                    if (action === 'camera') setShowingStudio(true);
+                    else if (action === 'gallery' || action === 'document' || action === 'ai') {
+                      window.triggerFilePick(fileRef);
+                    }
+                  }}
+                />
+
                 <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
                   <Icons.Camera size={20} color={activeTheme.accent || 'var(--muted)'} />
                 </button>
-                <button className="chat-icon-btn" onClick={() => window.triggerFilePick(fileRef)}>
+                <button className="chat-icon-btn" onClick={() => {
+                  if (window.Capacitor?.isNativePlatform()) {
+                    setShowAttachmentSheet(true);
+                  } else {
+                    window.triggerFilePick(fileRef);
+                  }
+                }}>
                   <Icons.Gallery size={20} color={activeTheme.accent || 'var(--muted)'} />
                 </button>
     
@@ -1311,8 +1344,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {showingStudio && (
           <VlynxlyStudio
-            onCapture={(f, mode) => { setShowingStudio(false); sendMedia(f, mode); }}
-            onClose={() => setShowingStudio(false)}
+            initialFile={pendingFile}
+            onCapture={(f, mode) => { setShowingStudio(false); setPendingFile(null); sendMedia(f, mode); }}
+            onClose={() => { setShowingStudio(false); setPendingFile(null); }}
           />
         )}
 
@@ -1385,8 +1419,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           >
             <div style={{
               position: 'absolute',
-              left: Math.min(contextMenuMsg.x, window.innerWidth - 220),
-              top: Math.min(contextMenuMsg.y, window.innerHeight - 300),
+              left: contextMenuMsg.x > window.innerWidth / 2 ? 'auto' : Math.max(16, contextMenuMsg.x),
+              right: contextMenuMsg.x > window.innerWidth / 2 ? Math.max(16, window.innerWidth - contextMenuMsg.x) : 'auto',
+              top: Math.min(contextMenuMsg.y, window.innerHeight - (contextMenuMsg.type === 'emoji' ? 100 : 300)),
               background: '#1A1A1A',
               borderRadius: 16,
               boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
@@ -1418,7 +1453,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     {[
                       { icon: <Icons.Reply size={18} />, label: 'Reply', action: () => { setReplyingTo(contextMenuMsg.msg); setContextMenuMsg(null); } },
                       { icon: <Icons.Copy size={18} />, label: 'Copy', action: () => { navigator.clipboard.writeText(contextMenuMsg.msg.text); setContextMenuMsg(null); } },
-                      { icon: <Icons.Edit size={18} />, label: 'Edit', action: () => { alert('Editing coming soon!'); setContextMenuMsg(null); } },
+                      { icon: <Icons.Edit size={18} />, label: 'Edit', action: () => { alert('Editing coming soon!'); setContextMenuMsg(null); }, show: contextMenuMsg.msg.sender_id === user?.id },
                       { icon: <Icons.Pin size={18} />, label: 'Pin to Chat', action: () => { alert('Pinning coming soon!'); setContextMenuMsg(null); } },
                       { icon: <Icons.Vault size={18} />, label: 'Save to Vault', action: () => { 
                         api.post('/memories/save-message', { message_id: contextMenuMsg.msg.id })
@@ -1427,7 +1462,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         setContextMenuMsg(null); 
                       } },
                       { icon: <span style={{ fontSize: '1.2rem' }}>✨</span>, label: 'Ask Aura', action: () => { alert('Aura is analyzing this message...'); setContextMenuMsg(null); } },
-                    ].map((item, i) => (
+                    ].filter(item => item.show === undefined || item.show).map((item, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: item.label === 'Ask Aura' ? 'var(--accent)' : '#fff', fontWeight: item.label === 'Ask Aura' ? 700 : 400, cursor: 'pointer', fontSize: '0.95rem' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
