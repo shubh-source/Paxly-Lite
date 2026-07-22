@@ -13,30 +13,10 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        registerPlugin(MediaFetcherPlugin.class);
         // Bind the interface so JS can call `Android.showIncomingCall(...)`
         this.bridge.getWebView().addJavascriptInterface(new WebAppInterface(this), "Android");
     }
 }
 
-class WebAppInterface {
-    Context mContext;
 
-    public WebAppInterface(Context c) {
-        mContext = c;
-    }
-
-    @JavascriptInterface
-    public void showIncomingCall(String callerName, String callType) {
-        if (Settings.canDrawOverlays(mContext)) {
-            Intent intent = new Intent(mContext, IncomingCallActivity.class);
-            intent.putExtra("CALLER_NAME", callerName);
-            intent.putExtra("CALL_TYPE", callType);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            mContext.startActivity(intent);
-        } else {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + mContext.getPackageName()));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            mContext.startActivity(intent);
-        }
-    }
-}

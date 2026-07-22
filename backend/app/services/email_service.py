@@ -107,15 +107,17 @@ class EmailService:
         import asyncio
         
         def blocking_send():
+            print(f"DEBUG: Starting SMTP connection to {self.smtp_server}:{self.smtp_port}...", flush=True)
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
             server.starttls()
             server.login(self.smtp_user, self.smtp_password)
             server.send_message(msg)
             server.quit()
+            print("DEBUG: Email successfully sent!", flush=True)
 
         try:
             await asyncio.to_thread(blocking_send)
         except Exception as e:
-            print(f"FAILED TO SEND EMAIL: {e}")
+            print(f"FAILED TO SEND EMAIL: {e}", flush=True)
 
 email_service = EmailService()

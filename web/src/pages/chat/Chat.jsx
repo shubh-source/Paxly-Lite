@@ -886,6 +886,29 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {/* ── MESSAGES ─────────────────────────────────────── */}
         <div className="chat-scroll" ref={scrollRef} style={ replyingTo ? { paddingBottom: '160px', transition: 'padding-bottom 0.2s ease' } : { transition: 'padding-bottom 0.2s ease' } }>
+          <div ref={bottomRef} style={{ height:1, flexShrink:0 }} />
+          
+          {typing && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', margin: '10px 0', gap: 12, justifyContent: 'flex-start' }}>
+              <div style={{
+                padding: '14px 20px',
+                borderRadius: '4px 20px 20px 20px',
+                background: activeTheme.bubbleOther || 'rgba(255,255,255,0.06)',
+                border: activeTheme.borderOther || 'none',
+                boxShadow: activeTheme.boxShadowOther || '0 4px 15px rgba(0,0,0,0.1)',
+                backdropFilter: activeTheme.backdropBlur || 'none',
+                WebkitBackdropFilter: activeTheme.backdropBlur || 'none',
+                display: 'flex',
+                gap: 5,
+                alignItems: 'center'
+              }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: activeTheme.textOther || '#e8e8e8', animation: 'typingDot 1.4s infinite ease-in-out both' }} />
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: activeTheme.textOther || '#e8e8e8', animation: 'typingDot 1.4s infinite ease-in-out both', animationDelay: '0.2s' }} />
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: activeTheme.textOther || '#e8e8e8', animation: 'typingDot 1.4s infinite ease-in-out both', animationDelay: '0.4s' }} />
+              </div>
+            </div>
+          )}
+
           {loadingHistory ? (
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: activeTheme.accent || 'var(--accent)' }}>
               <Icons.Loader size={32} className="spin" />
@@ -1122,28 +1145,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             );
           }))}
 
-          {typing && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', margin: '10px 0', gap: 12, justifyContent: 'flex-start' }}>
-              <div style={{
-                padding: '14px 20px',
-                borderRadius: '4px 20px 20px 20px',
-                background: activeTheme.bubbleOther || 'rgba(255,255,255,0.06)',
-                border: activeTheme.borderOther || 'none',
-                boxShadow: activeTheme.boxShadowOther || '0 4px 15px rgba(0,0,0,0.1)',
-                backdropFilter: activeTheme.backdropBlur || 'none',
-                WebkitBackdropFilter: activeTheme.backdropBlur || 'none',
-                display: 'flex',
-                gap: 5,
-                alignItems: 'center'
-              }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: activeTheme.textOther || '#e8e8e8', animation: 'typingDot 1.4s infinite ease-in-out both' }} />
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: activeTheme.textOther || '#e8e8e8', animation: 'typingDot 1.4s infinite ease-in-out both', animationDelay: '0.2s' }} />
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: activeTheme.textOther || '#e8e8e8', animation: 'typingDot 1.4s infinite ease-in-out both', animationDelay: '0.4s' }} />
-              </div>
-            </div>
-          )}
-
-          <div ref={bottomRef} style={{ height:1 }} />
+          {/* Removed typing and bottomRef from here */}
         </div>
 
         {/* ── INPUT BAR ─────────────────────────────────────── */}
