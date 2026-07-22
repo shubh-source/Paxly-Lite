@@ -67,7 +67,7 @@ class WSService {
       // - 4001 = no couple space yet (user not linked with partner)
       // - 4003 = forbidden
       if (!this._intentionalClose && e.code !== 4001 && e.code !== 4003 && e.code !== 1008) {
-        this.reconnectTimer = setTimeout(() => this.connect(this.token), 5000);
+        this.reconnectTimer = setTimeout(() => this.connect(this.token, this.coupleSpaceId), 5000);
       }
     };
 
