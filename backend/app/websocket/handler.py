@@ -214,6 +214,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         )
                         db.add(new_log)
                         await db.commit()
+                except Exception as e:
+                    print(f"WS Handler Error: {e}")
+                    import traceback
+                    traceback.print_exc()
 
         except WebSocketDisconnect:
             if space_id and user_id:
