@@ -509,4 +509,15 @@ async def sync_thread(req: AIThreadSyncRequest, cu: User = Depends(get_current_u
         db.add(new_thread)
         
     await db.commit()
-    return {"status": "success"}
+    return {"status": "synced"}
+
+@router.delete("/threads/{thread_id}")
+async def delete_thread(thread_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AIChatThread).filter(AIChatThread.id == thread_id, AIChatThread.user_id == cu.id))
+    thread = result.scalars().first()
+    if not thread:
+        raise HTTPException(404, "Thread not found")
+        
+    await db.delete(thread)
+    await db.commit()
+    return {"status": "deleted"}

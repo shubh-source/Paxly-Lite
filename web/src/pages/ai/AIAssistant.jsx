@@ -291,13 +291,17 @@ export default function AIAssistant() {
 
   const clearChat = () => {
     if (confirm("Delete this conversation?")) {
+      const idToDelete = activeThreadId;
       setThreads(prev => {
-        const next = prev.filter(t => t.id !== activeThreadId);
+        const next = prev.filter(t => t.id !== idToDelete);
         localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
         return next;
       });
       setActiveThreadId(null);
       setMsgs([]);
+      if (idToDelete) {
+        api.delete('/ai/threads/' + idToDelete).catch(()=>{});
+      }
     }
   };
 
@@ -492,7 +496,7 @@ export default function AIAssistant() {
           </div>
         )}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: 'rgba(22,22,26,0.65)', backdropFilter: 'blur(25px) saturate(200%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: '10px 10px 10px 16px', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
-          <label htmlFor="ai-attach" style={{ cursor: 'pointer', display: 'flex', color: attachment ? 'var(--accent)' : 'var(--muted)', padding: '4px' }}>
+          <label htmlFor="ai-attach" style={{ cursor: 'pointer', display: 'flex', color: attachment ? 'var(--accent)' : 'var(--muted)', padding: '4px' }} onClick={() => { window.isFilePicking = true; setTimeout(() => { if (!document.hidden) window.isFilePicking = false; }, 2000); }}>
             <Icons.Paperclip size={20} />
           </label>
           <input type="file" id="ai-attach" hidden accept="image/*,video/*,application/pdf" onChange={handleFileSelect} />

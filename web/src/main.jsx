@@ -1,13 +1,24 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppGuard from './components/security/AppGuard';
 import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import SplashScreen from './components/layout/SplashScreen';
 import './index.css';
+
+window.triggerFilePick = (el) => {
+  window.isFilePicking = true;
+  if (el?.current) el.current.click();
+  else if (el?.click) el.click();
+  setTimeout(() => {
+    if (!document.hidden) window.isFilePicking = false;
+  }, 2000);
+};
 
 import Welcome        from './pages/auth/Welcome';
 import Signup         from './pages/auth/Signup';
@@ -88,6 +99,29 @@ function PublicRoute({ children }) {
 }
 
 function AnimatedRoutes() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    let backListener = null;
+    CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      const rootPaths = ['/dashboard', '/welcome', '/login', '/signup', '/connect'];
+      if (rootPaths.includes(location.pathname)) {
+        CapacitorApp.exitApp();
+      } else if (canGoBack) {
+        navigate(-1);
+      } else {
+        CapacitorApp.exitApp();
+      }
+    }).then(listener => {
+      backListener = listener;
+    });
+
+    return () => {
+      if (backListener) backListener.remove();
+    };
+  }, [location, navigate]);
+
   return (
     <Routes>
       <Route path="/"         element={<Navigate to="/welcome" replace />} />

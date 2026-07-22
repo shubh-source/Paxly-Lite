@@ -131,6 +131,11 @@ export default function ChatDraft() {
     return () => offs.forEach(f => f());
   }, [user?.id]);
 
+  /* ── sync local cache ─────────────────────────────────────── */
+  useEffect(() => {
+    localStorage.setItem('cached_messages', JSON.stringify(msgs));
+  }, [msgs]);
+
   /* ── auto scroll ──────────────────────────────────────────── */
   // useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
@@ -750,7 +755,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             <button className="chat-icon-btn" onClick={() => setShowingStudio(true)}>
               <Icons.Camera size={20} color={activeTheme.accent || 'var(--muted)'} />
             </button>
-            <button className="chat-icon-btn" onClick={() => fileRef.current?.click()}>
+            <button className="chat-icon-btn" onClick={() => window.triggerFilePick(fileRef)}>
               <Icons.Gallery size={20} color={activeTheme.accent || 'var(--muted)'} />
             </button>
 

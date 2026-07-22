@@ -19,7 +19,15 @@ export default function AppGuard({ children }) {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && user?.has_pin) {
-        setIsLocked(true);
+        if (window.isFilePicking) {
+          // Ignore lock because user is picking a file
+        } else {
+          setIsLocked(true);
+        }
+      } else if (!document.hidden) {
+        if (window.isFilePicking) {
+          window.isFilePicking = false;
+        }
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);

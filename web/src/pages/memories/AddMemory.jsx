@@ -36,7 +36,7 @@ export default function AddMemory() {
       </header>
       <div className="content">
         {err && <div className="alert alert-e">{err}</div>}
-        <div onClick={() => document.getElementById('mem-img').click()}
+        <div onClick={() => window.triggerFilePick(document.getElementById('mem-img'))}
           style={{ width:'100%', height:240, borderRadius:'var(--r)', border:'2px dashed rgba(255,255,255,0.1)', marginBottom:24, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', overflow:'hidden', background:'rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)', transition: 'var(--t)' }}>
           {preview
             ? <img src={preview} alt="p" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
