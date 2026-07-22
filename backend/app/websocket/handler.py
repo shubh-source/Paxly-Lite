@@ -136,9 +136,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         msg = await db.execute(select(Message).filter(Message.id == message_id))
                         msg = msg.scalars().first()
                         if msg:
+                            from sqlalchemy.orm.attributes import flag_modified
                             new_reactions = dict(msg.reactions or {})
                             new_reactions[user_id] = emoji
                             msg.reactions = new_reactions
+                            flag_modified(msg, "reactions")
                             await db.commit()
                             await manager.send_to_space(space_id, {
                                 "type": "reaction",

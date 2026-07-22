@@ -160,11 +160,20 @@ export default function Chat() {
            msg.text = decryptMessage(msg.text, sk, pk);
         }
         
+        // Ensure msg object has 'id' property (backend sends 'message_id')
+        if (msg.message_id && !msg.id) {
+          msg.id = msg.message_id;
+        }
+        
+        // Initialize reactions if missing
+        msg.reactions = msg.reactions || {};
+        
         setMsgs(p => {
           if (msg.sender_id === user?.id) {
             const optIdx = p.findIndex(m => m.isOptimistic && m.message_type === msg.message_type && (m.message_type === 'text' ? m.text === msg.text : true));
             if (optIdx !== -1) {
               const newMsgs = [...p];
+              msg.reactions = Object.keys(msg.reactions).length > 0 ? msg.reactions : (p[optIdx].reactions || {});
               newMsgs[optIdx] = msg;
               return newMsgs;
             }
