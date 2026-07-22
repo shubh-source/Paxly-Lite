@@ -47,11 +47,11 @@ export const openSite = (id) =>
   api.post(`/website/${id}/open`).then(r => r.data);
 
 export const getSpace = () =>
-  api.get('/chat/space').then(r => r.data);
+  api.get('/chat/space', { params: { _t: Date.now() } }).then(r => r.data);
 
 // Chat
 export const getMessages = (skip = 0, limit = 50) =>
-  api.get('/chat/messages', { params: { skip, limit } }).then(r => r.data);
+  api.get('/chat/messages', { params: { skip, limit, _t: Date.now() } }).then(r => r.data);
 
 export const uploadMedia = (file) => {
   const form = new FormData();

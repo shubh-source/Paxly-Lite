@@ -273,6 +273,12 @@ export default function Chat() {
 
   const send = async () => {
     if (!text.trim() || sending) return;
+    
+    if (!wsService.ws || wsService.ws.readyState !== WebSocket.OPEN) {
+      alert("Chat is reconnecting... Please wait a moment and try again.");
+      return;
+    }
+
     setSending(true);
     
     // OPTIMISTIC UPDATE
@@ -362,6 +368,11 @@ export default function Chat() {
             setAudioPreviewUrl(URL.createObjectURL(blob));
             setRecordState('preview');
           } else if (action === 'send') {
+            if (!wsService.ws || wsService.ws.readyState !== WebSocket.OPEN) {
+              alert("Chat is reconnecting... Cannot send voice note right now.");
+              setRecordState('idle');
+              return;
+            }
             setRecordState('idle');
             setSending(true);
             const { encryptedBlob, symmetricKey } = await encryptMediaBlob(blob);
@@ -433,6 +444,10 @@ export default function Chat() {
 
   const sendPreviewVoiceRecord = async () => {
     if (!audioPreviewBlob) return;
+    if (!wsService.ws || wsService.ws.readyState !== WebSocket.OPEN) {
+      alert("Chat is reconnecting... Cannot send voice note right now.");
+      return;
+    }
     setSending(true);
     setRecordState('idle');
     try {
@@ -462,11 +477,19 @@ export default function Chat() {
     }
   };
 
-  const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 
   const sendMedia = async (fileToUse, mode = 'standard') => {
     const f = fileToUse || pendingFile;
+    setShowingStudio(false);
+    setPendingFile(null);
     if (!f) return;
+    
+    if (!wsService.ws || wsService.ws.readyState !== WebSocket.OPEN) {
+      alert("Chat is reconnecting... Cannot send media right now.");
+      return;
+    }
+
     setSending(true);
     setShowGallerySecureModal(false);
     
