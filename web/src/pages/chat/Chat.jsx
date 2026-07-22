@@ -221,6 +221,10 @@ export default function Chat() {
     localStorage.setItem('cached_messages', JSON.stringify(msgs));
   }, [msgs]);
 
+  useEffect(() => {
+    localStorage.setItem('chat_draft', text);
+  }, [text]);
+
   /* ── auto scroll ──────────────────────────────────────────── */
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'auto' }); }, [msgs]);
 
