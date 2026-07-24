@@ -9,6 +9,7 @@ import AppGuard from './components/security/AppGuard';
 import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import SplashScreen from './components/layout/SplashScreen';
+import { Icons } from './components/ui/Icons';
 import './index.css';
 
 window.triggerFilePick = (el) => {
@@ -166,6 +167,9 @@ function AnimatedRoutes() {
         <Route path="/website/:id"   element={<Guard needsPartner><Layout><VibeViewer /></Layout></Guard>} />
         <Route path="/legal"         element={<Guard needsPartner><Layout><Legal /></Layout></Guard>} />
         <Route path="/icons"         element={<IconShowcase />} />
+
+        {/* Test Page for Loader */}
+        <Route path="/loader"        element={<div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#050505' }}><Icons.Loader size={120} /><div style={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>Animated Logo Loader Test</div></div>} />
 
         <Route path="*" element={<Navigate to="/welcome" replace />} />
     </Routes>
