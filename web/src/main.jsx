@@ -168,9 +168,6 @@ function AnimatedRoutes() {
         <Route path="/legal"         element={<Guard needsPartner><Layout><Legal /></Layout></Guard>} />
         <Route path="/icons"         element={<IconShowcase />} />
 
-        {/* Test Page for Loader */}
-        <Route path="/loader"        element={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#050505' }}><Icons.Loader size={120} /></div>} />
-
         <Route path="*" element={<Navigate to="/welcome" replace />} />
     </Routes>
   );
