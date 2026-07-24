@@ -214,6 +214,15 @@ export default function Chat() {
           } else alert('Save request denied by partner.');
         }
       }),
+      wsService.on('capture_detected', d => {
+        if (d.from_id !== user?.id) {
+          const typeStr = d.capture_type === 'screenshot' ? 'took a screenshot' 
+            : d.capture_type === 'tab_switched' ? 'switched apps/tabs' 
+            : d.capture_type === 'window_blurred' ? 'opened another app over the screen'
+            : 'pointed a camera at the screen';
+          alert(`🚨 SECURITY ALERT: ${d.from || 'Partner'} ${typeStr} while viewing your secure media! The media has been destroyed.`);
+        }
+      }),
     ];
     return () => offs.forEach(f => f());
   }, [user?.id]);
