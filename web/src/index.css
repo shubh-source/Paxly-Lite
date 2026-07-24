@@ -124,25 +124,30 @@ textarea.inp { resize: vertical; min-height: 80px; }
 
 .spin { animation: spin 1s linear infinite; transform-origin: center; }
 
-.aura-loader {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid rgba(201,169,110,0.1);
-  border-top-color: var(--accent);
-  border-right-color: var(--purple);
-  animation: aura-spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-  box-shadow: 0 0 10px rgba(201,169,110,0.3);
+.aura-loader, .loader {
   display: inline-block;
+  position: relative;
+  /* Default size if not provided inline */
+  width: 32px;
+  height: 32px;
 }
-@keyframes aura-spin {
-  0% { transform: rotate(0deg) scale(0.8); border-top-color: var(--accent); }
-  50% { transform: rotate(180deg) scale(1.1); border-top-color: var(--purple); box-shadow: 0 0 20px rgba(124,111,205,0.5); }
-  100% { transform: rotate(360deg) scale(0.8); border-top-color: var(--accent); }
+.aura-loader::before, .loader::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/logo.png') center/contain no-repeat;
+  opacity: 0.2;
 }
-
-.loader {
-  width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(201,169,110,0.1); border-top-color: var(--accent); border-right-color: var(--purple); animation: aura-spin 1.2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite; box-shadow: 0 0 10px rgba(201,169,110,0.3); display: inline-block;
+.aura-loader::after, .loader::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/logo.png') center/contain no-repeat;
+  animation: logo-clip-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+@keyframes logo-clip-fill {
+  0% { clip-path: inset(100% 0 0 0); }
+  100% { clip-path: inset(0% 0 0 0); }
 }
 .loader-s {
   width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(201,169,110,0.1); border-top-color: var(--accent); animation: spin 0.8s linear infinite; display: inline-block;

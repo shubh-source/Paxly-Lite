@@ -412,7 +412,7 @@ export const Icons = {
   ),
   Loader: ({ size = 24, className = '', style }) => (
     <div 
-      className={`aura-loader ${className}`} 
+      className={`aura-loader ${className.replace('spin', '')}`.trim()} 
       style={{ width: size, height: size, ...style }} 
     />
   )
