@@ -73,8 +73,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                     
                 p_type = payload.get("type")
-                try:
                 
+                try:
                     if p_type == "chat_message":
                         raw_text = payload.get("text", "")
                         encrypted_text = encrypt_data(raw_text)
@@ -85,7 +85,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             view_limit=payload.get("view_limit", 1), timestamp=datetime.utcnow(),
                             reply_to_id=payload.get("reply_to_id")
                         )
-                        
+                    
                         # Auto-save audio to voice notes
                         if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
                             from app.models.orm import VoiceNote
@@ -100,7 +100,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 created_at=msg.timestamp
                             )
                             db.add(vn)
-                        
+                    
                         broadcast_data = {
                             "type": "chat_message", "id": msg.id, "sender_id": user_id, "sender_name": user_name,
                             "message_type": msg.message_type, "text": raw_text, "media_url": msg.media_url,
@@ -111,10 +111,10 @@ async def websocket_endpoint(websocket: WebSocket):
                             "reply_to_id": msg.reply_to_id,
                             "timestamp": msg.timestamp.isoformat() + "Z"
                         }
-                        
+                    
                         db.add(msg)
                         await db.commit()
-                        
+                    
                         await manager.send_to_space(space_id, broadcast_data)
 
                     elif p_type == "presence_state":
@@ -165,10 +165,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         allowed = payload.get("allowed", False)
                         request_id = payload.get("request_id")
                         msg_id = payload.get("message_id")
-                        
+                    
                         payload["partner_name"] = user_name
                         await manager.send_to_user(request_id, payload)
-                        
+                    
                         if allowed and msg_id:
                             msg = await db.execute(select(Message).filter(Message.id == msg_id))
                             msg = msg.scalars().first()
@@ -214,20 +214,21 @@ async def websocket_endpoint(websocket: WebSocket):
                         )
                         db.add(new_log)
                         await db.commit()
+
                 except Exception as e:
                     print(f"WS Handler Error: {e}")
                     import traceback
                     traceback.print_exc()
 
-        except WebSocketDisconnect:
-            if space_id and user_id:
-                manager.disconnect(space_id, user_id)
-                await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})
-        except Exception as e:
-            from app.main import last_error
-            import traceback
-            last_error["error"] = str(e)
-            last_error["trace"] = traceback.format_exc()
-            if space_id and user_id:
-                manager.disconnect(space_id, user_id)
-                await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})
+    except WebSocketDisconnect:
+        if space_id and user_id:
+            manager.disconnect(space_id, user_id)
+            await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})
+    except Exception as e:
+        from app.main import last_error
+        import traceback
+        last_error["error"] = str(e)
+        last_error["trace"] = traceback.format_exc()
+        if space_id and user_id:
+            manager.disconnect(space_id, user_id)
+            await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})
