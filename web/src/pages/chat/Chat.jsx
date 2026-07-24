@@ -17,6 +17,7 @@ import { CHAT_THEMES } from '../../data/chatThemes';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 import axios from 'axios';
 import { Icons } from '../../components/ui/Icons';
+import SecureMediaOverlay from '../../components/chat/SecureMediaOverlay';
 
 export default function Chat() {
   const { user } = useAuth();
@@ -30,13 +31,14 @@ export default function Chat() {
       return !cached || cached.length === 0;
     } catch { return true; }
   });
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => localStorage.getItem('chat_draft') || '');
   const [partner, setPartner] = useState(() => {
     try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
   });
   const [typing, setTyping]           = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [sending, setSending]         = useState(false);
+  const [secureMediaOpen, setSecureMediaOpen] = useState(null);
 
   // Voice
   const [recordState, setRecordState]           = useState('idle');
@@ -547,7 +549,7 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
 
   const handleSecureView = msg => {
     if (msg.sender_id === user?.id || msg.views_used >= msg.view_limit) return;
-    setViewingSecureMsg(msg);
+    setSecureMediaOpen(msg);
   };
 
   const onSecurityEvent = async action => {
@@ -1101,7 +1103,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                     {/* VIDEO */}
                     {msg.message_type === 'video' && (isSecure ? (
-                      <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
+                      <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
+                        <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
+                      </div>
                     ) : (
                       <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
                         <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
@@ -1110,7 +1114,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                     {/* IMAGE */}
                     {msg.message_type === 'image' && (isSecure ? (
-                      <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
+                      <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
+                        <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
+                      </div>
                     ) : (
                       <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
                         <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
@@ -1388,16 +1394,6 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           />
         )}
 
-        {viewingSecureMsg && (
-          <SecureViewer
-            mediaUrl={viewingSecureMsg.media_url}
-            messageId={viewingSecureMsg.id}
-            type={viewingSecureMsg.message_type}
-            onClosed={() => { onSecurityEvent('view'); setViewingSecureMsg(null); }}
-            onCompromised={() => { onSecurityEvent('compromise'); setViewingSecureMsg(null); }}
-          />
-        )}
-
         {/* Gallery secure send */}
         {showGallerySecureModal && (
           <div className="chat-modal-overlay">
@@ -1598,6 +1594,16 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             </div>
           </div>
         </div>
+      )}
+      {/* Secure Media Overlay */}
+      {secureMediaOpen && (
+        <SecureMediaOverlay 
+          msg={secureMediaOpen} 
+          wsService={wsService} 
+          onClose={() => {
+            setSecureMediaOpen(null);
+          }} 
+        />
       )}
       </div>
     </>
