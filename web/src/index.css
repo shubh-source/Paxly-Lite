@@ -124,28 +124,10 @@ textarea.inp { resize: vertical; min-height: 80px; }
 
 .spin { animation: spin 1s linear infinite; transform-origin: center; }
 
-.aura-loader, .loader {
-  display: inline-block;
-  position: relative;
-  /* Default size if not provided inline */
-  width: 32px;
-  height: 32px;
+.heart-loader-fill {
+  animation: heart-clip-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
 }
-.aura-loader::before, .loader::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: url('/logo.png') center/contain no-repeat;
-  opacity: 0.2;
-}
-.aura-loader::after, .loader::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: url('/logo.png') center/contain no-repeat;
-  animation: logo-clip-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-}
-@keyframes logo-clip-fill {
+@keyframes heart-clip-fill {
   0% { clip-path: inset(100% 0 0 0); }
   100% { clip-path: inset(0% 0 0 0); }
 }
