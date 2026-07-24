@@ -124,12 +124,21 @@ textarea.inp { resize: vertical; min-height: 80px; }
 
 .spin { animation: spin 1s linear infinite; transform-origin: center; }
 
+.heart-loader-svg {
+  animation: heart-loader-pulse 1.5s ease-in-out infinite alternate;
+  filter: drop-shadow(0 4px 12px rgba(201,169,110,0.25));
+}
+@keyframes heart-loader-pulse {
+  0% { transform: scale(0.95); }
+  100% { transform: scale(1.05); }
+}
+
 .heart-loader-fill {
-  animation: heart-clip-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+  animation: heart-clip-fill 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
 }
 @keyframes heart-clip-fill {
-  0% { clip-path: inset(100% 0 0 0); }
-  100% { clip-path: inset(0% 0 0 0); }
+  0%, 10% { clip-path: inset(100% 0 0 0); }
+  90%, 100% { clip-path: inset(0% 0 0 0); }
 }
 .loader-s {
   width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(201,169,110,0.1); border-top-color: var(--accent); animation: spin 0.8s linear infinite; display: inline-block;

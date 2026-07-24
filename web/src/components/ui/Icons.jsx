@@ -415,7 +415,7 @@ export const Icons = {
       width={size} 
       height={size} 
       viewBox="0 0 32 32" 
-      className={className.replace('spin', '').trim()}
+      className={`heart-loader-svg ${className.replace('spin', '')}`.trim()}
       style={{ display: 'inline-block', ...style }}
     >
       <defs>
@@ -423,12 +423,16 @@ export const Icons = {
           <stop offset="0%" stopColor="var(--accent)" />
           <stop offset="100%" stopColor="var(--purple)" />
         </linearGradient>
+        <filter id="heartGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1.2" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
       </defs>
-      <g opacity="0.2" fill="currentColor">
+      <g opacity="0.15" fill="currentColor">
         <path d="M11.6 21.08l-1.16-1.05C6.32 16.29 3.6 13.82 3.6 10.8c0-2.46 1.94-4.4 4.4-4.4 1.39 0 2.73.65 3.6 1.67C12.47 7.05 13.81 6.4 15.2 6.4c2.46 0 4.4 1.94 4.4 4.4 0 3.02-2.72 5.49-6.84 9.23L11.6 21.08" />
         <path d="M20.4 21.08l1.16-1.05c4.12-3.74 6.84-6.21 6.84-9.23 0-2.46-1.94-4.4-4.4-4.4-1.39 0-2.73.65-3.6 1.67-0.87-1.02-2.21-1.67-3.6-1.67-2.46 0-4.4 1.94-4.4 4.4 0 3.02 2.72 5.49 6.84 9.23l1.16 1.05z" />
       </g>
-      <g className="heart-loader-fill" fill="url(#loaderGrad)">
+      <g className="heart-loader-fill" fill="url(#loaderGrad)" filter="url(#heartGlow)">
         <path d="M11.6 21.08l-1.16-1.05C6.32 16.29 3.6 13.82 3.6 10.8c0-2.46 1.94-4.4 4.4-4.4 1.39 0 2.73.65 3.6 1.67C12.47 7.05 13.81 6.4 15.2 6.4c2.46 0 4.4 1.94 4.4 4.4 0 3.02-2.72 5.49-6.84 9.23L11.6 21.08" />
         <path d="M20.4 21.08l1.16-1.05c4.12-3.74 6.84-6.21 6.84-9.23 0-2.46-1.94-4.4-4.4-4.4-1.39 0-2.73.65-3.6 1.67-0.87-1.02-2.21-1.67-3.6-1.67-2.46 0-4.4 1.94-4.4 4.4 0 3.02 2.72 5.49 6.84 9.23l1.16 1.05z" />
       </g>
