@@ -148,8 +148,20 @@ export default function Chat() {
           await new Promise(resolve => setTimeout(resolve, 0)); // Yield to main thread
         }
         
-        setMsgs(decryptedMsgs);
-        localStorage.setItem('cached_messages', JSON.stringify(decryptedMsgs));
+        setMsgs(prev => {
+          const msgMap = new Map();
+          // First add all decrypted messages from backend
+          decryptedMsgs.forEach(m => msgMap.set(m.id, m));
+          // Then preserve any optimistic messages that are not yet in backend
+          prev.forEach(m => {
+            if (m.isOptimistic && !msgMap.has(m.id)) {
+              msgMap.set(m.id, m);
+            }
+          });
+          const merged = Array.from(msgMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          localStorage.setItem('cached_messages', JSON.stringify(merged));
+          return merged;
+        });
         setLoadingHistory(false);
       }).catch(() => setLoadingHistory(false));
     });

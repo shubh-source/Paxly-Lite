@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { getMe, getSpace, getMessages } from '../services/api';
+import { getMe, getSpace } from '../services/api';
 import { wsService } from '../services/websocket';
 import axios from 'axios';
 
@@ -28,10 +28,9 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       Promise.all([
         getMe().catch(e => { throw e; }),
-        getSpace().catch(() => null),
-        getMessages().catch(() => [])
+        getSpace().catch(() => null)
       ])
-      .then(([u, spaceData, msgsData]) => {
+      .then(([u, spaceData]) => {
         setUser(u);
         localStorage.setItem('ros_user', JSON.stringify(u));
         wsService.connect(token, u.couple_space_id);
@@ -39,10 +38,6 @@ export const AuthProvider = ({ children }) => {
         if (spaceData) {
           localStorage.setItem('cached_space', JSON.stringify(spaceData));
           localStorage.setItem('cached_partner', JSON.stringify(spaceData.partner));
-        }
-        if (msgsData && msgsData.length >= 0) {
-          const sorted = [...msgsData].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-          localStorage.setItem('cached_messages', JSON.stringify(sorted));
         }
         
         // Background Notifications (Non-blocking)

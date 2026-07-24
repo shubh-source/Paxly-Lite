@@ -215,6 +215,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         db.add(new_log)
                         await db.commit()
 
+                    elif p_type == "capture_detected":
+                        # Relay security breach alert to the partner
+                        payload["from"] = user_name
+                        payload["from_id"] = user_id
+                        await manager.send_to_user(partner_id, payload)
+
                 except Exception as e:
                     print(f"WS Handler Error: {e}")
                     import traceback
