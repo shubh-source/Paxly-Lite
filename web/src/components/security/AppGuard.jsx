@@ -80,15 +80,24 @@ export default function AppGuard({ children }) {
 
   const captureIntruder = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.warn('Camera API not available');
+        return;
+      }
+      // Force front camera
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       const video = document.createElement('video');
+      video.setAttribute('playsinline', 'true'); // Required for mobile
       video.srcObject = stream;
       await video.play();
 
+      // Wait for camera to adjust exposure and frame to render
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
       
       stream.getTracks().forEach(track => track.stop());
 
