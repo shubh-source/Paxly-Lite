@@ -104,14 +104,13 @@ function AnimatedRoutes() {
 
   useEffect(() => {
     let backListener = null;
-    CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+    CapacitorApp.addListener('backButton', () => {
+      const currentPath = window.location.pathname;
       const rootPaths = ['/dashboard', '/welcome', '/login', '/signup', '/connect'];
-      if (rootPaths.includes(location.pathname)) {
+      if (rootPaths.includes(currentPath)) {
         CapacitorApp.exitApp();
-      } else if (canGoBack) {
-        navigate(-1);
       } else {
-        CapacitorApp.exitApp();
+        navigate(-1);
       }
     }).then(listener => {
       backListener = listener;
@@ -120,7 +119,7 @@ function AnimatedRoutes() {
     return () => {
       if (backListener) backListener.remove();
     };
-  }, [location, navigate]);
+  }, [navigate]);
 
   return (
     <Routes>
