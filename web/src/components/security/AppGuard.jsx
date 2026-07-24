@@ -84,8 +84,15 @@ export default function AppGuard({ children }) {
         console.warn('Camera API not available');
         return;
       }
-      // Force front camera
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      // Force front camera, high framerate (60fps) for less motion blur, and HD resolution
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user',
+          frameRate: { ideal: 60, max: 60 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
       const video = document.createElement('video');
       video.setAttribute('playsinline', 'true'); // Required for mobile
       video.srcObject = stream;
