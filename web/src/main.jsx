@@ -12,6 +12,11 @@ import SplashScreen from './components/layout/SplashScreen';
 import { Icons } from './components/ui/Icons';
 import './index.css';
 
+// Wake up Render free tier backend immediately
+const pingBackend = () => fetch('https://paxly-lite.onrender.com/api/health/ping').catch(() => {});
+pingBackend();
+setInterval(pingBackend, 10 * 60 * 1000); // Ping every 10 mins while app is open
+
 window.triggerFilePick = (el) => {
   window.isFilePicking = true;
   if (el?.current) el.current.click();

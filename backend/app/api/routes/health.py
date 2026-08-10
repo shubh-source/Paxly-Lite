@@ -11,6 +11,11 @@ class ClientErrorReport(BaseModel):
     componentStack: Optional[str] = None
     url: Optional[str] = None
 
+@router.get("/ping")
+async def ping():
+    """Lightweight endpoint to wake up and keep the server alive."""
+    return {"status": "ok", "message": "Server is awake"}
+
 @router.post("/report-client-error")
 async def report_client_error(report: ClientErrorReport, background_tasks: BackgroundTasks):
     """Endpoint for React ErrorBoundary to report crashes in real-time."""
