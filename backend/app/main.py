@@ -89,20 +89,25 @@ app.add_middleware(
 # --- THE FORTRESS MIDDLEWARE ---
 @app.middleware("http")
 async def fortress_middleware(request: Request, call_next):
-    # Bypass security check for OPTIONS (CORS preflight)
-    if request.method == "OPTIONS":
+    # Bypass security check for OPTIONS (CORS preflight) and health pings
+    if request.method == "OPTIONS" or request.url.path.startswith("/api/health"):
         return await call_next(request)
         
     client_ip = request.client.host
     
     # 1. SECURITY: IP BAN CHECK (GLOBAL)
-    async with AsyncSessionLocal() as db:
-        ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
-        if ban_check.scalars().first():
-            return JSONResponse(
-                status_code=403,
-                content={"message": "Access Denied: Your IP is permanently banned for security reasons."}
-            )
+    try:
+        async with AsyncSessionLocal() as db:
+            ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
+            if ban_check.scalars().first():
+                return JSONResponse(
+                    status_code=403,
+                    content={"message": "Access Denied: Your IP is permanently banned for security reasons."}
+                )
+    except Exception as e:
+        print(f"Fortress DB check failed: {e}")
+        pass # Allow the request through if DB is temporarily unavailable
+
 
     # 2. SECURITY: ADD HEADERS
     response = await call_next(request)
@@ -132,12 +137,18 @@ async def global_exception_handler(request: Request, exc: Exception):
     tasks = BackgroundTasks()
     tasks.add_task(email_service.send_error_alert, admin_email, str(exc), error_trace, "Backend (FastAPI)")
 
-    # Completely hide internal server errors from attackers, but process the background alert
-    return JSONResponse(
+    # Bypass security check for now to debug the crash
+    response = JSONResponse(
         status_code=500,
-        content={"detail": "A security-controlled error occurred. Integrity verified."},
+        content={"detail": f"Server Error: {str(exc)}", "trace": error_trace},
         background=tasks
     )
+    # Add CORS headers explicitly to the 500 error so the frontend can read it
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 from fastapi.exceptions import RequestValidationError
 @app.exception_handler(RequestValidationError)
