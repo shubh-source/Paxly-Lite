@@ -301,11 +301,6 @@ export default function Chat() {
   const send = async () => {
     if (!text.trim() || sending) return;
     
-    if (!wsService.ws || wsService.ws.readyState !== WebSocket.OPEN) {
-      alert("Chat is reconnecting... Please wait a moment and try again.");
-      return;
-    }
-
     setSending(true);
     
     // OPTIMISTIC UPDATE
@@ -315,6 +310,7 @@ export default function Chat() {
       sender_id: user?.id,
       text: rawText,
       message_type: 'text',
+      reply_to_id: replyingTo?.id || null,
       timestamp: new Date().toISOString(),
       isOptimistic: true,
       reactions: {}

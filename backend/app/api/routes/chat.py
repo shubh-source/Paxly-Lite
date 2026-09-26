@@ -37,6 +37,7 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
         "view_limit": m.view_limit,
         "views_used": m.views_used,
         "is_compromised": m.is_compromised,
+        "reply_to_id": m.reply_to_id,
         "allow_download": allow_download if not m.is_once_view else False,
         "timestamp": m.timestamp.isoformat() + "Z",
     }

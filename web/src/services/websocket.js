@@ -6,6 +6,7 @@ class WSService {
     this.token = null;
     this.coupleSpaceId = null;
     this._intentionalClose = false;
+    this.queue = [];
   }
 
   connect(token, coupleSpaceId = null) {
@@ -48,6 +49,14 @@ class WSService {
         this.reconnectTimer = null;
       }
       this.emit('connected', {});
+      
+      // Flush queued messages after authentication
+      setTimeout(() => {
+        while (this.queue.length > 0) {
+          const queued = this.queue.shift();
+          this.send(queued);
+        }
+      }, 100);
     };
 
     this.ws.onmessage = (e) => {
@@ -71,7 +80,7 @@ class WSService {
       // - 4001 = no couple space yet (user not linked with partner)
       // - 4003 = forbidden
       if (!this._intentionalClose && e.code !== 4001 && e.code !== 4003 && e.code !== 1008) {
-        this.reconnectTimer = setTimeout(() => this.connect(this.token, this.coupleSpaceId), 5000);
+        this.reconnectTimer = setTimeout(() => this.connect(this.token, this.coupleSpaceId), 3000);
       }
     };
 
@@ -84,9 +93,21 @@ class WSService {
     if (this.ws) { this.ws.close(); this.ws = null; }
   }
 
+  isConnected() {
+    return this.ws && this.ws.readyState === WebSocket.OPEN;
+  }
+
   send(data) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
+    } else {
+      // Queue message and try to reconnect if not connected
+      if (data?.type !== 'auth') {
+        this.queue.push(data);
+      }
+      if (this.token && this.coupleSpaceId && (!this.ws || this.ws.readyState === WebSocket.CLOSED)) {
+        this.connect(this.token, this.coupleSpaceId);
+      }
     }
   }
 
