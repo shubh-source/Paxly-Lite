@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}/api` 
-  : '/api';
+const defaultBackend = import.meta.env.PROD 
+  ? 'https://paxly-lite.onrender.com' 
+  : 'http://localhost:8000';
+
+const apiBase = (import.meta.env.VITE_API_URL || defaultBackend).replace(/\/+$/, '');
+const baseURL = apiBase.endsWith('/api') ? apiBase : `${apiBase}/api`;
 
 const api = axios.create({ baseURL });
 

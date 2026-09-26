@@ -25,11 +25,15 @@ class WSService {
     
     this._intentionalClose = false;
     
-    let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const defaultBackend = import.meta.env.PROD 
+      ? 'https://paxly-lite.onrender.com' 
+      : 'http://localhost:8000';
+
+    let apiUrl = import.meta.env.VITE_API_URL || defaultBackend;
     if (apiUrl.endsWith('/api')) apiUrl = apiUrl.slice(0, -4);
     
     const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
-    const wsHost = apiUrl.replace(/^https?:\/\//, '');
+    const wsHost = apiUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
     const wsUrl = `${wsProtocol}//${wsHost}/ws`;
     
     this.ws = new WebSocket(wsUrl);
