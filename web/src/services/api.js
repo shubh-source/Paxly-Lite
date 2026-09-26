@@ -1,0 +1,142 @@
+import axios from 'axios';
+
+const baseURL = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL}/api` 
+  : '/api';
+
+const api = axios.create({ baseURL });
+
+// Auto-attach JWT token
+api.interceptors.request.use(cfg => {
+  const token = localStorage.getItem('ros_token');
+  if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  return cfg;
+});
+
+// Auth
+export const register = (name, email, password, public_key) =>
+  api.post('/auth/register', { name, email, password, public_key }).then(r => r.data);
+
+export const login = (email, password, public_key) =>
+  api.post('/auth/login', { email, password, public_key }).then(r => r.data);
+
+export const getMe = () =>
+  api.get('/auth/me').then(r => r.data);
+
+export const requestPasswordReset = (email) =>
+  api.post('/auth/forgot-password', { email }).then(r => r.data);
+
+export const resetPassword = (token, new_password) =>
+  api.post('/auth/reset-password', { token, new_password }).then(r => r.data);
+
+export const updateMe = (data) =>
+  api.put('/auth/me', data).then(r => r.data);
+
+// Couple
+export const generateInvite = () =>
+  api.post('/couple/invite/generate').then(r => r.data);
+
+export const sendInvite = (code) =>
+  api.post('/couple/invite/send', { code }).then(r => r.data);
+
+// Website / Vibe
+export const getMySite = () =>
+  api.get('/website/my-site').then(r => r.data);
+
+export const openSite = (id) =>
+  api.post(`/website/${id}/open`).then(r => r.data);
+
+export const getSpace = () =>
+  api.get('/chat/space', { params: { _t: Date.now() } }).then(r => r.data);
+
+// Chat
+export const getMessages = (skip = 0, limit = 50) =>
+  api.get('/chat/messages', { params: { skip, limit, _t: Date.now() } }).then(r => r.data);
+
+export const uploadMedia = (file) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post('/chat/upload-media', form).then(r => r.data);
+};
+
+export const addReaction = (messageId, emoji) =>
+  api.post(`/chat/messages/${messageId}/react`, { emoji }).then(r => r.data);
+
+// Mood
+export const submitMood = (mood_type, note = '') =>
+  api.post('/mood/set', { mood_type, note }).then(r => r.data);
+
+export const getTodayMoods = () =>
+  api.get('/mood/today').then(r => r.data);
+
+export const getMoodHistory = (limit = 30) =>
+  api.get('/mood/history', { params: { limit } }).then(r => r.data);
+
+// Memories
+export const getMemories = () =>
+  api.get('/memories/').then(r => r.data);
+
+export const createMemory = (title, description, date, imageFile) => {
+  const form = new FormData();
+  form.append('title', title);
+  form.append('description', description || '');
+  form.append('date', date);
+  if (imageFile) form.append('image', imageFile);
+  return api.post('/memories/', form).then(r => r.data);
+};
+
+export const deleteMemory = (id) =>
+  api.delete(`/memories/${id}`).then(r => r.data);
+
+// Explore
+export const getPlaces = (category, lat, lng) =>
+  api.get('/explore/places', { params: { category, lat, lng } }).then(r => r.data);
+
+export const getPlace = (id) =>
+  api.get(`/explore/places/${id}`).then(r => r.data);
+
+export const getCategories = () =>
+  api.get('/explore/categories').then(r => r.data);
+
+// AI
+export const askAI = (messages) =>
+  api.post('/ai/chat', { messages }).then(r => r.data);
+
+export const getActiveAISession = () =>
+  api.get('/ai/session/active').then(r => r.data);
+
+export const startAISession = (days, chat_history) =>
+  api.post('/ai/session/start', { days, chat_history }).then(r => r.data);
+
+export const sendAIInterviewMessage = (session_id, message) =>
+  api.post('/ai/session/interview', { session_id, message }).then(r => r.data);
+
+export const finishAIInterview = (sessionId, pov) => 
+  api.post('/ai/session/finish-interview', null, { params: { session_id: sessionId, pov } }).then(r => r.data);
+export const getAIHistory = () => api.get('/ai/session/history').then(r => r.data);
+export const getDeepAnalytics = () => api.get('/ai/analytics').then(r => r.data);
+
+// Notifications
+export const getNotifications = () =>
+  api.get('/notifications').then(r => r.data);
+
+export const markAllNotificationsRead = () =>
+  api.put('/notifications/read-all').then(r => r.data);
+
+// Payments
+export const createPremiumOrder = () => 
+  api.post('/payments/create-order', { amount: 149 }).then(r => r.data);
+export const verifyPremiumPayment = (payload) => 
+  api.post('/payments/verify', payload).then(r => r.data);
+
+// Surprise
+export const createSurprise = (data) =>
+  api.post('/surprise/create', data).then(r => r.data);
+export const uploadSurpriseMedia = (file, type) => {
+  const form = new FormData();
+  form.append('file', file);
+  const endpoint = type === 'video' ? '/surprise/upload-video' : type === 'voice' ? '/surprise/upload-voice' : '/surprise/upload-photo';
+  return api.post(endpoint, form).then(r => r.data);
+};
+
+export default api;

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+venv_stable/
+.env
+.venv
+env/
+build/
+dist/
+
+# Node
+node_modules/
+dist-web/
+.DS_Store
+
+# Static/Media
+backend/media/*
+!backend/media/.gitkeep
+
+# Databases & local logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.png.bak
+build_log.txt
+
