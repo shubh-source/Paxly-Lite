@@ -22,13 +22,28 @@ export default function CallScreen() {
   const initType = params.get('type') || 'video';
   const isHistoryView = params.get('view') === 'history';
 
+  // Instant Partner Cache Retrieval (Zero Delay / No Question Mark)
+  const getInitialPartner = () => {
+    try {
+      const cached = localStorage.getItem('cached_partner');
+      if (cached) return JSON.parse(cached);
+      const cachedSpace = localStorage.getItem('cached_space');
+      if (cachedSpace) {
+        const parsed = JSON.parse(cachedSpace);
+        if (parsed?.partner) return parsed.partner;
+      }
+    } catch {}
+    return { name: 'Sneha' };
+  };
+
   const [callState, setCallState] = useState('idle'); // idle | calling | incoming | connecting | connected | history
   const [callType, setCallType] = useState(initType);
-  const [partner, setPartner] = useState(null);
+  const [partner, setPartner] = useState(getInitialPartner);
   const [incomingOffer, setIncomingOffer] = useState(null);
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
-  const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
+  const [speakerOn, setSpeakerOn] = useState(true);
+  const [facingMode, setFacingMode] = useState('user');
   const [duration, setDuration] = useState(0);
   const [history, setHistory] = useState([]);
   const [audioRoute, setAudioRoute] = useState('speaker');
@@ -41,8 +56,16 @@ export default function CallScreen() {
   const timer = useRef(null);
   const startTime = useRef(null);
 
+  const partnerName = partner?.name || 'Sneha';
+  const partnerInitial = partnerName[0]?.toUpperCase() || 'S';
+
   useEffect(() => {
-    getSpace().then(d => setPartner(d.partner));
+    getSpace().then(d => {
+      if (d?.partner) {
+        setPartner(d.partner);
+        localStorage.setItem('cached_partner', JSON.stringify(d.partner));
+      }
+    });
 
     if (isHistoryView) {
       setCallState('history');
@@ -239,7 +262,7 @@ export default function CallScreen() {
   // ── CALL HISTORY VIEW ───────────────────────────────────────
   if (callState === 'history') {
     return (
-      <div className="page" style={{ paddingBottom: 80, backgroundColor: '#09090b', color: '#fff', minHeight: '100vh', fontFamily: 'DM Sans, sans-serif' }}>
+      <div className="page" style={{ paddingBottom: 80, backgroundColor: '#070709', color: '#fff', minHeight: '100vh', fontFamily: 'DM Sans, sans-serif' }}>
         <header className="header" style={{ 
           background: 'rgba(20, 20, 24, 0.7)', 
           backdropFilter: 'blur(24px)',
@@ -263,7 +286,7 @@ export default function CallScreen() {
             <div style={{ textAlign: 'center', padding: '80px 20px', color: 'rgba(255,255,255,0.4)' }}>
               <div style={{ fontSize: '2.8rem', marginBottom: 12 }}>📞</div>
               <h3 style={{ color: '#fff', fontWeight: 600, margin: 0 }}>No Call Logs Yet</h3>
-              <p style={{ fontSize: '0.85rem', marginTop: 6 }}>Your audio and video call history with your partner will appear here.</p>
+              <p style={{ fontSize: '0.85rem', marginTop: 6 }}>Your audio and video call history with {partnerName} will appear here.</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -319,76 +342,96 @@ export default function CallScreen() {
   return (
     <div style={{ 
       position: 'fixed', inset: 0,
-      backgroundColor: '#09090c',
+      backgroundColor: '#070709',
       color: '#fff',
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center',
       overflow: 'hidden', fontFamily: 'DM Sans, sans-serif', zIndex: 999999
     }}>
-      {/* Luxury Background Glows */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-        background: 'radial-gradient(circle at 50% 25%, rgba(201,169,110,0.14) 0%, rgba(124,111,205,0.08) 40%, #09090c 80%)'
-      }} />
+      {/* Dynamic Animated Atmospheric Lighting */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+        <motion.div
+          animate={{
+            scale: [1, 1.25, 1],
+            opacity: [0.25, 0.45, 0.25],
+            x: [0, 20, 0],
+            y: [0, -30, 0]
+          }}
+          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: 'absolute', top: '10%', left: '15%', width: '75vw', height: '75vw',
+            background: 'radial-gradient(circle, rgba(201,169,110,0.22) 0%, rgba(124,111,205,0.12) 45%, transparent 70%)',
+            filter: 'blur(90px)'
+          }}
+        />
+        <motion.div
+          animate={{
+            scale: [1.1, 0.9, 1.1],
+            opacity: [0.15, 0.35, 0.15],
+            x: [0, -25, 0],
+            y: [0, 30, 0]
+          }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          style={{
+            position: 'absolute', bottom: '15%', right: '10%', width: '80vw', height: '80vw',
+            background: 'radial-gradient(circle, rgba(124,111,205,0.2) 0%, rgba(201,169,110,0.1) 50%, transparent 75%)',
+            filter: 'blur(100px)'
+          }}
+        />
+      </div>
 
-      {/* Subtle Animated Aurora Orb */}
-      <motion.div
-        animate={{ scale: [1, 1.2, 0.95, 1.1, 1], opacity: [0.15, 0.28, 0.18, 0.25, 0.15] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          position: 'absolute', top: '15%', left: '15%', width: '70vw', height: '70vw',
-          background: 'radial-gradient(circle, #C9A96E 0%, #7C6FCD 50%, transparent 70%)',
-          filter: 'blur(120px)', zIndex: 0, pointerEvents: 'none'
-        }}
-      />
-
-      {/* ── TOP BAR (Header & Security Badge) ───────────────── */}
+      {/* ── TOP HEADER BAR ──────────────────────────────────── */}
       <div style={{
-        width: '100%', maxWidth: 500, padding: '24px 24px 0',
+        width: '100%', maxWidth: 520, padding: '24px 24px 0',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         zIndex: 20, position: 'relative'
       }}>
+        {/* Back to Chat Button */}
         <button
           onClick={() => nav('/chat')}
-          title="Minimize & Return to Chat"
+          title="Return to Chat"
           style={{
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 14, width: 42, height: 42,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 16, width: 44, height: 44,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', cursor: 'pointer', backdropFilter: 'blur(16px)'
+            color: '#fff', cursor: 'pointer', backdropFilter: 'blur(20px)',
+            transition: 'background 0.2s'
           }}
         >
           <Icons.Back size={20} />
         </button>
 
+        {/* End-to-End Encryption Badge */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          padding: '6px 14px', borderRadius: 20
+          background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: '7px 16px', borderRadius: 24,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
         }}>
-          <Icons.Shield size={13} color="#C9A96E" />
-          <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.75)', letterSpacing: '0.5px' }}>
-            {callType === 'video' ? 'Ultra-HD Video' : 'Private Voice'} • E2EE
+          <span style={{ fontSize: '0.85rem' }}>🔒</span>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.5px' }}>
+            {callType === 'video' ? 'HD VIDEO' : 'VOICE'} • E2EE
           </span>
         </div>
 
+        {/* Audio Route Toggle */}
         <button
           onClick={() => setShowAudioMenu(true)}
           title="Audio Output Device"
           style={{
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 14, width: 42, height: 42,
+            background: audioRoute === 'speaker' ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.06)',
+            border: audioRoute === 'speaker' ? '1px solid rgba(201,169,110,0.35)' : '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 16, width: 44, height: 44,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: audioRoute !== 'earpiece' ? '#C9A96E' : '#fff', cursor: 'pointer', backdropFilter: 'blur(16px)'
+            color: audioRoute === 'speaker' ? '#C9A96E' : '#fff', cursor: 'pointer', backdropFilter: 'blur(20px)'
           }}
         >
-          {audioRoute === 'speaker' ? <Icons.Volume2 size={19} /> : <Icons.Phone size={19} />}
+          {audioRoute === 'speaker' ? <Icons.Volume2 size={20} /> : <Icons.Phone size={20} />}
         </button>
       </div>
 
-      {/* ── REMOTE VIDEO (Full Background for Video Calls) ───── */}
+      {/* ── REMOTE VIDEO (Fullscreen Stream for Video Calls) ── */}
       {callType === 'video' && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 1,
@@ -396,9 +439,9 @@ export default function CallScreen() {
           transition: 'opacity 0.6s ease', background: '#050507'
         }}>
           <video ref={remoteRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          {/* Cinematic Scrims */}
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 140, background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)', pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%)', pointerEvents: 'none' }} />
+          {/* Cinematic Contrast Vignettes */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 160, background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 240, background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, transparent 100%)', pointerEvents: 'none' }} />
         </div>
       )}
 
@@ -406,17 +449,17 @@ export default function CallScreen() {
       {callType === 'video' && callState === 'connected' && (
         <motion.div
           drag
-          dragConstraints={{ top: 80, left: -140, right: 140, bottom: 260 }}
+          dragConstraints={{ top: 90, left: -140, right: 140, bottom: 260 }}
           dragElastic={0.1}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           style={{
             position: 'absolute', top: 90, right: 20,
-            width: 110, height: 160, borderRadius: 20,
+            width: 110, height: 165, borderRadius: 22,
             overflow: 'hidden',
-            border: '2px solid rgba(201,169,110,0.4)',
+            border: '2px solid rgba(201,169,110,0.5)',
             background: '#121216', zIndex: 25,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.7)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
             cursor: 'grab'
           }}
         >
@@ -424,17 +467,17 @@ export default function CallScreen() {
           {camOff && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#18181f' }}>
               <Icons.Camera size={24} color="rgba(255,255,255,0.3)" />
-              <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Cam Off</span>
+              <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Cam Off</span>
             </div>
           )}
           {/* Mini Flip Button */}
           <button
             onClick={flipCamera}
             style={{
-              position: 'absolute', bottom: 6, right: 6,
-              background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
-              width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', cursor: 'pointer', backdropFilter: 'blur(8px)'
+              position: 'absolute', bottom: 8, right: 8,
+              background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%',
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', cursor: 'pointer', backdropFilter: 'blur(8px)', fontSize: '0.85rem'
             }}
           >
             🔄
@@ -442,43 +485,67 @@ export default function CallScreen() {
         </motion.div>
       )}
 
-      {/* ── CENTER CONTENT (Avatar, Name, Timer, Equalizer) ── */}
+      {/* ── CENTER HERO: AVATAR, NAME & REAL-TIME AUDIO WAVES ── */}
       {(callType !== 'video' || callState !== 'connected') && (
         <div style={{
           zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'center', marginTop: 'auto', marginBottom: 'auto', width: '100%', padding: '0 20px'
         }}>
           
-          {/* Avatar with Animated Pulsing Radar Rings */}
-          <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 28 }}>
-            {(callState === 'calling' || callState === 'incoming' || callState === 'connected') && (
-              <>
-                <motion.div
-                  animate={{ scale: [1, 1.45, 1], opacity: [0.4, 0, 0.4] }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
-                  style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '2px solid #C9A96E', filter: 'blur(2px)' }}
-                />
-                <motion.div
-                  animate={{ scale: [1, 1.75, 1], opacity: [0.25, 0, 0.25] }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
-                  style={{ position: 'absolute', inset: -24, borderRadius: '50%', border: '1px solid #7C6FCD', filter: 'blur(3px)' }}
-                />
-              </>
-            )}
+          {/* Glowing Animated Radar Avatar */}
+          <div style={{ position: 'relative', width: 156, height: 156, marginBottom: 30 }}>
+            {/* Pulsing Ripple Wave 1 */}
+            <motion.div
+              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut" }}
+              style={{
+                position: 'absolute', inset: -16, borderRadius: '50%',
+                border: '2px solid rgba(201,169,110,0.6)', filter: 'blur(3px)',
+                pointerEvents: 'none'
+              }}
+            />
+            {/* Pulsing Ripple Wave 2 */}
+            <motion.div
+              animate={{ scale: [1, 1.85, 1], opacity: [0.35, 0, 0.35] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
+              style={{
+                position: 'absolute', inset: -28, borderRadius: '50%',
+                border: '1.5px solid rgba(124,111,205,0.5)', filter: 'blur(4px)',
+                pointerEvents: 'none'
+              }}
+            />
+            {/* Pulsing Ripple Wave 3 */}
+            <motion.div
+              animate={{ scale: [1, 2.2, 1], opacity: [0.2, 0, 0.2] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut", delay: 1.2 }}
+              style={{
+                position: 'absolute', inset: -40, borderRadius: '50%',
+                border: '1px solid rgba(201,169,110,0.3)', filter: 'blur(6px)',
+                pointerEvents: 'none'
+              }}
+            />
 
+            {/* Avatar Circle Container */}
             <div style={{
               width: '100%', height: '100%', borderRadius: '50%',
-              background: 'linear-gradient(135deg, #1c1815, #0e0d12)',
-              border: '3px solid rgba(201,169,110,0.6)',
-              boxShadow: '0 0 40px rgba(201,169,110,0.25), inset 0 0 20px rgba(0,0,0,0.8)',
+              background: 'linear-gradient(135deg, #24201c, #131218)',
+              border: '3.5px solid #C9A96E',
+              boxShadow: '0 0 50px rgba(201,169,110,0.4), inset 0 0 25px rgba(0,0,0,0.8)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               position: 'relative', zIndex: 2, overflow: 'hidden'
             }}>
               {partner?.avatar_url ? (
-                <img src={partner.avatar_url} alt="Partner Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={partner.avatar_url} alt={partnerName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span style={{ fontSize: '3.4rem', fontFamily: 'Cormorant Garamond, serif', fontWeight: 600, color: '#C9A96E' }}>
-                  {partner?.name?.[0]?.toUpperCase() || 'S'}
+                <span style={{
+                  fontSize: '3.8rem',
+                  fontFamily: 'Cormorant Garamond, serif',
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #FFF, #C9A96E)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}>
+                  {partnerInitial}
                 </span>
               )}
             </div>
@@ -486,28 +553,33 @@ export default function CallScreen() {
 
           {/* Partner Name */}
           <h1 style={{
-            fontSize: '2.2rem', fontWeight: 700, fontFamily: 'Cormorant Garamond, serif',
-            letterSpacing: '0.5px', margin: 0, color: '#fff', textAlign: 'center'
+            fontSize: '2.4rem', fontWeight: 700, fontFamily: 'Cormorant Garamond, serif',
+            letterSpacing: '0.5px', margin: 0, color: '#fff', textAlign: 'center',
+            textShadow: '0 4px 20px rgba(0,0,0,0.6)'
           }}>
-            {partner?.name || 'Partner'}
+            {partnerName}
           </h1>
 
-          {/* Call Status / Timer */}
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Call Status Badge / Timer */}
+          <div style={{
+            marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+            padding: '6px 16px', borderRadius: 20
+          }}>
             {callState === 'connected' && (
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6ECFA0', boxShadow: '0 0 8px #6ECFA0' }} />
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6ECFA0', boxShadow: '0 0 10px #6ECFA0' }} />
             )}
             <span style={{
-              fontSize: callState === 'connected' ? '1.2rem' : '0.9rem',
-              fontWeight: callState === 'connected' ? 700 : 500,
-              color: callState === 'connected' ? '#C9A96E' : 'rgba(255,255,255,0.6)',
+              fontSize: callState === 'connected' ? '1.15rem' : '0.85rem',
+              fontWeight: callState === 'connected' ? 800 : 600,
+              color: callState === 'connected' ? '#C9A96E' : 'rgba(255,255,255,0.7)',
               fontFamily: callState === 'connected' ? 'monospace' : 'inherit',
               letterSpacing: callState === 'connected' ? '2px' : '0.5px'
             }}>
               {callState === 'connected' ? fmt(duration)
-                : callState === 'calling' ? 'Calling partner...'
-                : callState === 'connecting' ? 'Connecting encryption...'
-                : callState === 'incoming' ? 'Incoming call request...'
+                : callState === 'calling' ? 'Calling...'
+                : callState === 'connecting' ? 'Connecting...'
+                : callState === 'incoming' ? 'Incoming Call...'
                 : 'Ready'}
             </span>
           </div>
@@ -515,19 +587,20 @@ export default function CallScreen() {
           {/* Dynamic Audio Equalizer Waveform while connected */}
           {callState === 'connected' && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 5, height: 26 }}
+              style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 6, height: 32 }}
             >
-              {[18, 30, 14, 26, 36, 22, 12, 28, 32, 16, 24, 30, 14].map((h, i) => (
+              {[18, 32, 14, 28, 38, 24, 16, 30, 36, 18, 26, 32, 14].map((h, i) => (
                 <motion.div
                   key={i}
                   animate={{ height: [6, h, 6] }}
-                  transition={{ duration: 0.6 + (i % 4) * 0.15, repeat: Infinity, ease: 'easeInOut', delay: i * 0.06 }}
+                  transition={{ duration: 0.55 + (i % 4) * 0.12, repeat: Infinity, ease: 'easeInOut', delay: i * 0.05 }}
                   style={{
-                    width: 3.5,
+                    width: 4,
                     background: 'linear-gradient(to top, #C9A96E, #7C6FCD)',
-                    borderRadius: 4
+                    borderRadius: 4,
+                    boxShadow: '0 0 8px rgba(201,169,110,0.4)'
                   }}
                 />
               ))}
@@ -536,23 +609,23 @@ export default function CallScreen() {
         </div>
       )}
 
-      {/* ── VIDEO CALL TIMER (Overlay in Connected Video Call) ── */}
+      {/* ── VIDEO CALL TIMER (In-Call Overlay) ───────────────── */}
       {callType === 'video' && callState === 'connected' && (
         <div style={{
           position: 'absolute', top: 90, left: 24,
           padding: '6px 14px', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, zIndex: 20,
+          border: '1px solid rgba(255,255,255,0.15)', borderRadius: 20, zIndex: 20,
           display: 'flex', alignItems: 'center', gap: 8
         }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6ECFA0', boxShadow: '0 0 8px #6ECFA0' }} />
-          <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', fontFamily: 'monospace', letterSpacing: '1px' }}>
+          <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff', fontFamily: 'monospace', letterSpacing: '1px' }}>
             {fmt(duration)}
           </span>
         </div>
       )}
 
-      {/* ── BOTTOM CONTROLS DOCK ─────────────────────────────── */}
-      <div style={{ width: '100%', maxWidth: 500, padding: '0 24px 44px', zIndex: 30, position: 'relative' }}>
+      {/* ── BOTTOM ACTION CONTROLS DOCK ──────────────────────── */}
+      <div style={{ width: '100%', maxWidth: 520, padding: '0 24px 44px', zIndex: 30, position: 'relative' }}>
         
         {/* INCOMING CALL CONTROLS */}
         <AnimatePresence>
@@ -562,47 +635,46 @@ export default function CallScreen() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
               style={{
-                background: 'rgba(24, 20, 26, 0.85)', backdropFilter: 'blur(30px)',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 32,
-                padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.8)'
+                background: 'rgba(22, 18, 24, 0.9)', backdropFilter: 'blur(32px)',
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 36,
+                padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.85)'
               }}
             >
               {/* Decline Button */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                 <button
                   onClick={() => endCall(true)}
                   style={{
-                    width: 64, height: 64, borderRadius: '50%',
+                    width: 68, height: 68, borderRadius: '50%',
                     background: 'linear-gradient(135deg, #ff4444, #cc0000)',
                     border: 'none', color: '#fff', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 8px 24px rgba(255,68,68,0.4)',
-                    transition: 'transform 0.2s'
+                    boxShadow: '0 10px 30px rgba(255,68,68,0.5)'
                   }}
                 >
-                  <Icons.Phone size={26} style={{ transform: 'rotate(135deg)' }} />
+                  <Icons.Phone size={28} style={{ transform: 'rotate(135deg)' }} />
                 </button>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ff7777' }}>Decline</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ff7777', letterSpacing: '0.3px' }}>Decline</span>
               </div>
 
               {/* Accept Button */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                 <motion.button
                   animate={{ scale: [1, 1.08, 1] }}
                   transition={{ duration: 1.2, repeat: Infinity }}
                   onClick={answerCall}
                   style={{
-                    width: 64, height: 64, borderRadius: '50%',
+                    width: 68, height: 68, borderRadius: '50%',
                     background: 'linear-gradient(135deg, #34C759, #28a745)',
                     border: 'none', color: '#fff', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 8px 24px rgba(52,199,89,0.45)'
+                    boxShadow: '0 10px 30px rgba(52,199,89,0.5)'
                   }}
                 >
-                  <Icons.Phone size={26} />
+                  <Icons.Phone size={28} />
                 </motion.button>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6ECFA0' }}>Accept</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6ECFA0', letterSpacing: '0.3px' }}>Accept</span>
               </div>
             </motion.div>
           )}
@@ -616,37 +688,45 @@ export default function CallScreen() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
               style={{
-                background: 'rgba(24, 20, 26, 0.85)', backdropFilter: 'blur(30px)',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 32,
-                padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32,
-                boxShadow: '0 20px 50px rgba(0,0,0,0.8)'
+                background: 'rgba(22, 18, 24, 0.9)', backdropFilter: 'blur(32px)',
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 36,
+                padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 36,
+                boxShadow: '0 24px 60px rgba(0,0,0,0.85)'
               }}
             >
-              <button
-                onClick={toggleMute}
-                style={{
-                  width: 52, height: 52, borderRadius: '50%',
-                  background: muted ? 'rgba(255,68,68,0.2)' : 'rgba(255,255,255,0.08)',
-                  border: `1px solid ${muted ? 'rgba(255,68,68,0.5)' : 'rgba(255,255,255,0.12)'}`,
-                  color: muted ? '#ff4444' : '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-              >
-                <Icons.Mic size={22} />
-              </button>
+              {/* Mute toggle during call setup */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={toggleMute}
+                  style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: muted ? 'rgba(255,68,68,0.25)' : 'rgba(255,255,255,0.08)',
+                    border: `1px solid ${muted ? 'rgba(255,68,68,0.6)' : 'rgba(255,255,255,0.14)'}`,
+                    color: muted ? '#ff4444' : '#fff', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                >
+                  <Icons.Mic size={24} />
+                </button>
+                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>{muted ? 'Muted' : 'Mute'}</span>
+              </div>
 
-              <button
-                onClick={() => endCall(true)}
-                style={{
-                  width: 64, height: 64, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ff4444, #cc0000)',
-                  border: 'none', color: '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 8px 24px rgba(255,68,68,0.45)'
-                }}
-              >
-                <Icons.Phone size={28} style={{ transform: 'rotate(135deg)' }} />
-              </button>
+              {/* End / Cancel Call Button */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => endCall(true)}
+                  style={{
+                    width: 68, height: 68, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #ff4444, #cc0000)',
+                    border: 'none', color: '#fff', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 10px 30px rgba(255,68,68,0.5)'
+                  }}
+                >
+                  <Icons.Phone size={30} style={{ transform: 'rotate(135deg)' }} />
+                </button>
+                <span style={{ fontSize: '0.75rem', color: '#ff7777', fontWeight: 700 }}>End Call</span>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -659,90 +739,105 @@ export default function CallScreen() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
               style={{
-                background: 'rgba(18, 16, 22, 0.88)', backdropFilter: 'blur(32px)',
+                background: 'rgba(18, 16, 22, 0.9)', backdropFilter: 'blur(36px)',
                 border: '1px solid rgba(255,255,255,0.12)', borderRadius: 36,
-                padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 boxShadow: '0 24px 60px rgba(0,0,0,0.85)'
               }}
             >
               {/* Mute Mic */}
-              <button
-                onClick={toggleMute}
-                title={muted ? "Unmute Mic" : "Mute Mic"}
-                style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: muted ? 'rgba(255,68,68,0.2)' : 'rgba(255,255,255,0.08)',
-                  border: `1px solid ${muted ? 'rgba(255,68,68,0.5)' : 'rgba(255,255,255,0.12)'}`,
-                  color: muted ? '#ff4444' : '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-              >
-                <Icons.Mic size={20} />
-              </button>
-
-              {/* Camera Toggle (Video Call) */}
-              {callType === 'video' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <button
-                  onClick={toggleVideo}
-                  title={camOff ? "Turn Camera On" : "Turn Camera Off"}
+                  onClick={toggleMute}
+                  title={muted ? "Unmute Mic" : "Mute Mic"}
                   style={{
-                    width: 48, height: 48, borderRadius: '50%',
-                    background: camOff ? 'rgba(255,68,68,0.2)' : 'rgba(255,255,255,0.08)',
-                    border: `1px solid ${camOff ? 'rgba(255,68,68,0.5)' : 'rgba(255,255,255,0.12)'}`,
-                    color: camOff ? '#ff4444' : '#fff', cursor: 'pointer',
+                    width: 50, height: 50, borderRadius: '50%',
+                    background: muted ? 'rgba(255,68,68,0.25)' : 'rgba(255,255,255,0.08)',
+                    border: `1px solid ${muted ? 'rgba(255,68,68,0.6)' : 'rgba(255,255,255,0.14)'}`,
+                    color: muted ? '#ff4444' : '#fff', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}
                 >
-                  <Icons.Camera size={20} />
+                  <Icons.Mic size={22} />
                 </button>
+                <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{muted ? 'Muted' : 'Mute'}</span>
+              </div>
+
+              {/* Camera Toggle (Video Call) */}
+              {callType === 'video' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <button
+                    onClick={toggleVideo}
+                    title={camOff ? "Turn Camera On" : "Turn Camera Off"}
+                    style={{
+                      width: 50, height: 50, borderRadius: '50%',
+                      background: camOff ? 'rgba(255,68,68,0.25)' : 'rgba(255,255,255,0.08)',
+                      border: `1px solid ${camOff ? 'rgba(255,68,68,0.6)' : 'rgba(255,255,255,0.14)'}`,
+                      color: camOff ? '#ff4444' : '#fff', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                  >
+                    <Icons.Camera size={22} />
+                  </button>
+                  <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{camOff ? 'Cam Off' : 'Camera'}</span>
+                </div>
               )}
 
               {/* Flip Camera (Video Call) */}
               {callType === 'video' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <button
+                    onClick={flipCamera}
+                    title="Flip Camera View"
+                    style={{
+                      width: 50, height: 50, borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      color: '#fff', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                  >
+                    <span style={{ fontSize: '1.25rem' }}>🔄</span>
+                  </button>
+                  <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Flip</span>
+                </div>
+              )}
+
+              {/* Return to Chat button */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <button
-                  onClick={flipCamera}
-                  title="Flip Camera View"
+                  onClick={() => nav('/chat')}
+                  title="Return to Chat"
                   style={{
-                    width: 48, height: 48, borderRadius: '50%',
+                    width: 50, height: 50, borderRadius: '50%',
                     background: 'rgba(255,255,255,0.08)',
-                    border: '1px solid rgba(255,255,255,0.12)',
+                    border: '1px solid rgba(255,255,255,0.14)',
                     color: '#fff', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}
                 >
-                  <span style={{ fontSize: '1.2rem' }}>🔄</span>
+                  <Icons.Chat size={22} color="var(--accent)" />
                 </button>
-              )}
-
-              {/* Chat Quick Access */}
-              <button
-                onClick={() => nav('/chat')}
-                title="Return to Chat"
-                style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  color: '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-              >
-                <Icons.Chat size={20} color="var(--accent)" />
-              </button>
+                <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Chat</span>
+              </div>
 
               {/* End Call Button */}
-              <button
-                onClick={() => endCall(true)}
-                title="End Call"
-                style={{
-                  width: 54, height: 54, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ff4444, #cc0000)',
-                  border: 'none', color: '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 8px 24px rgba(255,68,68,0.5)'
-                }}
-              >
-                <Icons.Phone size={24} style={{ transform: 'rotate(135deg)' }} />
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <button
+                  onClick={() => endCall(true)}
+                  title="End Call"
+                  style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #ff4444, #cc0000)',
+                    border: 'none', color: '#fff', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 10px 30px rgba(255,68,68,0.55)'
+                  }}
+                >
+                  <Icons.Phone size={26} style={{ transform: 'rotate(135deg)' }} />
+                </button>
+                <span style={{ fontSize: '0.65rem', color: '#ff7777', fontWeight: 700 }}>End</span>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -756,37 +851,37 @@ export default function CallScreen() {
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowAudioMenu(false)}
-              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)', zIndex: 9999991 }}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', zIndex: 9999991 }}
             />
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               style={{
                 position: 'fixed', bottom: 0, left: 0, right: 0,
-                background: '#131118', borderTopLeftRadius: 32, borderTopRightRadius: 32,
-                padding: '28px 24px 40px', zIndex: 9999992,
-                borderTop: '1px solid rgba(255,255,255,0.1)', maxWidth: 500, margin: '0 auto'
+                background: '#121016', borderTopLeftRadius: 32, borderTopRightRadius: 32,
+                padding: '28px 24px 44px', zIndex: 9999992,
+                borderTop: '1px solid rgba(255,255,255,0.1)', maxWidth: 520, margin: '0 auto'
               }}
             >
-              <div style={{ width: 40, height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, margin: '0 auto 20px' }} />
-              <h3 style={{ textAlign: 'center', color: '#fff', fontSize: '1rem', fontWeight: 700, margin: '0 0 20px' }}>
-                Audio Output Device
+              <div style={{ width: 44, height: 4, background: 'rgba(255,255,255,0.25)', borderRadius: 2, margin: '0 auto 24px' }} />
+              <h3 style={{ textAlign: 'center', color: '#fff', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 20px' }}>
+                Select Audio Output
               </h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { id: 'speaker', label: 'Speakerphone', icon: <Icons.Volume2 size={20} /> },
-                  { id: 'earpiece', label: 'Phone Earpiece', icon: <Icons.Phone size={20} /> },
-                  { id: 'bluetooth', label: 'Bluetooth Audio Device', icon: <Icons.Smile size={20} /> },
+                  { id: 'speaker', label: 'Speakerphone', icon: <Icons.Volume2 size={22} /> },
+                  { id: 'earpiece', label: 'Phone Earpiece', icon: <Icons.Phone size={22} /> },
+                  { id: 'bluetooth', label: 'Bluetooth Audio Device', icon: <Icons.Smile size={22} /> },
                 ].map(dev => (
                   <button
                     key={dev.id}
                     onClick={() => { setAudioRoute(dev.id); setShowAudioMenu(false); }}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '16px 20px', borderRadius: 16,
-                      background: audioRoute === dev.id ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.04)',
-                      border: audioRoute === dev.id ? '1px solid rgba(201,169,110,0.4)' : '1px solid rgba(255,255,255,0.06)',
+                      padding: '16px 20px', borderRadius: 18,
+                      background: audioRoute === dev.id ? 'rgba(201,169,110,0.16)' : 'rgba(255,255,255,0.04)',
+                      border: audioRoute === dev.id ? '1.5px solid rgba(201,169,110,0.5)' : '1px solid rgba(255,255,255,0.06)',
                       color: audioRoute === dev.id ? '#C9A96E' : '#fff',
                       fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer'
                     }}
@@ -795,7 +890,7 @@ export default function CallScreen() {
                       {dev.icon}
                       <span>{dev.label}</span>
                     </div>
-                    {audioRoute === dev.id && <span style={{ color: '#C9A96E', fontWeight: 800 }}>✓</span>}
+                    {audioRoute === dev.id && <span style={{ color: '#C9A96E', fontWeight: 900 }}>✓</span>}
                   </button>
                 ))}
               </div>
