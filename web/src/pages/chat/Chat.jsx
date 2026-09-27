@@ -182,9 +182,20 @@ export default function Chat() {
 
   const bottomRef  = useRef(null);
   const typingTimer = useRef(null);
+  const partnerTypingTimer = useRef(null);
   const fileRef    = useRef(null);
   const scrollRef  = useRef(null);
   const inputRef   = useRef(null);
+
+  const handlePartnerTyping = (isTyping) => {
+    clearTimeout(partnerTypingTimer.current);
+    setTyping(isTyping);
+    if (isTyping) {
+      partnerTypingTimer.current = setTimeout(() => {
+        setTyping(false);
+      }, 3000);
+    }
+  };
 
   // Prevent body scrolling while in immersive chat (REMOVED to fix black screen bug)
 
@@ -265,6 +276,9 @@ export default function Chat() {
     const offs = [
       wsService.on('connected', () => syncMessages()),
       wsService.on('chat_message', msg => {
+        if (msg.sender_id !== user?.id) {
+          handlePartnerTyping(false);
+        }
         const sk = localStorage.getItem('paxly_sk');
         const pk = JSON.parse(localStorage.getItem('cached_partner') || '{}')?.public_key;
         
@@ -300,13 +314,13 @@ export default function Chat() {
           return [...p, msg];
         });
       }),
-      wsService.on('typing', d => { if (d.user_id !== user?.id) setTyping(d.is_typing); }),
+      wsService.on('typing', d => { if (d.user_id !== user?.id) handlePartnerTyping(d.is_typing); }),
       wsService.on('presence', d => { if (d.user_id !== user?.id) setPartnerOnline(d.online); }),
       wsService.on('presence_state', d => {
         if (d.user_id !== user?.id) {
           setPartnerPresence(d.state);
           setPartnerMood(d.mood || 'neutral');
-          setTyping(d.state === 'typing');
+          handlePartnerTyping(d.state === 'typing');
         }
       }),
       wsService.on('reaction', d => {
@@ -430,6 +444,11 @@ export default function Chat() {
 
   const send = async () => {
     if (!text.trim() || sending) return;
+
+    // Reset typing state on sender side
+    clearTimeout(typingTimer.current);
+    wsService.sendTyping(false);
+    wsService.send({ type: 'presence_state', state: 'peeking', mood: selfMood });
     
     const rawText = text.trim();
     const tempId = `temp_${Date.now()}`;
