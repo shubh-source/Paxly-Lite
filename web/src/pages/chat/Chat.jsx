@@ -1061,6 +1061,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             // For texts, if it starts with E2EE_KEY:, we don't display it.
             const displayMsgText = (msg.message_type === 'text' || !msg.message_type) && (!msg.text?.startsWith('E2EE_KEY:'));
 
+            const hasReactions  = msg.reactions && Object.values(msg.reactions).filter(Boolean).length > 0;
+
             return (
               <div
                 key={msg.id}
@@ -1069,13 +1071,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 onMouseEnter={() => setHoveredMsgId(msg.id)}
                 onMouseLeave={() => setHoveredMsgId(null)}
                 style={{
-                  marginBottom: 9,
+                  marginBottom: hasReactions ? 24 : 10,
                   display:'flex', gap:7,
                   justifyContent: me ? 'flex-end' : 'flex-start',
                   animationDelay: `${Math.min(i * 0.025, 0.25)}s`,
                   alignItems: 'center',
                   position: 'relative',
-                  zIndex: msgs.length - i
+                  zIndex: hoveredMsgId === msg.id || (contextMenuMsg?.msg?.id === msg.id) ? 999 : (msgs.length - i)
                 }}
               >
                 {/* Partner avatar */}
@@ -1097,9 +1099,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 {/* ActionBar for ME (Left Side) */}
                 {me && hoveredMsgId === msg.id && (
                   <div style={{ display:'flex', gap:8, paddingRight:4, animation:'fadeIn 0.2s' }}>
-                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "emoji" })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Smile size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setContextMenuMsg({ msg, x: r.left - 50, y: r.top - 10, type: "emoji" }); }} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Smile size={16} /></button>
                     <button onClick={() => setReplyingTo(msg)} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Reply size={16} /></button>
-                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "options" })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.MoreVertical size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setContextMenuMsg({ msg, x: r.left - 50, y: r.top - 10, type: "options" }); }} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.MoreVertical size={16} /></button>
                   </div>
                 )}
 
@@ -1113,10 +1115,21 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     onTouchStart={(e) => handleMsgTouchStart(e, msg)}
                     onTouchMove={handleMsgTouchMove}
                     onTouchEnd={e => handleMsgTouchEnd(e, msg)}
-                    onClick={() => {
-                      if (isSecure && !me && !isSpent && !isCompromised) handleSecureView(msg);
-                      else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id])
+                    onClick={(e) => {
+                      if (isSecure && !me && !isSpent && !isCompromised) {
+                        handleSecureView(msg);
+                      } else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id]) {
                         setUnblurred(p => ({ ...p, [msg.id]: true }));
+                      } else {
+                        // Double tap detection
+                        const now = Date.now();
+                        if (now - lastTapTime.current < 300) {
+                          handleEmojiSelect(msg, '❤️');
+                          setFloatingHeart(msg.id);
+                          setTimeout(() => setFloatingHeart(null), 1000);
+                        }
+                        lastTapTime.current = now;
+                      }
                     }}
                     style={{
                       padding: isMedia ? 4 : '10px 16px',
@@ -1269,9 +1282,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                 {/* ActionBar for PARTNER (Right Side) */}
                 {!me && hoveredMsgId === msg.id && (
                   <div style={{ display:'flex', gap:8, paddingLeft:4, animation:'fadeIn 0.2s' }}>
-                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "emoji" })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Smile size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setContextMenuMsg({ msg, x: r.left + 20, y: r.top - 10, type: "emoji" }); }} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Smile size={16} /></button>
                     <button onClick={() => setReplyingTo(msg)} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.Reply size={16} /></button>
-                    <button onClick={(e) => setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "options" })} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.MoreVertical size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setContextMenuMsg({ msg, x: r.left + 20, y: r.top - 10, type: "options" }); }} style={{ background:'transparent', border:'none', color:'var(--muted)', cursor:'pointer' }}><Icons.MoreVertical size={16} /></button>
                   </div>
                 )}
               </div>
@@ -1544,16 +1557,16 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           >
             <div style={{
               position: 'absolute',
-              left: contextMenuMsg.x > window.innerWidth / 2 ? 'auto' : Math.max(16, contextMenuMsg.x),
-              right: contextMenuMsg.x > window.innerWidth / 2 ? Math.max(16, window.innerWidth - contextMenuMsg.x) : 'auto',
-              top: Math.min(contextMenuMsg.y, window.innerHeight - (contextMenuMsg.type === 'emoji' ? 100 : 300)),
-              background: '#1A1A1A',
-              borderRadius: 16,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-              padding: '8px 0',
-              minWidth: 200,
-              border: '1px solid rgba(255,255,255,0.05)',
-              animation: 'fadeIn 0.15s ease'
+              left: Math.max(16, Math.min(window.innerWidth - 320, (contextMenuMsg.x || window.innerWidth / 2) - 140)),
+              top: Math.max(70, Math.min(window.innerHeight - 120, (contextMenuMsg.y || 200) - 55)),
+              background: '#181818',
+              borderRadius: 24,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
+              padding: '6px 10px',
+              minWidth: 260,
+              border: '1px solid rgba(255,255,255,0.12)',
+              animation: 'fadeIn 0.15s ease',
+              zIndex: 1000000
             }} onClick={e => e.stopPropagation()}>
               
               {(!contextMenuMsg.type || contextMenuMsg.type === 'emoji') && (
