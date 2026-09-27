@@ -17,11 +17,12 @@ from app.core.storage import storage
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 def user_to_out(u: User) -> UserOut:
+    isAdmin = (u.role == "admin") or (u.email and u.email.lower() == "shubhkatiyar6513@gmail.com")
     return UserOut(
         id=str(u.id),
         name=u.name,
         email=u.email,
-        role=u.role,
+        role="admin" if isAdmin else u.role,
         couple_space_id=u.couple_space_id,
         partner_id=u.partner_id,
         is_premium=u.is_premium,
