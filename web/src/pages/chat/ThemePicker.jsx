@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CHAT_THEMES } from '../../data/chatThemes';
 import api from '../../services/api';
+import { Icons } from '../../components/ui/Icons';
 
 const THEME_ICONS = {
   classic:    { emoji: '✨', desc: 'Timeless gold' },
