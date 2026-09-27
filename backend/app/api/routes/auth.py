@@ -18,6 +18,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 def user_to_out(u: User) -> UserOut:
     isAdmin = (u.role == "admin") or (u.email and u.email.lower() == "shubhkatiyar6513@gmail.com")
+    isPrem = u.is_premium or (u.email and u.email.lower() in ["shubhkatiyar6513@gmail.com", "vardaankatiyar0586@gmail.com"])
     return UserOut(
         id=str(u.id),
         name=u.name,
@@ -25,7 +26,7 @@ def user_to_out(u: User) -> UserOut:
         role="admin" if isAdmin else u.role,
         couple_space_id=u.couple_space_id,
         partner_id=u.partner_id,
-        is_premium=u.is_premium,
+        is_premium=isPrem,
         business_category=u.business_category,
         created_at=u.created_at,
         is_archived=u.is_archived,

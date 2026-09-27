@@ -25,6 +25,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+PREMIUM_EMAILS = ["shubhkatiyar6513@gmail.com", "vardaankatiyar0586@gmail.com"]
+ADMIN_EMAILS = ["shubhkatiyar6513@gmail.com"]
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db)
@@ -49,16 +52,18 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     
+    # Auto-grant premium to VIP accounts
+    if user.email and user.email.lower() in PREMIUM_EMAILS:
+        user.is_premium = True
+        
     return user
 
 async def admin_only(user: User = Depends(get_current_user)):
-    admin_emails = ["shubhkatiyar6513@gmail.com"]
-    if user.role == "admin" or (user.email and user.email.lower() in admin_emails):
+    if user.role == "admin" or (user.email and user.email.lower() in ADMIN_EMAILS):
         return user
     raise HTTPException(status_code=403, detail="Admin access required")
 
 async def partner_only(user: User = Depends(get_current_user)):
-    admin_emails = ["shubhkatiyar6513@gmail.com"]
-    if user.role in ["partner", "admin"] or (user.email and user.email.lower() in admin_emails):
+    if user.role in ["partner", "admin"] or (user.email and user.email.lower() in ADMIN_EMAILS):
         return user
     raise HTTPException(status_code=403, detail="Partner access required")
