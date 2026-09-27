@@ -89,33 +89,38 @@ export default function Chat() {
     const currentEmoji = targetMsg.reactions?.[user?.id];
     const newEmoji = forceSet ? emoji : (currentEmoji === emoji ? null : emoji);
 
-    // 1. Optimistic Update (Instant feedback on screen)
-    setMsgs(prev => prev.map(m => {
-      if (m.id === targetMsg.id) {
-        const nextReactions = { ...(m.reactions || {}) };
-        if (newEmoji) {
-          nextReactions[user?.id] = newEmoji;
-        } else {
-          delete nextReactions[user?.id];
+    // 1. Optimistic Update (Instant feedback on screen + local cache)
+    setMsgs(prev => {
+      const updated = prev.map(m => {
+        if (m.id === targetMsg.id) {
+          const nextReactions = { ...(m.reactions || {}) };
+          if (newEmoji) {
+            nextReactions[user?.id] = newEmoji;
+          } else {
+            delete nextReactions[user?.id];
+          }
+          return { ...m, reactions: nextReactions };
         }
-        return { ...m, reactions: nextReactions };
-      }
-      return m;
-    }));
+        return m;
+      });
+      localStorage.setItem('cached_messages', JSON.stringify(updated));
+      return updated;
+    });
 
-    // 2. Deliver via WebSocket if connected, otherwise fallback to REST
+    // 2. Deliver via WebSocket
     if (wsService.isConnected()) {
       wsService.send({
         type: 'reaction',
         message_id: targetMsg.id,
         emoji: newEmoji
       });
+    }
+
+    // 3. Always persist to database via REST for 100% guarantee
+    if (newEmoji) {
+      api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
     } else {
-      if (newEmoji) {
-        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
-      } else {
-        api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
-      }
+      api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
     }
 
     setContextMenuMsg(null);
@@ -200,13 +205,6 @@ export default function Chat() {
       const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       
       setMsgs(prev => {
-        const prevRealMsgs = prev.filter(m => !m.isOptimistic);
-        if (prevRealMsgs.length === sorted.length && prevRealMsgs.length > 0 && sorted.length > 0 && !prev.some(m => m.isOptimistic)) {
-          if (prevRealMsgs[prevRealMsgs.length - 1].id === sorted[sorted.length - 1].id) {
-            return prev;
-          }
-        }
-
         const decryptedMsgs = [];
         for (const m of sorted) {
           if (m.message_type === 'text' && m.text && sk && pk) {
@@ -228,6 +226,11 @@ export default function Chat() {
           }
         });
         const merged = Array.from(msgMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        if (JSON.stringify(prev) === JSON.stringify(merged)) {
+          return prev;
+        }
+
         localStorage.setItem('cached_messages', JSON.stringify(merged));
         return merged;
       });
