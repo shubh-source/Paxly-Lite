@@ -56,9 +56,10 @@ export const getSpace = () =>
 export const getMessages = (skip = 0, limit = 50) =>
   api.get('/chat/messages', { params: { skip, limit, _t: Date.now() } }).then(r => r.data);
 
-export const uploadMedia = (file) => {
+export const uploadMedia = (file, customName = null) => {
   const form = new FormData();
-  form.append('file', file);
+  const name = customName || (file instanceof File && file.name ? file.name : 'upload.jpg');
+  form.append('file', file, name);
   return api.post('/chat/upload-media', form).then(r => r.data);
 };
 

@@ -157,6 +157,8 @@ async def upload_media(file: UploadFile = File(...), cu: User = Depends(get_curr
     ensure_space(cu)
     filename_str = file.filename if file.filename else "upload.jpg"
     ext = filename_str.split(".")[-1].lower() if "." in filename_str else "jpg"
+    if ext in ["blob", "bin", "enc", "octet-stream", ""]:
+        ext = "jpg"
     if ext not in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mp3", "m4a", "ogg", "webm", "heic", "mov"]:
         raise HTTPException(400, f"File type {ext} not allowed.")
     

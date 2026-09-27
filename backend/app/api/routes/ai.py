@@ -91,7 +91,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             final_system_prompt = dynamic_prompt + frontend_system_prompt
 
             model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash",
+                model_name="gemini-1.5-flash",
                 system_instruction=final_system_prompt
             )
             chat_history = []
@@ -190,7 +190,7 @@ async def summarize_history(history_text: str) -> str:
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
             resp = await model.generate_content_async(prompt)
             return resp.text
         except Exception:
@@ -285,7 +285,7 @@ async def interview_chat(data: AIInterviewRequest, cu: User = Depends(get_curren
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
             resp = await model.generate_content_async(data.message)
             return AIResponse(reply=resp.text)
         except Exception:
@@ -344,7 +344,7 @@ async def finalize_session(session: AICounselingSession, db: AsyncSession):
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
             resp = await model.generate_content_async(prompt)
             # Clean up potential markdown formatting from Gemini
             cleaned = resp.text.strip()
@@ -427,7 +427,7 @@ async def deep_analytics(cu: User = Depends(get_current_user), db: AsyncSession 
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system)
+            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
             resp = await model.generate_content_async(prompt)
             cleaned = resp.text.strip()
             if cleaned.startswith("```json"): cleaned = cleaned[7:]

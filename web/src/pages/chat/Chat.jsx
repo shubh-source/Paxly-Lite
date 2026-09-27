@@ -692,8 +692,10 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
     setMsgs(p => [...p, tempMsg]);
 
     try {
+      const isVid = f.type?.startsWith('video');
+      const ext = isVid ? 'mp4' : 'jpg';
       const { encryptedBlob, symmetricKey } = await encryptMediaBlob(f);
-      const { media_url } = await uploadMedia(encryptedBlob);
+      const { media_url } = await uploadMedia(encryptedBlob, `media.${ext}`);
       const isOnceView = mode !== 'standard' && mode !== 'permanent';
       const limit      = mode === 'twice' ? 2 : 1;
       let finalUrl     = media_url;
@@ -702,10 +704,12 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
       } else if (media_url?.startsWith('/')) {
         finalUrl = (import.meta.env.VITE_API_URL || '') + media_url;
       }
-      const type = f.type?.startsWith('video') ? 'video' : 'image';
+      const type = isVid ? 'video' : 'image';
       
       const sk = localStorage.getItem('paxly_sk');
-      const pk = partner?.public_key;
+      let cachedP = null;
+      try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
+      const pk = partner?.public_key || cachedP?.public_key;
       let payloadText = `E2EE_KEY:${symmetricKey}`;
       if (sk && pk) {
          payloadText = encryptMessage(payloadText, sk, pk);
