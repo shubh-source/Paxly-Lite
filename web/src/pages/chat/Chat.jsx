@@ -320,7 +320,17 @@ export default function Chat() {
   }, [text]);
 
   /* ── auto scroll ──────────────────────────────────────────── */
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'auto' }); }, [msgs]);
+  const prevMsgsLength = useRef(0);
+  const isInitialLoad = useRef(true);
+
+  useEffect(() => {
+    // Only scroll if message count increased (new message arrived or sent)
+    if (msgs.length > prevMsgsLength.current) {
+      bottomRef.current?.scrollIntoView({ behavior: isInitialLoad.current ? 'auto' : 'smooth' });
+      isInitialLoad.current = false;
+    }
+    prevMsgsLength.current = msgs.length;
+  }, [msgs.length]);
 
   /* ── self presence ────────────────────────────────────────── */
   useEffect(() => {
@@ -1105,176 +1115,182 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   </div>
                 )}
 
-                <div style={{ display:'flex', flexDirection:'column', alignItems: me ? 'flex-end' : 'flex-start' }}
+                <div style={{ display:'flex', flexDirection:'column', alignItems: me ? 'flex-end' : 'flex-start', position: 'relative', maxWidth: '82%' }}
                   className="chat-bubble-col">
 
-                  {/* Bubble */}
-                  <div
-                    className="chat-bubble"
-                    onContextMenu={(e) => handleContextMenu(e, msg)}
-                    onTouchStart={(e) => handleMsgTouchStart(e, msg)}
-                    onTouchMove={handleMsgTouchMove}
-                    onTouchEnd={e => handleMsgTouchEnd(e, msg)}
-                    onClick={(e) => {
-                      if (isSecure && !me && !isSpent && !isCompromised) {
-                        handleSecureView(msg);
-                      } else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id]) {
-                        setUnblurred(p => ({ ...p, [msg.id]: true }));
-                      } else {
-                        // Double tap detection
-                        const now = Date.now();
-                        if (now - lastTapTime.current < 300) {
-                          handleEmojiSelect(msg, '❤️');
-                          setFloatingHeart(msg.id);
-                          setTimeout(() => setFloatingHeart(null), 1000);
+                  <div style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', maxWidth: '100%' }}>
+                    {/* Bubble */}
+                    <div
+                      className="chat-bubble"
+                      onContextMenu={(e) => handleContextMenu(e, msg)}
+                      onTouchStart={(e) => handleMsgTouchStart(e, msg)}
+                      onTouchMove={handleMsgTouchMove}
+                      onTouchEnd={e => handleMsgTouchEnd(e, msg)}
+                      onClick={(e) => {
+                        if (isSecure && !me && !isSpent && !isCompromised) {
+                          handleSecureView(msg);
+                        } else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id]) {
+                          setUnblurred(p => ({ ...p, [msg.id]: true }));
+                        } else {
+                          // Double tap detection
+                          const now = Date.now();
+                          if (now - lastTapTime.current < 300) {
+                            handleEmojiSelect(msg, '❤️');
+                            setFloatingHeart(msg.id);
+                            setTimeout(() => setFloatingHeart(null), 1000);
+                          }
+                          lastTapTime.current = now;
                         }
-                        lastTapTime.current = now;
-                      }
-                    }}
-                    style={{
-                      padding: isMedia ? 4 : '10px 16px',
-                      background: isMedia ? 'transparent'
-                        : me
-                          ? (activeTheme.bubbleMe || '#E3BE86')
-                          : (activeTheme.bubbleOther || 'rgba(255,255,255,0.07)'),
-                      color: me
-                        ? (activeTheme.textMe || '#111')
-                        : (activeTheme.textOther || '#fff'),
-                      borderBottomRightRadius: me ? 4  : 20,
-                      borderBottomLeftRadius:  me ? 20 : 4,
-                      boxShadow: isMedia ? 'none'
-                        : me
-                          ? `0 4px 18px ${activeTheme.accent || '#C9A96E'}40`
-                          : `0 2px 10px rgba(0,0,0,0.25)`,
-                      border: isSecure
-                        ? (me ? '1px solid rgba(0,0,0,0.2)' : `1px solid ${activeTheme.accent || '#b3945a'}`)
-                        : activeTheme.borderMe && me ? activeTheme.borderMe : 'none',
-                      cursor: isSecure ? 'pointer' : 'default',
-                      minWidth: isSecure ? 160 : 0,
-                      position: 'relative',
-                      maxWidth: '100%',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                      transform: swipingMsgId === msg.id ? `translateX(${swipeOffset}px)` : 'none',
-                      transition: swipingMsgId === msg.id ? 'none' : 'transform 0.2s',
-                    }}
-                  >
-                    {/* Floating Heart */}
-                    {floatingHeart === msg.id && (
-                      <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', fontSize:'3rem', animation:'floatHeart 1s forwards', zIndex:10 }}>❤️</div>
-                    )}
+                      }}
+                      style={{
+                        padding: isMedia ? 4 : '10px 16px',
+                        background: isMedia ? 'transparent'
+                          : me
+                            ? (activeTheme.bubbleMe || '#E3BE86')
+                            : (activeTheme.bubbleOther || 'rgba(255,255,255,0.07)'),
+                        color: me
+                          ? (activeTheme.textMe || '#111')
+                          : (activeTheme.textOther || '#fff'),
+                        borderBottomRightRadius: me ? 4  : 20,
+                        borderBottomLeftRadius:  me ? 20 : 4,
+                        boxShadow: isMedia ? 'none'
+                          : me
+                            ? `0 4px 18px ${activeTheme.accent || '#C9A96E'}40`
+                            : `0 2px 10px rgba(0,0,0,0.25)`,
+                        border: isSecure
+                          ? (me ? '1px solid rgba(0,0,0,0.2)' : `1px solid ${activeTheme.accent || '#b3945a'}`)
+                          : activeTheme.borderMe && me ? activeTheme.borderMe : 'none',
+                        cursor: isSecure ? 'pointer' : 'default',
+                        minWidth: isSecure ? 160 : 0,
+                        position: 'relative',
+                        maxWidth: '100%',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        transform: swipingMsgId === msg.id ? `translateX(${swipeOffset}px)` : 'none',
+                        transition: swipingMsgId === msg.id ? 'none' : 'transform 0.2s',
+                      }}
+                    >
+                      {/* Floating Heart */}
+                      {floatingHeart === msg.id && (
+                        <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', fontSize:'3rem', animation:'floatHeart 1s forwards', zIndex:10 }}>❤️</div>
+                      )}
 
-                    {/* Quote Box */}
-                    {msg.reply_to_id && (
-                      (() => {
-                        const quoteMsg = msgs.find(m => m.id === msg.reply_to_id);
-                        if (!quoteMsg) return null;
-                        return (
-                          <div 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const target = document.getElementById(`msg-${msg.reply_to_id}`);
-                              if (target) {
-                                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                target.animate([
-                                  { backgroundColor: 'rgba(201,169,110,0.3)', transform: 'scale(1.02)' },
-                                  { backgroundColor: 'transparent', transform: 'scale(1)' }
-                                ], { duration: 1000, easing: 'ease-out' });
-                              }
-                            }}
-                            style={{
-                              cursor: 'pointer',
-                              background: 'rgba(0,0,0,0.15)',
-                              borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            marginBottom: '6px',
-                            fontSize: '0.8rem',
-                            color: 'rgba(255,255,255,0.8)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            <div style={{ color: activeTheme.accent || '#C9A96E', fontWeight: 700, marginBottom: 2 }}>{quoteMsg.sender_id === user?.id ? 'You' : (partner?.name || 'Partner')}</div>
-                            {quoteMsg.message_type === 'image' ? '📷 Image' : quoteMsg.message_type === 'video' ? '🎥 Video' : quoteMsg.message_type === 'audio' ? '🎵 Voice Note' : quoteMsg.text}
-                          </div>
-                        );
-                      })()
-                    )}
+                      {/* Quote Box */}
+                      {msg.reply_to_id && (
+                        (() => {
+                          const quoteMsg = msgs.find(m => m.id === msg.reply_to_id);
+                          if (!quoteMsg) return null;
+                          return (
+                            <div 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const target = document.getElementById(`msg-${msg.reply_to_id}`);
+                                if (target) {
+                                  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  target.animate([
+                                    { backgroundColor: 'rgba(201,169,110,0.3)', transform: 'scale(1.02)' },
+                                    { backgroundColor: 'transparent', transform: 'scale(1)' }
+                                  ], { duration: 1000, easing: 'ease-out' });
+                                }
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                background: 'rgba(0,0,0,0.15)',
+                                borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                marginBottom: '6px',
+                                fontSize: '0.8rem',
+                                color: 'rgba(255,255,255,0.8)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}>
+                              <div style={{ color: activeTheme.accent || '#C9A96E', fontWeight: 700, marginBottom: 2 }}>{quoteMsg.sender_id === user?.id ? 'You' : (partner?.name || 'Partner')}</div>
+                              {quoteMsg.message_type === 'image' ? '📷 Image' : quoteMsg.message_type === 'video' ? '🎥 Video' : quoteMsg.message_type === 'audio' ? '🎵 Voice Note' : quoteMsg.text}
+                            </div>
+                          );
+                        })()
+                      )}
 
-                    {/* VIDEO */}
-                    {msg.message_type === 'video' && (isSecure ? (
-                      <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
-                        <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
-                      </div>
-                    ) : (
-                      <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
-                        <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
-                      </MediaWrap>
-                    ))}
+                      {/* VIDEO */}
+                      {msg.message_type === 'video' && (isSecure ? (
+                        <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
+                          <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
+                        </div>
+                      ) : (
+                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
+                          <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                        </MediaWrap>
+                      ))}
 
-                    {/* IMAGE */}
-                    {msg.message_type === 'image' && (isSecure ? (
-                      <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
-                        <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
-                      </div>
-                    ) : (
-                      <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
-                        <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
-                        {!me && (
-                          <button
-                            onClick={e => { e.stopPropagation(); requestSave(msg); }}
-                            style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
-                          >
-                            <Icons.Download size={11} /> SAVE
-                          </button>
-                        )}
-                      </MediaWrap>
-                    ))}
+                      {/* IMAGE */}
+                      {msg.message_type === 'image' && (isSecure ? (
+                        <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
+                          <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
+                        </div>
+                      ) : (
+                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
+                          <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                          {!me && (
+                            <button
+                              onClick={e => { e.stopPropagation(); requestSave(msg); }}
+                              style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
+                            >
+                              <Icons.Download size={11} /> SAVE
+                            </button>
+                          )}
+                        </MediaWrap>
+                      ))}
 
-                    {/* AUDIO */}
-                    {msg.message_type === 'audio' && (
-                      <VoiceNotePlayer src={msg.media_url} isMe={me} theme={activeTheme} encryptionKey={encryptionKey} />
-                    )}
+                      {/* AUDIO */}
+                      {msg.message_type === 'audio' && (
+                        <VoiceNotePlayer src={msg.media_url} isMe={me} theme={activeTheme} encryptionKey={encryptionKey} />
+                      )}
 
-                    {/* TEXT */}
-                    {displayMsgText && (
-                      <span style={{ fontSize:'0.96rem', whiteSpace:'pre-wrap', lineHeight:1.55 }}>{msg.text}</span>
-                    )}
+                      {/* TEXT */}
+                      {displayMsgText && (
+                        <span style={{ fontSize:'0.96rem', whiteSpace:'pre-wrap', lineHeight:1.55 }}>{msg.text}</span>
+                      )}
+                    </div>
 
-                    {/* Reactions Display */}
-                    {msg.reactions && Object.values(msg.reactions).filter(Boolean).length > 0 && (
+                    {/* Reactions Display (Rendered OUTSIDE chat-bubble to prevent backdrop-filter clipping) */}
+                    {hasReactions && (
                       <div 
                         onClick={(e) => {
                           e.stopPropagation();
-                          setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "emoji" });
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setContextMenuMsg({ msg, x: r.left + r.width / 2, y: r.top - 10, type: "emoji" });
                         }}
                         style={{
                           position: 'absolute',
-                          bottom: -14,
-                          right: me ? 4 : 'auto',
-                          left: me ? 'auto' : 4,
-                          background: 'rgba(26, 26, 26, 0.95)',
-                          backdropFilter: 'blur(8px)',
+                          bottom: -11,
+                          right: me ? 6 : 'auto',
+                          left: me ? 'auto' : 6,
+                          background: '#1c1c22',
                           borderRadius: 20,
-                          padding: '3px 8px',
-                          display: 'flex',
+                          padding: '2px 7px',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 4,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          zIndex: 10,
-                          cursor: 'pointer'
+                          justifyContent: 'center',
+                          gap: 3,
+                          boxShadow: '0 4px 14px rgba(0,0,0,0.65)',
+                          border: '1px solid rgba(255,255,255,0.18)',
+                          zIndex: 40,
+                          cursor: 'pointer',
+                          lineHeight: '1.2',
+                          height: '24px',
+                          boxSizing: 'border-box'
                         }}>
                         {Object.entries(msg.reactions).filter(([_, emo]) => Boolean(emo)).map(([uid, emo], idx) => (
-                          <span key={uid || idx} style={{ fontSize: '1.05rem', lineHeight: 1 }}>{emo}</span>
+                          <span key={uid || idx} style={{ fontSize: '0.95rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: 'translateY(-0.5px)' }}>{emo}</span>
                         ))}
                       </div>
                     )}
                   </div>
 
                   {/* Timestamp */}
-                  <span style={{ fontSize:'0.65rem', color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)', marginTop: (msg.reactions && Object.keys(msg.reactions).length > 0) ? 16 : 4, opacity:.6, fontWeight:500 }}>
+                  <span style={{ fontSize:'0.65rem', color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)', marginTop: hasReactions ? 14 : 4, opacity:.6, fontWeight:500 }}>
                     {ts(msg)}
                   </span>
                 </div>
