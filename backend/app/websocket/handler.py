@@ -58,9 +58,19 @@ async def websocket_endpoint(websocket: WebSocket):
 
         await manager.connect(websocket, space_id, user_id)
 
+        # Notify partner that this user is online
         await manager.send_to_space(space_id, {
             "type": "presence", "user_id": user_id, "online": True, "user_name": user_name
         }, exclude_user=user_id)
+
+        # Check if partner is already online and notify this connecting socket immediately!
+        if partner_id and manager.is_partner_online(space_id, user_id):
+            try:
+                await websocket.send_json({
+                    "type": "presence", "user_id": partner_id, "online": True
+                })
+            except Exception:
+                pass
 
         while True:
             data = await websocket.receive_text()
@@ -80,15 +90,42 @@ async def websocket_endpoint(websocket: WebSocket):
                     encrypted_text = encrypt_data(raw_text)
                     temp_id = payload.get("temp_id")
                     now_ts = datetime.utcnow()
-                    msg = Message(
-                        id=str(uuid.uuid4()), couple_space_id=space_id, sender_id=user_id,
-                        message_type=payload.get("message_type", "text"), text=encrypted_text,
-                        media_url=payload.get("media_url"), is_once_view=payload.get("is_once_view", False),
-                        view_limit=payload.get("view_limit", 1), timestamp=now_ts,
-                        reply_to_id=payload.get("reply_to_id")
-                    )
+                    msg_id = str(uuid.uuid4())
+                    msg_type = payload.get("message_type", "text")
+                    media_url = payload.get("media_url")
+                    is_once = payload.get("is_once_view", False)
+                    v_limit = payload.get("view_limit", 1)
+                    reply_id = payload.get("reply_to_id")
+
+                    broadcast_data = {
+                        "type": "chat_message", 
+                        "id": msg_id, 
+                        "temp_id": temp_id,
+                        "sender_id": user_id, 
+                        "sender_name": user_name,
+                        "message_type": msg_type, 
+                        "text": raw_text, 
+                        "media_url": media_url, 
+                        "reactions": {},
+                        "is_once_view": is_once,
+                        "view_limit": v_limit,
+                        "views_used": 0,
+                        "reply_to_id": reply_id,
+                        "timestamp": now_ts.isoformat() + "Z"
+                    }
                 
+                    # 🚀 INSTANT BROADCAST TO SPACE (<10ms WebSocket latency)
+                    await manager.send_to_space(space_id, broadcast_data)
+
+                    # Persist to database
                     async with AsyncSessionLocal() as db:
+                        msg = Message(
+                            id=msg_id, couple_space_id=space_id, sender_id=user_id,
+                            message_type=msg_type, text=encrypted_text,
+                            media_url=media_url, is_once_view=is_once,
+                            view_limit=v_limit, timestamp=now_ts,
+                            reply_to_id=reply_id
+                        )
                         # Auto-save audio to voice notes
                         if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
                             from app.models.orm import VoiceNote
@@ -106,25 +143,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                         db.add(msg)
                         await db.commit()
-
-                    broadcast_data = {
-                        "type": "chat_message", 
-                        "id": msg.id, 
-                        "temp_id": temp_id,
-                        "sender_id": user_id, 
-                        "sender_name": user_name,
-                        "message_type": msg.message_type, 
-                        "text": raw_text, 
-                        "media_url": msg.media_url,
-                        "reactions": msg.reactions or {},
-                        "is_once_view": msg.is_once_view,
-                        "view_limit": msg.view_limit,
-                        "views_used": msg.views_used,
-                        "reply_to_id": msg.reply_to_id,
-                        "timestamp": now_ts.isoformat() + "Z"
-                    }
-                
-                    await manager.send_to_space(space_id, broadcast_data)
 
                 elif p_type == "ping":
                     try:
