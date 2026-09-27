@@ -79,21 +79,82 @@ export default function Chat() {
   const [deleteModalMsg, setDeleteModalMsg] = useState(null);
 
   const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const longPressTimer = useRef(null);
   const [swipingMsgId, setSwipingMsgId] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
 
-  const handleMsgTouchStart = (e, msg) => {
-    touchStartX.current = e.touches[0].clientX;
-    setSwipingMsgId(msg.id);
+  const handleEmojiSelect = (targetMsg, emoji) => {
+    if (!targetMsg || !emoji) return;
+    const currentEmoji = targetMsg.reactions?.[user?.id];
+    const newEmoji = currentEmoji === emoji ? null : emoji;
+
+    // 1. Optimistic Update (Instant feedback on screen)
+    setMsgs(prev => prev.map(m => {
+      if (m.id === targetMsg.id) {
+        const nextReactions = { ...(m.reactions || {}) };
+        if (newEmoji) {
+          nextReactions[user?.id] = newEmoji;
+        } else {
+          delete nextReactions[user?.id];
+        }
+        return { ...m, reactions: nextReactions };
+      }
+      return m;
+    }));
+
+    // 2. Send via WebSocket
+    wsService.send({
+      type: 'reaction',
+      message_id: targetMsg.id,
+      emoji: newEmoji
+    });
+
+    // 3. Fallback via REST API (best-effort)
+    if (newEmoji) {
+      api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
+    } else {
+      api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
+    }
+
+    setContextMenuMsg(null);
   };
+
+  const handleMsgTouchStart = (e, msg) => {
+    const touch = e.touches[0];
+    touchStartX.current = touch.clientX;
+    touchStartY.current = touch.clientY;
+    setSwipingMsgId(msg.id);
+
+    // Long press (400ms) opens emoji reaction bar on mobile
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      setContextMenuMsg({ msg, x: touch.clientX, y: touch.clientY, type: "emoji" });
+    }, 400);
+  };
+
   const handleMsgTouchMove = (e) => {
     if (!swipingMsgId) return;
-    const diff = e.touches[0].clientX - touchStartX.current;
-    if (diff > 0 && diff < 80) { // Max 80px swipe right
-      setSwipeOffset(diff);
+    const touch = e.touches[0];
+    const diffX = touch.clientX - touchStartX.current;
+    const diffY = touch.clientY - touchStartY.current;
+
+    // If user moves finger, cancel long press
+    if ((Math.abs(diffX) > 10 || Math.abs(diffY) > 10) && longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
+    if (diffX > 0 && diffX < 80) { // Max 80px swipe right
+      setSwipeOffset(diffX);
     }
   };
+
   const handleMsgTouchEnd = (e, msg) => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
     if (swipeOffset > 50) {
       setReplyingTo(msg);
     }
@@ -103,7 +164,7 @@ export default function Chat() {
 
   const handleContextMenu = (e, msg) => {
     e.preventDefault();
-    setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "options" });
+    setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "emoji" });
   };
 
   const lastTapTime = useRef(0);
@@ -204,10 +265,20 @@ export default function Chat() {
           setTyping(d.state === 'typing');
         }
       }),
-      wsService.on('reaction', d =>
-        setMsgs(p => p.map(m => m.id === d.message_id
-          ? { ...m, reactions: { ...m.reactions, [d.user_id]: d.emoji } } : m))
-      ),
+      wsService.on('reaction', d => {
+        setMsgs(p => p.map(m => {
+          if (m.id !== d.message_id) return m;
+          let nextReactions = { ...(m.reactions || {}) };
+          if (d.reactions) {
+            nextReactions = d.reactions;
+          } else if (d.emoji) {
+            nextReactions[d.user_id] = d.emoji;
+          } else {
+            delete nextReactions[d.user_id];
+          }
+          return { ...m, reactions: nextReactions };
+        }));
+      }),
       wsService.on('message_deleted', d => {
         setMsgs(p => p.filter(m => m.id !== d.message_id));
       }),
@@ -1159,7 +1230,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     )}
 
                     {/* Reactions Display */}
-                    {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                    {msg.reactions && Object.values(msg.reactions).filter(Boolean).length > 0 && (
                       <div 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1167,20 +1238,23 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         }}
                         style={{
                           position: 'absolute',
-                          bottom: -16,
-                          right: me ? 0 : 'auto',
-                          left: me ? 'auto' : 0,
-                          background: '#1a1a1a', // Dark blackish pill like screenshot
+                          bottom: -14,
+                          right: me ? 4 : 'auto',
+                          left: me ? 'auto' : 4,
+                          background: 'rgba(26, 26, 26, 0.95)',
+                          backdropFilter: 'blur(8px)',
                           borderRadius: 20,
-                          padding: '4px 8px',
+                          padding: '3px 8px',
                           display: 'flex',
+                          alignItems: 'center',
                           gap: 4,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                          zIndex: 2,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          zIndex: 10,
                           cursor: 'pointer'
                         }}>
-                        {Object.values(msg.reactions).map((emoji, idx) => (
-                          <span key={idx} style={{ fontSize: '1.15rem' }}>{emoji}</span>
+                        {Object.entries(msg.reactions).filter(([_, emo]) => Boolean(emo)).map(([uid, emo], idx) => (
+                          <span key={uid || idx} style={{ fontSize: '1.05rem', lineHeight: 1 }}>{emo}</span>
                         ))}
                       </div>
                     )}
@@ -1483,16 +1557,20 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             }} onClick={e => e.stopPropagation()}>
               
               {(!contextMenuMsg.type || contextMenuMsg.type === 'emoji') && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', gap: 8 }}>
-                    {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', gap: 10 }}>
+                    {['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✨'].map(emoji => (
                       <span 
                         key={emoji} 
-                        style={{ fontSize: '1.4rem', cursor: 'pointer', padding: 4, transition: 'transform 0.1s' }}
-                        onClick={() => {
-                          wsService.send({ type: 'reaction', message_id: contextMenuMsg.msg.id, emoji });
-                          setContextMenuMsg(null);
+                        style={{ 
+                          fontSize: '1.55rem', 
+                          cursor: 'pointer', 
+                          padding: 4, 
+                          transition: 'transform 0.15s ease',
+                          display: 'inline-block',
+                          userSelect: 'none'
                         }}
-                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
+                        onClick={() => handleEmojiSelect(contextMenuMsg.msg, emoji)}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
                         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                       >{emoji}</span>
                     ))}

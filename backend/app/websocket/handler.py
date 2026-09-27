@@ -133,22 +133,37 @@ async def websocket_endpoint(websocket: WebSocket):
                     elif p_type == "reaction":
                         message_id = payload.get("message_id")
                         emoji = payload.get("emoji")
-                        if message_id and emoji:
-                            msg = await db.execute(select(Message).filter(Message.id == message_id))
-                            msg = msg.scalars().first()
-                            if msg:
-                                from sqlalchemy.orm.attributes import flag_modified
-                                new_reactions = dict(msg.reactions or {})
-                                new_reactions[user_id] = emoji
-                                msg.reactions = new_reactions
-                                flag_modified(msg, "reactions")
-                                await db.commit()
-                                await manager.send_to_space(space_id, {
-                                    "type": "reaction",
-                                    "message_id": message_id,
-                                    "user_id": user_id,
-                                    "emoji": emoji
-                                })
+                        if message_id:
+                            new_reactions = {}
+                            try:
+                                msg = await db.execute(select(Message).filter(Message.id == message_id))
+                                msg = msg.scalars().first()
+                                if msg:
+                                    from sqlalchemy.orm.attributes import flag_modified
+                                    new_reactions = dict(msg.reactions or {})
+                                    if emoji and new_reactions.get(user_id) != emoji:
+                                        new_reactions[user_id] = emoji
+                                    elif not emoji or new_reactions.get(user_id) == emoji:
+                                        new_reactions.pop(user_id, None)
+                                        emoji = None
+                                    msg.reactions = new_reactions
+                                    flag_modified(msg, "reactions")
+                                    await db.commit()
+                                else:
+                                    if emoji:
+                                        new_reactions[user_id] = emoji
+                            except Exception as e:
+                                print(f"Reaction DB Error: {e}")
+                                if emoji:
+                                    new_reactions[user_id] = emoji
+
+                            await manager.send_to_space(space_id, {
+                                "type": "reaction",
+                                "message_id": message_id,
+                                "user_id": user_id,
+                                "emoji": emoji,
+                                "reactions": new_reactions
+                            })
 
                     elif p_type == "mood_update":
                         await manager.send_to_space(space_id, {
