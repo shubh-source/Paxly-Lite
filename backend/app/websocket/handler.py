@@ -56,37 +56,39 @@ async def websocket_endpoint(websocket: WebSocket):
             user_name = user.name
             partner_id = user.partner_id
 
-            await manager.connect(websocket, space_id, user_id)
+        await manager.connect(websocket, space_id, user_id)
 
-            await manager.send_to_space(space_id, {
-                "type": "presence", "user_id": user_id, "online": True, "user_name": user_name
-            }, exclude_user=user_id)
+        await manager.send_to_space(space_id, {
+            "type": "presence", "user_id": user_id, "online": True, "user_name": user_name
+        }, exclude_user=user_id)
 
-            while True:
-                data = await websocket.receive_text()
-                try:
-                    payload = json.loads(data)
-                except Exception:
-                    continue
+        while True:
+            data = await websocket.receive_text()
+            try:
+                payload = json.loads(data)
+            except Exception:
+                continue
+            
+            if not isinstance(payload, dict):
+                continue
                 
-                if not isinstance(payload, dict):
-                    continue
-                    
-                p_type = payload.get("type")
+            p_type = payload.get("type")
+            
+            try:
+                if p_type == "chat_message":
+                    raw_text = payload.get("text", "")
+                    encrypted_text = encrypt_data(raw_text)
+                    temp_id = payload.get("temp_id")
+                    now_ts = datetime.utcnow()
+                    msg = Message(
+                        id=str(uuid.uuid4()), couple_space_id=space_id, sender_id=user_id,
+                        message_type=payload.get("message_type", "text"), text=encrypted_text,
+                        media_url=payload.get("media_url"), is_once_view=payload.get("is_once_view", False),
+                        view_limit=payload.get("view_limit", 1), timestamp=now_ts,
+                        reply_to_id=payload.get("reply_to_id")
+                    )
                 
-                try:
-                    if p_type == "chat_message":
-                        raw_text = payload.get("text", "")
-                        encrypted_text = encrypt_data(raw_text)
-                        temp_id = payload.get("temp_id")
-                        msg = Message(
-                            id=str(uuid.uuid4()), couple_space_id=space_id, sender_id=user_id,
-                            message_type=payload.get("message_type", "text"), text=encrypted_text,
-                            media_url=payload.get("media_url"), is_once_view=payload.get("is_once_view", False),
-                            view_limit=payload.get("view_limit", 1), timestamp=datetime.utcnow(),
-                            reply_to_id=payload.get("reply_to_id")
-                        )
-                    
+                    async with AsyncSessionLocal() as db:
                         # Auto-save audio to voice notes
                         if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
                             from app.models.orm import VoiceNote
@@ -98,57 +100,58 @@ async def websocket_endpoint(websocket: WebSocket):
                                 filename="voice_note.webm",
                                 custom_name="Chat Whisper",
                                 size=0,
-                                created_at=msg.timestamp
+                                created_at=now_ts
                             )
                             db.add(vn)
-                    
+                
                         db.add(msg)
                         await db.commit()
 
-                        broadcast_data = {
-                            "type": "chat_message", 
-                            "id": msg.id, 
-                            "temp_id": temp_id,
-                            "sender_id": user_id, 
-                            "sender_name": user_name,
-                            "message_type": msg.message_type, 
-                            "text": raw_text, 
-                            "media_url": msg.media_url,
-                            "reactions": msg.reactions or {},
-                            "is_once_view": msg.is_once_view,
-                            "view_limit": msg.view_limit,
-                            "views_used": msg.views_used,
-                            "reply_to_id": msg.reply_to_id,
-                            "timestamp": msg.timestamp.isoformat() + "Z"
-                        }
-                    
-                        await manager.send_to_space(space_id, broadcast_data)
+                    broadcast_data = {
+                        "type": "chat_message", 
+                        "id": msg.id, 
+                        "temp_id": temp_id,
+                        "sender_id": user_id, 
+                        "sender_name": user_name,
+                        "message_type": msg.message_type, 
+                        "text": raw_text, 
+                        "media_url": msg.media_url,
+                        "reactions": msg.reactions or {},
+                        "is_once_view": msg.is_once_view,
+                        "view_limit": msg.view_limit,
+                        "views_used": msg.views_used,
+                        "reply_to_id": msg.reply_to_id,
+                        "timestamp": now_ts.isoformat() + "Z"
+                    }
+                
+                    await manager.send_to_space(space_id, broadcast_data)
 
-                    elif p_type == "ping":
+                elif p_type == "ping":
+                    try:
+                        await websocket.send_json({"type": "pong"})
+                    except Exception:
+                        pass
+
+                elif p_type == "presence_state":
+                    await manager.send_to_space(space_id, {
+                        "type": "presence_state", 
+                        "user_id": user_id, 
+                        "state": payload.get("state", "idle"), # peeking | typing | watching
+                        "mood": payload.get("mood", "neutral") # happy | angry | loving | etc
+                    }, exclude_user=user_id)
+
+                elif p_type == "typing":
+                    await manager.send_to_space(space_id, {
+                        "type": "typing", "user_id": user_id, "is_typing": payload.get("is_typing", False)
+                    }, exclude_user=user_id)
+
+                elif p_type == "reaction":
+                    message_id = payload.get("message_id")
+                    emoji = payload.get("emoji")
+                    new_reactions = {}
+                    if message_id:
                         try:
-                            await websocket.send_json({"type": "pong"})
-                        except Exception:
-                            pass
-
-                    elif p_type == "presence_state":
-                        await manager.send_to_space(space_id, {
-                            "type": "presence_state", 
-                            "user_id": user_id, 
-                            "state": payload.get("state", "idle"), # peeking | typing | watching
-                            "mood": payload.get("mood", "neutral") # happy | angry | loving | etc
-                        }, exclude_user=user_id)
-
-                    elif p_type == "typing":
-                        await manager.send_to_space(space_id, {
-                            "type": "typing", "user_id": user_id, "is_typing": payload.get("is_typing", False)
-                        }, exclude_user=user_id)
-
-                    elif p_type == "reaction":
-                        message_id = payload.get("message_id")
-                        emoji = payload.get("emoji")
-                        if message_id:
-                            new_reactions = {}
-                            try:
+                            async with AsyncSessionLocal() as db:
                                 msg = await db.execute(select(Message).filter(Message.id == message_id))
                                 msg = msg.scalars().first()
                                 if msg:
@@ -164,39 +167,40 @@ async def websocket_endpoint(websocket: WebSocket):
                                 else:
                                     if emoji:
                                         new_reactions[user_id] = emoji
-                            except Exception as e:
-                                print(f"Reaction DB Error: {e}")
-                                if emoji:
-                                    new_reactions[user_id] = emoji
+                        except Exception as e:
+                            print(f"Reaction DB Error: {e}")
+                            if emoji:
+                                new_reactions[user_id] = emoji
 
-                            await manager.send_to_space(space_id, {
-                                "type": "reaction",
-                                "message_id": message_id,
-                                "user_id": user_id,
-                                "emoji": emoji,
-                                "reactions": new_reactions
-                            })
-
-                    elif p_type == "mood_update":
                         await manager.send_to_space(space_id, {
-                            "type": "mood_update", "user_id": user_id, 
-                            "mood_type": payload.get("mood_type"), "note": payload.get("note")
-                        }, exclude_user=user_id)
+                            "type": "reaction",
+                            "message_id": message_id,
+                            "user_id": user_id,
+                            "emoji": emoji,
+                            "reactions": new_reactions
+                        })
 
-                    elif p_type == "media_save_request":
-                        payload["from"] = user_name
-                        payload["sender_id"] = user_id
-                        await manager.send_to_user(partner_id, payload)
+                elif p_type == "mood_update":
+                    await manager.send_to_space(space_id, {
+                        "type": "mood_update", "user_id": user_id, 
+                        "mood_type": payload.get("mood_type"), "note": payload.get("note")
+                    }, exclude_user=user_id)
 
-                    elif p_type == "media_save_response":
-                        allowed = payload.get("allowed", False)
-                        request_id = payload.get("request_id")
-                        msg_id = payload.get("message_id")
-                    
-                        payload["partner_name"] = user_name
-                        await manager.send_to_user(request_id, payload)
-                    
-                        if allowed and msg_id:
+                elif p_type == "media_save_request":
+                    payload["from"] = user_name
+                    payload["sender_id"] = user_id
+                    await manager.send_to_user(partner_id, payload)
+
+                elif p_type == "media_save_response":
+                    allowed = payload.get("allowed", False)
+                    request_id = payload.get("request_id")
+                    msg_id = payload.get("message_id")
+                
+                    payload["partner_name"] = user_name
+                    await manager.send_to_user(request_id, payload)
+                
+                    if allowed and msg_id:
+                        async with AsyncSessionLocal() as db:
                             msg = await db.execute(select(Message).filter(Message.id == msg_id))
                             msg = msg.scalars().first()
                             if msg and msg.media_url:
@@ -214,24 +218,25 @@ async def websocket_endpoint(websocket: WebSocket):
                                 db.add(mem)
                                 await db.commit()
 
-                    elif p_type == "vault_download_request":
-                        payload["from"] = user_name
-                        payload["sender_id"] = user_id
-                        await manager.send_to_user(partner_id, payload)
+                elif p_type == "vault_download_request":
+                    payload["from"] = user_name
+                    payload["sender_id"] = user_id
+                    await manager.send_to_user(partner_id, payload)
 
-                    elif p_type == "vault_download_response":
-                        request_id = payload.get("request_id")
-                        payload["partner_name"] = user_name
-                        await manager.send_to_user(request_id, payload)
+                elif p_type == "vault_download_response":
+                    request_id = payload.get("request_id")
+                    payload["partner_name"] = user_name
+                    await manager.send_to_user(request_id, payload)
 
-                    elif p_type in ["webrtc_offer", "webrtc_answer", "webrtc_ice", "webrtc_reject", "webrtc_end"]:
-                        # Relay to partner
-                        payload["from_id"] = user_id
-                        payload["from_name"] = user_name
-                        await manager.send_to_user(partner_id, payload)
+                elif p_type in ["webrtc_offer", "webrtc_answer", "webrtc_ice", "webrtc_reject", "webrtc_end"]:
+                    # Relay to partner
+                    payload["from_id"] = user_id
+                    payload["from_name"] = user_name
+                    await manager.send_to_user(partner_id, payload)
 
-                    elif p_type == "webrtc_log":
-                        # Save call history
+                elif p_type == "webrtc_log":
+                    # Save call history
+                    async with AsyncSessionLocal() as db:
                         new_log = CallLog(
                             couple_space_id=space_id,
                             caller_id=payload.get("caller_id"),
@@ -242,16 +247,16 @@ async def websocket_endpoint(websocket: WebSocket):
                         db.add(new_log)
                         await db.commit()
 
-                    elif p_type == "capture_detected":
-                        # Relay security breach alert to the partner
-                        payload["from"] = user_name
-                        payload["from_id"] = user_id
-                        await manager.send_to_user(partner_id, payload)
+                elif p_type == "capture_detected":
+                    # Relay security breach alert to the partner
+                    payload["from"] = user_name
+                    payload["from_id"] = user_id
+                    await manager.send_to_user(partner_id, payload)
 
-                except Exception as e:
-                    print(f"WS Handler Error: {e}")
-                    import traceback
-                    traceback.print_exc()
+            except Exception as e:
+                print(f"WS Handler Error: {e}")
+                import traceback
+                traceback.print_exc()
 
     except WebSocketDisconnect:
         if space_id and user_id:
