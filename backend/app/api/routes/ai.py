@@ -80,6 +80,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     if settings.GOOGLE_API_KEY and not reply_text:
         try:
             import google.generativeai as genai
+            import base64
             genai.configure(api_key=settings.GOOGLE_API_KEY)
             
             # Merge frontend system prompts
@@ -97,33 +98,40 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             chat_history = []
             for m in data.messages[:-1]:
                 if m.role == "system": continue
-                parts = [m.content]
+                parts = [m.content or ""]
                 if m.attachments:
                     for att in m.attachments:
-                        parts.append({"mime_type": att.mime_type, "data": att.data})
+                        try:
+                            raw_bytes = base64.b64decode(att.data)
+                            parts.append({"mime_type": att.mime_type, "data": raw_bytes})
+                        except Exception:
+                            pass
                 chat_history.append({"role": "user" if m.role == "user" else "model", "parts": parts})
             
             chat = model.start_chat(history=chat_history)
             
             # Prepare last message parts
             last_msg = data.messages[-1]
-            last_parts = [last_msg.content]
+            last_parts = [last_msg.content or ""]
             if last_msg.attachments:
                 for att in last_msg.attachments:
-                    last_parts.append({"mime_type": att.mime_type, "data": att.data})
+                    try:
+                        raw_bytes = base64.b64decode(att.data)
+                        last_parts.append({"mime_type": att.mime_type, "data": raw_bytes})
+                    except Exception:
+                        pass
                     
             response = await chat.send_message_async(last_parts)
             reply_text = response.text
         except Exception as e:
-            print(f"Gemini Error: {e}")
-            # Fallback to Groq if Gemini fails but key is there
+            print(f"Gemini Error in ai_chat: {e}")
+            # Fallback to Groq if Gemini fails
 
     # 2. Try Groq (Ultra Fast)
     if settings.GROQ_API_KEY and not reply_text:
-        import httpx
-        custom_client = httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
-        client = AsyncGroq(api_key=settings.GROQ_API_KEY, http_client=custom_client)
         try:
+            client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+            
             # Fix surrogates that cause Groq python client to crash
             clean_messages = []
             
@@ -138,8 +146,12 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             
             for m in data.messages:
                 if m.role != "system":
-                    clean_content = m.content.encode('utf-16', 'surrogatepass').decode('utf-16')
-                    clean_messages.append({"role": m.role, "content": clean_content})
+                    content_str = m.content or " "
+                    clean_content = content_str.encode('utf-16', 'surrogatepass').decode('utf-16')
+                    clean_messages.append({
+                        "role": "assistant" if m.role in ["assistant", "model"] else "user",
+                        "content": clean_content
+                    })
 
             response = await client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -149,7 +161,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             )
             reply_text = response.choices[0].message.content
         except Exception as e:
-            print(f"Groq Error: {e}")
+            print(f"Groq Error in ai_chat: {e}")
             raise HTTPException(500, f"AI service error: {str(e)}")
 
     if not reply_text:
