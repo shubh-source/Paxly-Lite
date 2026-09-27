@@ -42,6 +42,80 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
         "timestamp": m.timestamp.isoformat() + "Z",
     }
 
+from pydantic import BaseModel
+from typing import Optional, List
+
+class MessageCreate(BaseModel):
+    text: Optional[str] = None
+    message_type: str = "text"
+    media_url: Optional[str] = None
+    is_once_view: bool = False
+    view_limit: int = 1
+    reply_to_id: Optional[str] = None
+
+@router.post("/messages")
+async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    space_id = ensure_space(cu)
+    raw_text = data.text or ""
+    encrypted_text = encrypt_data(raw_text)
+    
+    msg = Message(
+        id=str(uuid.uuid4()),
+        couple_space_id=space_id,
+        sender_id=cu.id,
+        message_type=data.message_type or "text",
+        text=encrypted_text,
+        media_url=data.media_url,
+        is_once_view=data.is_once_view,
+        view_limit=data.view_limit,
+        timestamp=datetime.utcnow(),
+        reply_to_id=data.reply_to_id
+    )
+    
+    # Auto-save audio to voice notes
+    if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
+        from app.models.orm import VoiceNote
+        vn = VoiceNote(
+            id=str(uuid.uuid4()),
+            couple_space_id=space_id,
+            sender_id=cu.id,
+            url=msg.media_url,
+            filename="voice_note.webm",
+            custom_name="Chat Whisper",
+            size=0,
+            created_at=msg.timestamp
+        )
+        db.add(vn)
+
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    
+    broadcast_data = {
+        "type": "chat_message",
+        "id": msg.id,
+        "sender_id": cu.id,
+        "sender_name": cu.name,
+        "message_type": msg.message_type,
+        "text": raw_text,
+        "media_url": msg.media_url,
+        "reactions": msg.reactions or {},
+        "is_once_view": msg.is_once_view,
+        "view_limit": msg.view_limit,
+        "views_used": msg.views_used,
+        "reply_to_id": msg.reply_to_id,
+        "timestamp": msg.timestamp.isoformat() + "Z"
+    }
+    
+    # Broadcast to couple space via WebSocket manager so partner receives instantly!
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, broadcast_data)
+    except Exception as e:
+        print(f"WS Broadcast error: {e}")
+        
+    return fmt_msg(msg, cu.name, True)
+
 @router.get("/messages")
 async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = ensure_space(cu)

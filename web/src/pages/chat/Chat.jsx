@@ -213,10 +213,14 @@ export default function Chat() {
           const msgMap = new Map();
           // First add all decrypted messages from backend
           decryptedMsgs.forEach(m => msgMap.set(m.id, m));
-          // Then preserve any optimistic messages that are not yet in backend
+          // Only preserve recent optimistic messages (less than 15s) so old failed/stale messages don't haunt chat
+          const now = Date.now();
           prev.forEach(m => {
             if (m.isOptimistic && !msgMap.has(m.id)) {
-              msgMap.set(m.id, m);
+              const msgTime = new Date(m.timestamp).getTime();
+              if (now - msgTime < 15000) {
+                msgMap.set(m.id, m);
+              }
             }
           });
           const merged = Array.from(msgMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -386,8 +390,9 @@ export default function Chat() {
     
     // OPTIMISTIC UPDATE
     const rawText = text.trim();
+    const tempId = `temp_${Date.now()}`;
     const tempMsg = {
-      id: `temp_${Date.now()}`,
+      id: tempId,
       sender_id: user?.id,
       text: rawText,
       message_type: 'text',
@@ -404,11 +409,22 @@ export default function Chat() {
     
     if (sk && pk) {
        payloadText = encryptMessage(rawText, sk, pk);
-    } else {
-       console.warn("Missing E2EE keys, sending plaintext fallback");
     }
 
+    // 1. WebSocket Delivery
     wsService.sendMessage(payloadText, 'text', null, false, 1, replyingTo?.id);
+
+    // 2. REST API Guaranteed Persistence & Sync
+    api.post('/chat/messages', {
+      text: payloadText,
+      message_type: 'text',
+      reply_to_id: replyingTo?.id || null
+    }).then(res => {
+      setMsgs(prev => prev.map(m => (m.id === tempId ? { ...res.data, text: rawText, isOptimistic: false } : m)));
+    }).catch(err => {
+      console.error("REST message delivery fallback error:", err);
+    });
+
     setText('');
     setReplyingTo(null);
     setSending(false);
@@ -490,6 +506,13 @@ export default function Chat() {
                payloadText = encryptMessage(payloadText, sk, pk);
             }
             wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
+            api.post('/chat/messages', {
+              text: payloadText,
+              message_type: 'audio',
+              media_url: media_url,
+              is_once_view: false,
+              view_limit: 0
+            }).catch(e => console.error("REST voice save error:", e));
             setSending(false);
           }
         } else {
@@ -566,6 +589,13 @@ export default function Chat() {
          payloadText = encryptMessage(payloadText, sk, pk);
       }
       wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
+      api.post('/chat/messages', {
+        text: payloadText,
+        message_type: 'audio',
+        media_url: media_url,
+        is_once_view: false,
+        view_limit: 0
+      }).catch(e => console.error("REST preview voice save error:", e));
     } catch (err) {}
     setAudioPreviewBlob(null);
     setAudioPreviewUrl(null);
@@ -575,7 +605,7 @@ export default function Chat() {
   const sendLockedVoiceRecord = () => {
     if (recordState === 'locked' && audioRecorder && audioRecorder.state !== 'inactive') {
       voiceRecordAction.current = 'send';
-      audioRecorder.stop();
+      audioRecorder.stop(); 
     } else if (recordState === 'preview') {
       sendPreviewVoiceRecord();
     }
@@ -634,6 +664,16 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
       }
 
       wsService.sendMessage(payloadText, type, finalUrl, isOnceView, limit, replyingTo?.id);
+      api.post('/chat/messages', {
+        text: payloadText,
+        message_type: type,
+        media_url: finalUrl,
+        is_once_view: isOnceView,
+        view_limit: limit,
+        reply_to_id: replyingTo?.id || null
+      }).then(res => {
+        setMsgs(prev => prev.map(m => (m.id === tempMsg.id ? { ...res.data, isOptimistic: false, media_url: tempMsg.media_url } : m)));
+      }).catch(e => console.error("REST media save error:", e));
       setReplyingTo(null);
     } catch (err) {
       alert('Upload failed: ' + (err.response?.data?.detail || err.message));
