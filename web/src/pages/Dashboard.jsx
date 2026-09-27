@@ -128,7 +128,23 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
             }}>{user?.name?.split(' ')[0]}</span>
           </h1>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => nav('/admin')}
+              title="Admin & Crash Logs Center"
+              style={{
+                height: 48, padding: '0 14px', borderRadius: '16px',
+                background: 'rgba(201,169,110,0.15)',
+                border: '1px solid rgba(201,169,110,0.4)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                color: '#C9A96E', fontWeight: 700, fontSize: '0.8rem'
+              }}
+            >
+              <span>🚨 Logs</span>
+            </button>
+          )}
+
           <button onClick={() => nav('/notifications')} style={{
             width: 48, height: 48, borderRadius: '16px',
             background: 'rgba(255,255,255,0.05)',

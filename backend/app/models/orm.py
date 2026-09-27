@@ -475,3 +475,14 @@ class PasswordResetToken(Base):
     token = Column(String, index=True)
     expires_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class SystemErrorLog(Base):
+    __tablename__ = "system_error_logs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    error_message = Column(Text, nullable=False)
+    stack_trace = Column(Text, nullable=True)
+    source = Column(String, default="Frontend (React)") # Frontend (React) | Backend (FastAPI) | WebSocket
+    url = Column(String, nullable=True)
+    user_id = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)

@@ -63,6 +63,7 @@ import Notifications  from './pages/Notifications';
 import IconShowcase   from './pages/debug/IconShowcase';
 import Legal          from './pages/Legal';
 import AuraPerks      from './pages/premium/AuraPerks';
+import AdminPanel     from './pages/admin/AdminPanel';
 
 function Guard({ children, needsPartner = false }) {
   const { user, loading } = useAuth();
@@ -172,6 +173,7 @@ function AnimatedRoutes() {
         <Route path="/website/vibe" element={<Guard needsPartner><Layout><VibeEditor /></Layout></Guard>} />
         <Route path="/website/:id"   element={<Guard needsPartner><Layout><VibeViewer /></Layout></Guard>} />
         <Route path="/legal"         element={<Guard needsPartner><Layout><Legal /></Layout></Guard>} />
+        <Route path="/admin"         element={<Guard><AdminPanel /></Guard>} />
         <Route path="/icons"         element={<IconShowcase />} />
 
         <Route path="*" element={<Navigate to="/welcome" replace />} />

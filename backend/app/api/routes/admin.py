@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func, update, insert
-from app.models.orm import User, Theatre, TheatreBooking, PlaceBooking, CoupleSpace, Notification, AppConfig, Product, Place, AdminAudit, PromoCode
+from sqlalchemy import func, update, insert, delete
+from app.models.orm import User, Theatre, TheatreBooking, PlaceBooking, CoupleSpace, Notification, AppConfig, Product, Place, AdminAudit, PromoCode, SystemErrorLog
 from app.core.security import admin_only, get_current_user
 from app.core.database import get_db
-from typing import List
+from typing import List, Optional
+from datetime import datetime
 import uuid
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -111,3 +112,58 @@ async def finalize_closure(user_id: str, request: Request, cu: User = Depends(ad
     await log_admin_action(cu.id, "FINALIZE_CLOSURE", {"user_id": user_id, "old_email": old_email}, request, db)
     await db.commit()
     return {"status": "ok", "message": f"Account for {old_email} archived. Identity freed."}
+
+@router.get("/logs")
+async def get_system_logs(
+    source: Optional[str] = None,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(admin_only)
+):
+    """Retrieve error logs captured from frontend and backend."""
+    query = select(SystemErrorLog).order_by(SystemErrorLog.timestamp.desc()).limit(limit)
+    if source:
+        query = select(SystemErrorLog).filter(SystemErrorLog.source == source).order_by(SystemErrorLog.timestamp.desc()).limit(limit)
+    
+    result = await db.execute(query)
+    logs = result.scalars().all()
+    
+    # Also get total count
+    count_res = await db.execute(select(func.count(SystemErrorLog.id)))
+    total_count = count_res.scalar() or 0
+    
+    return {
+        "total": total_count,
+        "logs": [
+            {
+                "id": log.id,
+                "error_message": log.error_message,
+                "stack_trace": log.stack_trace,
+                "source": log.source,
+                "url": log.url,
+                "user_id": log.user_id,
+                "ip_address": log.ip_address,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None
+            }
+            for log in logs
+        ]
+    }
+
+@router.delete("/logs/{log_id}")
+async def delete_system_log(
+    log_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(admin_only)
+):
+    await db.execute(delete(SystemErrorLog).where(SystemErrorLog.id == log_id))
+    await db.commit()
+    return {"ok": True, "message": f"Log #{log_id} deleted"}
+
+@router.delete("/logs")
+async def clear_all_system_logs(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(admin_only)
+):
+    await db.execute(delete(SystemErrorLog))
+    await db.commit()
+    return {"ok": True, "message": "All error logs cleared"}
