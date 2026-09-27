@@ -84,10 +84,10 @@ export default function Chat() {
   const [swipingMsgId, setSwipingMsgId] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
 
-  const handleEmojiSelect = (targetMsg, emoji) => {
+  const handleEmojiSelect = (targetMsg, emoji, forceSet = false) => {
     if (!targetMsg || !emoji) return;
     const currentEmoji = targetMsg.reactions?.[user?.id];
-    const newEmoji = currentEmoji === emoji ? null : emoji;
+    const newEmoji = forceSet ? emoji : (currentEmoji === emoji ? null : emoji);
 
     // 1. Optimistic Update (Instant feedback on screen)
     setMsgs(prev => prev.map(m => {
@@ -103,18 +103,19 @@ export default function Chat() {
       return m;
     }));
 
-    // 2. Send via WebSocket
-    wsService.send({
-      type: 'reaction',
-      message_id: targetMsg.id,
-      emoji: newEmoji
-    });
-
-    // 3. Fallback via REST API (best-effort)
-    if (newEmoji) {
-      api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
+    // 2. Deliver via WebSocket if connected, otherwise fallback to REST
+    if (wsService.isConnected()) {
+      wsService.send({
+        type: 'reaction',
+        message_id: targetMsg.id,
+        emoji: newEmoji
+      });
     } else {
-      api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
+      if (newEmoji) {
+        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
+      } else {
+        api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
+      }
     }
 
     setContextMenuMsg(null);
@@ -1208,12 +1209,14 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         } else {
                           // Double tap detection
                           const now = Date.now();
-                          if (now - lastTapTime.current < 300) {
-                            handleEmojiSelect(msg, '❤️');
+                          if (now - lastTapTime.current < 350) {
+                            handleEmojiSelect(msg, '❤️', true);
                             setFloatingHeart(msg.id);
                             setTimeout(() => setFloatingHeart(null), 1000);
+                            lastTapTime.current = 0;
+                          } else {
+                            lastTapTime.current = now;
                           }
-                          lastTapTime.current = now;
                         }
                       }}
                       style={{

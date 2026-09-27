@@ -222,10 +222,25 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
     
+    from sqlalchemy.orm.attributes import flag_modified
     new_reactions = dict(msg.reactions or {})
     new_reactions[cu.id] = data.emoji
     msg.reactions = new_reactions
+    flag_modified(msg, "reactions")
     await db.commit()
+
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, {
+            "type": "reaction",
+            "message_id": message_id,
+            "user_id": cu.id,
+            "emoji": data.emoji,
+            "reactions": new_reactions
+        })
+    except Exception:
+        pass
+
     return {"ok": True}
 
 @router.delete("/messages/{message_id}/react")
@@ -235,11 +250,26 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
     
+    from sqlalchemy.orm.attributes import flag_modified
     new_reactions = dict(msg.reactions or {})
     if cu.id in new_reactions:
         del new_reactions[cu.id]
         msg.reactions = new_reactions
+        flag_modified(msg, "reactions")
         await db.commit()
+
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, {
+            "type": "reaction",
+            "message_id": message_id,
+            "user_id": cu.id,
+            "emoji": None,
+            "reactions": new_reactions
+        })
+    except Exception:
+        pass
+
     return {"ok": True}
 
 @router.delete("/messages/{message_id}")

@@ -154,11 +154,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                 if msg:
                                     from sqlalchemy.orm.attributes import flag_modified
                                     new_reactions = dict(msg.reactions or {})
-                                    if emoji and new_reactions.get(user_id) != emoji:
+                                    if emoji:
                                         new_reactions[user_id] = emoji
-                                    elif not emoji or new_reactions.get(user_id) == emoji:
+                                    else:
                                         new_reactions.pop(user_id, None)
-                                        emoji = None
                                     msg.reactions = new_reactions
                                     flag_modified(msg, "reactions")
                                     await db.commit()
