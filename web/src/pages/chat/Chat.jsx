@@ -1095,6 +1095,47 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           </div>
         </div>
 
+        {/* E2EE Key Missing Notice Banner */}
+        {!localStorage.getItem('paxly_sk') && (
+          <div style={{
+            margin: '8px 16px',
+            padding: '10px 14px',
+            borderRadius: '14px',
+            background: 'rgba(255, 159, 10, 0.15)',
+            border: '1px solid rgba(255, 159, 10, 0.35)',
+            color: '#FFD60A',
+            fontSize: '0.78rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}>
+            <span>🔒 Key not initialized on this phone. Log in once to decrypt messages.</span>
+            <button 
+              onClick={() => {
+                localStorage.removeItem('ros_token');
+                localStorage.removeItem('ros_user');
+                localStorage.removeItem('paxly_sk');
+                window.location.href = '/login';
+              }}
+              style={{
+                background: '#FF9F0A',
+                color: '#000',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '5px 10px',
+                fontWeight: 600,
+                fontSize: '0.72rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Re-Login
+            </button>
+          </div>
+        )}
+
         {/* ── MESSAGES ─────────────────────────────────────── */}
         <div className="chat-scroll" ref={scrollRef} style={ replyingTo ? { paddingBottom: '160px', transition: 'padding-bottom 0.2s ease' } : { transition: 'padding-bottom 0.2s ease' } }>
           <div ref={bottomRef} style={{ height:1, flexShrink:0 }} />
