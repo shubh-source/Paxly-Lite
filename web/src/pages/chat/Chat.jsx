@@ -207,7 +207,7 @@ export default function Chat() {
       setMsgs(prev => {
         const decryptedMsgs = [];
         for (const m of sorted) {
-          if (m.message_type === 'text' && m.text && sk && pk) {
+          if (m.text && sk && pk) {
             m.text = decryptMessage(m.text, sk, pk);
           }
           decryptedMsgs.push(m);
@@ -292,7 +292,7 @@ export default function Chat() {
           }
 
           // If from partner, decrypt text if needed
-          if (msg.message_type === 'text' && msg.text && sk && pk) {
+          if (msg.text && sk && pk) {
              msg.text = decryptMessage(msg.text, sk, pk);
           }
           if (p.some(m => m.id === msg.id)) return p;
@@ -551,19 +551,24 @@ export default function Chat() {
             const { media_url } = await uploadMedia(file);
             
             const sk = localStorage.getItem('paxly_sk');
-            const pk = partner?.public_key;
+            let cachedP = null;
+            try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
+            const pk = partner?.public_key || cachedP?.public_key;
             let payloadText = `E2EE_KEY:${symmetricKey}`;
             if (sk && pk) {
                payloadText = encryptMessage(payloadText, sk, pk);
             }
-            wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
-            api.post('/chat/messages', {
-              text: payloadText,
-              message_type: 'audio',
-              media_url: media_url,
-              is_once_view: false,
-              view_limit: 0
-            }).catch(e => console.error("REST voice save error:", e));
+            if (wsService.isConnected()) {
+              wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
+            } else {
+              api.post('/chat/messages', {
+                text: payloadText,
+                message_type: 'audio',
+                media_url: media_url,
+                is_once_view: false,
+                view_limit: 0
+              }).catch(e => console.error("REST voice save error:", e));
+            }
             setSending(false);
           }
         } else {
@@ -718,17 +723,21 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
          payloadText = encryptMessage(payloadText, sk, pk);
       }
 
-      wsService.sendMessage(payloadText, type, finalUrl, isOnceView, limit, replyingTo?.id);
-      api.post('/chat/messages', {
-        text: payloadText,
-        message_type: type,
-        media_url: finalUrl,
-        is_once_view: isOnceView,
-        view_limit: limit,
-        reply_to_id: replyingTo?.id || null
-      }).then(res => {
-        setMsgs(prev => prev.map(m => (m.id === tempMsg.id ? { ...res.data, isOptimistic: false, media_url: tempMsg.media_url } : m)));
-      }).catch(e => console.error("REST media save error:", e));
+      if (wsService.isConnected()) {
+        wsService.sendMessage(payloadText, type, finalUrl, isOnceView, limit, replyingTo?.id, tempMsg.id);
+      } else {
+        api.post('/chat/messages', {
+          text: payloadText,
+          message_type: type,
+          media_url: finalUrl,
+          is_once_view: isOnceView,
+          view_limit: limit,
+          reply_to_id: replyingTo?.id || null,
+          temp_id: tempMsg.id
+        }).then(res => {
+          setMsgs(prev => prev.map(m => (m.id === tempMsg.id ? { ...res.data, isOptimistic: false, media_url: tempMsg.media_url } : m)));
+        }).catch(e => console.error("REST media save error:", e));
+      }
       setReplyingTo(null);
     } catch (err) {
       alert('Upload failed: ' + (err.response?.data?.detail || err.message));
