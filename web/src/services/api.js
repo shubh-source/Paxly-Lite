@@ -16,6 +16,33 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
+// Auto-report non-auth API errors to Sentra system error logs
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response && (err.response.status === 401 || err.config?.url?.includes('/health/'))) {
+      return Promise.reject(err);
+    }
+    const status = err.response ? err.response.status : 'Network / Timeout';
+    const detail = err.response?.data?.detail || err.response?.data?.message || err.message || 'Unknown API Error';
+    const endpoint = err.config?.url || 'unknown';
+    
+    try {
+      fetch(`${baseURL}/health/report-client-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: `[HTTP ${status}] ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`,
+          componentStack: `Method: ${err.config?.method?.toUpperCase()} | URL: ${endpoint}`,
+          url: window.location.href
+        })
+      }).catch(() => {});
+    } catch {}
+
+    return Promise.reject(err);
+  }
+);
+
 // Auth
 export const register = (name, email, password, public_key) =>
   api.post('/auth/register', { name, email, password, public_key }).then(r => r.data);

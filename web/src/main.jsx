@@ -18,6 +18,37 @@ const pingBackend = () => fetch(`${backendBase}/api/health/ping`).catch(() => {}
 pingBackend();
 setInterval(pingBackend, 10 * 60 * 1000); // Ping every 10 mins while app is open
 
+// Global Unhandled Error Reporter
+window.addEventListener('error', (event) => {
+  try {
+    fetch(`${backendBase}/api/health/report-client-error`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        error: event.message || 'Unknown Global Script Error',
+        componentStack: `${event.filename}:${event.lineno}:${event.colno}`,
+        url: window.location.href
+      })
+    }).catch(() => {});
+  } catch {}
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  try {
+    const reason = event.reason;
+    const msg = typeof reason === 'string' ? reason : (reason?.message || 'Unhandled Promise Rejection');
+    fetch(`${backendBase}/api/health/report-client-error`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        error: `[Unhandled Promise] ${msg}`,
+        componentStack: reason?.stack || 'No stack trace',
+        url: window.location.href
+      })
+    }).catch(() => {});
+  } catch {}
+});
+
 window.triggerFilePick = (el) => {
   window.isFilePicking = true;
   if (el?.current) el.current.click();
