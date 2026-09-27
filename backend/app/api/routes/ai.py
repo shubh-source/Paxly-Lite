@@ -57,11 +57,21 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
         clean_content = content.encode('utf-16', 'surrogatepass').decode('utf-16')
         formatted_msgs.append({"role": role, "content": clean_content})
         
-    candidate_models = ["llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768", "llama-3.3-70b-versatile"]
-    last_err = None
+    target_models = ["llama-3.1-8b-instant", "llama3-8b-8192", "gemma2-9b-it", "mixtral-8x7b-32768"]
     
     async with httpx.AsyncClient(timeout=30.0) as client:
-        for model in candidate_models:
+        # Dynamically query available models for this key
+        try:
+            m_res = await client.get("https://api.groq.com/openai/v1/models", headers=headers)
+            if m_res.status_code == 200:
+                available_ids = [item["id"] for item in m_res.json().get("data", []) if "whisper" not in item["id"].lower() and "guard" not in item["id"].lower()]
+                if available_ids:
+                    target_models = available_ids
+        except Exception as e:
+            print(f"Could not list groq models: {e}")
+
+        last_err = None
+        for model in target_models:
             payload = {
                 "model": model,
                 "messages": formatted_msgs,
@@ -81,7 +91,7 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
             except Exception as e:
                 last_err = f"Groq request exception ({model}): {e}"
                 
-    raise Exception(last_err or "Groq failed with all models")
+        raise Exception(last_err or "Groq failed with all models")
 
 async def call_gemini_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
     api_key = (settings.GOOGLE_API_KEY or "").strip()
