@@ -117,6 +117,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     
                         await manager.send_to_space(space_id, broadcast_data)
 
+                    elif p_type == "ping":
+                        try:
+                            await websocket.send_json({"type": "pong"})
+                        except Exception:
+                            pass
+
                     elif p_type == "presence_state":
                         await manager.send_to_space(space_id, {
                             "type": "presence_state", 

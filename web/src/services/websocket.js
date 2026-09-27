@@ -48,6 +48,16 @@ class WSService {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
       }
+
+      if (this.pingTimer) {
+        clearInterval(this.pingTimer);
+      }
+      this.pingTimer = setInterval(() => {
+        if (this.isConnected()) {
+          try { this.ws.send(JSON.stringify({ type: 'ping' })); } catch {}
+        }
+      }, 20000);
+
       this.emit('connected', {});
       
       // Flush queued messages after authentication
@@ -62,6 +72,7 @@ class WSService {
     this.ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
+        if (data.type === 'pong') return; // keepalive response
         if (data.type === 'webrtc_offer') {
           this.latestOffer = data;
         }
@@ -74,6 +85,10 @@ class WSService {
 
     this.ws.onclose = (e) => {
       console.log('🔌 WebSocket disconnected', e.code);
+      if (this.pingTimer) {
+        clearInterval(this.pingTimer);
+        this.pingTimer = null;
+      }
       this.emit('disconnected', {});
       // Do NOT reconnect if:
       // - intentionally closed
@@ -89,6 +104,10 @@ class WSService {
 
   disconnect() {
     this._intentionalClose = true;
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
     clearTimeout(this.reconnectTimer);
     if (this.ws) { this.ws.close(); this.ws = null; }
   }

@@ -182,59 +182,70 @@ export default function Chat() {
 
   // Prevent body scrolling while in immersive chat (REMOVED to fix black screen bug)
 
-  /* ── data + websocket ─────────────────────────────────────── */
+  /* ── data + websocket + auto-sync engine ─────────────────── */
+  const syncMessages = async (forcePk = null) => {
+    try {
+      const sk = localStorage.getItem('paxly_sk');
+      let cachedP = null;
+      try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
+      const pk = forcePk || partner?.public_key || cachedP?.public_key;
+      
+      const data = await getMessages(0, 100);
+      const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      
+      const decryptedMsgs = [];
+      for (const m of sorted) {
+        if (m.message_type === 'text' && m.text && sk && pk) {
+          m.text = decryptMessage(m.text, sk, pk);
+        }
+        decryptedMsgs.push(m);
+      }
+      
+      setMsgs(prev => {
+        const msgMap = new Map();
+        decryptedMsgs.forEach(m => msgMap.set(m.id, m));
+        const now = Date.now();
+        prev.forEach(m => {
+          if (m.isOptimistic && !msgMap.has(m.id)) {
+            const msgTime = new Date(m.timestamp).getTime();
+            if (now - msgTime < 15000) {
+              msgMap.set(m.id, m);
+            }
+          }
+        });
+        const merged = Array.from(msgMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        localStorage.setItem('cached_messages', JSON.stringify(merged));
+        return merged;
+      });
+      setLoadingHistory(false);
+    } catch (err) {
+      setLoadingHistory(false);
+    }
+  };
+
   useEffect(() => {
     getSpace().then(d => {
       setPartner(d.partner);
       localStorage.setItem('cached_partner', JSON.stringify(d.partner));
       setSpace(d.space);
       localStorage.setItem('cached_space', JSON.stringify(d));
-      
-      // Decrypt history once partner info is available
-      const sk = localStorage.getItem('paxly_sk');
-      const pk = d.partner?.public_key;
-      getMessages(0, 100).then(async data => {
-        const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // Chunked decryption to unblock UI thread
-        const decryptedMsgs = [];
-        for (let i = 0; i < sorted.length; i += 20) {
-          const chunk = sorted.slice(i, i + 20);
-          for (const m of chunk) {
-            if (m.message_type === 'text' && m.text && sk && pk) {
-              m.text = decryptMessage(m.text, sk, pk);
-            }
-            decryptedMsgs.push(m);
-          }
-          await new Promise(resolve => setTimeout(resolve, 0)); // Yield to main thread
-        }
-        
-        setMsgs(prev => {
-          const msgMap = new Map();
-          // First add all decrypted messages from backend
-          decryptedMsgs.forEach(m => msgMap.set(m.id, m));
-          // Only preserve recent optimistic messages (less than 15s) so old failed/stale messages don't haunt chat
-          const now = Date.now();
-          prev.forEach(m => {
-            if (m.isOptimistic && !msgMap.has(m.id)) {
-              const msgTime = new Date(m.timestamp).getTime();
-              if (now - msgTime < 15000) {
-                msgMap.set(m.id, m);
-              }
-            }
-          });
-          const merged = Array.from(msgMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-          localStorage.setItem('cached_messages', JSON.stringify(merged));
-          return merged;
-        });
-        setLoadingHistory(false);
-      }).catch(() => setLoadingHistory(false));
+      syncMessages(d.partner?.public_key);
     });
 
+    // Auto-sync polling every 3.5 seconds
+    const syncInterval = setInterval(() => {
+      syncMessages();
+    }, 3500);
+
+    const onFocusSync = () => syncMessages();
+    window.addEventListener('focus', onFocusSync);
+    document.addEventListener('visibilitychange', onFocusSync);
+
     const offs = [
+      wsService.on('connected', () => syncMessages()),
       wsService.on('chat_message', msg => {
         const sk = localStorage.getItem('paxly_sk');
-        const pk = JSON.parse(localStorage.getItem('cached_partner'))?.public_key;
+        const pk = JSON.parse(localStorage.getItem('cached_partner') || '{}')?.public_key;
         if (msg.message_type === 'text' && msg.text && sk && pk) {
            msg.text = decryptMessage(msg.text, sk, pk);
         }
@@ -256,6 +267,9 @@ export default function Chat() {
               newMsgs[optIdx] = msg;
               return newMsgs;
             }
+          }
+          if (p.some(m => m.id === msg.id)) {
+            return p;
           }
           return [...p, msg];
         });
@@ -311,7 +325,12 @@ export default function Chat() {
         }
       }),
     ];
-    return () => offs.forEach(f => f());
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', onFocusSync);
+      document.removeEventListener('visibilitychange', onFocusSync);
+      offs.forEach(f => f());
+    };
   }, [user?.id]);
 
   /* ── sync local cache ─────────────────────────────────────── */
