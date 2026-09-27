@@ -125,14 +125,47 @@ export default function AppGuard({ children }) {
   };
 
   const [pinLoading, setPinLoading] = useState(false);
+
+  const hashPinLocally = async (pinStr, userId) => {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(`paxly_pin_${userId || 'u'}_${pinStr}`);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return null;
+    }
+  };
   
   const verifyPin = async (pinToVerify = pin) => {
     if (pinToVerify.length < 4) return setError('PIN too short');
     setPinLoading(true);
     setError('');
+
+    // 1. Instant Local Verification (<1ms) if cached hash exists
+    const localHash = localStorage.getItem('paxly_pin_hash');
+    if (localHash && user?.id) {
+      const computedHash = await hashPinLocally(pinToVerify, user.id);
+      if (computedHash === localHash) {
+        setIsLocked(false);
+        setPin('');
+        setAttempts(3);
+        setPinLoading(false);
+        // Background verify to sync with server without blocking UI
+        api.post('/security/pin/verify', { pin: pinToVerify }).catch(() => {});
+        return;
+      }
+    }
+
+    // 2. Server verification fallback
     try {
       const res = await api.post('/security/pin/verify', { pin: pinToVerify });
       if (res.data.status === 'ok') {
+        if (user?.id) {
+          const computedHash = await hashPinLocally(pinToVerify, user.id);
+          if (computedHash) localStorage.setItem('paxly_pin_hash', computedHash);
+        }
         setIsLocked(false);
         setPin('');
         setAttempts(3);
@@ -147,7 +180,7 @@ export default function AppGuard({ children }) {
         }
       }
     } catch {
-      setError('Vault is waking up... Wait 30s and try again.');
+      setError('Incorrect PIN or server connecting... Try again.');
     } finally {
       setPinLoading(false);
     }

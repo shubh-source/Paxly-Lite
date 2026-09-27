@@ -167,6 +167,14 @@ function SecuritySub({ user, onBack }) {
   const updatePin = async () => {
     try {
       await api.post('/security/pin/set', { pin });
+      if (user?.id) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(`paxly_pin_${user.id}_${pin}`);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem('paxly_pin_hash', hash);
+      }
       setPinOk(true);
       setTimeout(() => setPinOk(false), 2000);
     } catch { alert('PIN must be 4-6 digits.'); }
