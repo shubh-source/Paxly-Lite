@@ -57,21 +57,31 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
         clean_content = content.encode('utf-16', 'surrogatepass').decode('utf-16')
         formatted_msgs.append({"role": role, "content": clean_content})
         
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": formatted_msgs,
-        "temperature": 0.7,
-        "max_tokens": 600
-    }
-    if json_mode:
-        payload["response_format"] = {"type": "json_object"}
-        
+    candidate_models = ["llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768", "llama-3.3-70b-versatile"]
+    last_err = None
+    
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, headers=headers, json=payload)
-        if resp.status_code != 200:
-            raise Exception(f"Groq API {resp.status_code}: {resp.text}")
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        for model in candidate_models:
+            payload = {
+                "model": model,
+                "messages": formatted_msgs,
+                "temperature": 0.7,
+                "max_tokens": 600
+            }
+            if json_mode:
+                payload["response_format"] = {"type": "json_object"}
+                
+            try:
+                resp = await client.post(url, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"]
+                else:
+                    last_err = f"Groq API ({model}) {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_err = f"Groq request exception ({model}): {e}"
+                
+    raise Exception(last_err or "Groq failed with all models")
 
 async def call_gemini_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
     api_key = (settings.GOOGLE_API_KEY or "").strip()
