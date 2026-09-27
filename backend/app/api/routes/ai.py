@@ -134,6 +134,34 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
             raise Exception("No content in Gemini response")
         return "".join(part.get("text", "") for part in candidates[0]["content"].get("parts", []))
 
+async def call_ollama_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    base_url = (getattr(settings, "OLLAMA_BASE_URL", None) or "http://localhost:11434").rstrip("/")
+    model = getattr(settings, "OLLAMA_MODEL", None) or "llama3"
+    url = f"{base_url}/api/chat"
+    
+    formatted_msgs = []
+    if system_prompt:
+        formatted_msgs.append({"role": "system", "content": system_prompt})
+    for m in messages:
+        role = m.get("role", "user")
+        if role not in ["user", "assistant", "system"]:
+            role = "user"
+        formatted_msgs.append({"role": role, "content": m.get("content") or " "})
+        
+    payload = {
+        "model": model,
+        "messages": formatted_msgs,
+        "stream": False
+    }
+    if json_mode:
+        payload["format"] = "json"
+        
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        resp = await client.post(url, json=payload)
+        if resp.status_code != 200:
+            raise Exception(f"Ollama error {resp.status_code}: {resp.text}")
+        return resp.json().get("message", {}).get("content", "")
+
 async def generate_ai_text(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
     last_err = None
     # 1. Try Gemini
@@ -152,9 +180,16 @@ async def generate_ai_text(messages: list, system_prompt: str = None, json_mode:
             print(f"Groq error: {e}")
             last_err = e
             
+    # 3. Try Local / Custom Ollama
+    if getattr(settings, "OLLAMA_BASE_URL", None):
+        try:
+            return await call_ollama_direct(messages, system_prompt, json_mode)
+        except Exception as e:
+            last_err = e
+
     if last_err:
         raise HTTPException(500, f"AI generation error: {str(last_err)}")
-    raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY or GROQ_API_KEY to .env")
+    raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY, GROQ_API_KEY, or OLLAMA_BASE_URL to .env")
 
 @router.post("/chat", response_model=AIResponse)
 async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

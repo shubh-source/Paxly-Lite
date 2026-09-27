@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3"
 
     # Razorpay
     RAZORPAY_KEY_ID: str = "rzp_test_SZlNsaYYbenJQA"
