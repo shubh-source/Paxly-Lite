@@ -191,19 +191,32 @@ export default function Chat() {
       const pk = forcePk || partner?.public_key || cachedP?.public_key;
       
       const data = await getMessages(0, 100);
+      if (!Array.isArray(data)) {
+        setLoadingHistory(false);
+        return;
+      }
+
       const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       
-      const decryptedMsgs = [];
-      for (const m of sorted) {
-        if (m.message_type === 'text' && m.text && sk && pk) {
-          m.text = decryptMessage(m.text, sk, pk);
-        }
-        decryptedMsgs.push(m);
-      }
-      
       setMsgs(prev => {
+        const prevRealMsgs = prev.filter(m => !m.isOptimistic);
+        if (prevRealMsgs.length === sorted.length && prevRealMsgs.length > 0 && sorted.length > 0) {
+          if (prevRealMsgs[prevRealMsgs.length - 1].id === sorted[sorted.length - 1].id) {
+            return prev;
+          }
+        }
+
+        const decryptedMsgs = [];
+        for (const m of sorted) {
+          if (m.message_type === 'text' && m.text && sk && pk) {
+            m.text = decryptMessage(m.text, sk, pk);
+          }
+          decryptedMsgs.push(m);
+        }
+
         const msgMap = new Map();
         decryptedMsgs.forEach(m => msgMap.set(m.id, m));
+        
         const now = Date.now();
         prev.forEach(m => {
           if (m.isOptimistic && !msgMap.has(m.id)) {
@@ -232,10 +245,10 @@ export default function Chat() {
       syncMessages(d.partner?.public_key);
     });
 
-    // Auto-sync polling every 3.5 seconds
+    // Auto-sync polling every 5 seconds (safety net)
     const syncInterval = setInterval(() => {
       syncMessages();
-    }, 3500);
+    }, 5000);
 
     const onFocusSync = () => syncMessages();
     window.addEventListener('focus', onFocusSync);
@@ -246,31 +259,36 @@ export default function Chat() {
       wsService.on('chat_message', msg => {
         const sk = localStorage.getItem('paxly_sk');
         const pk = JSON.parse(localStorage.getItem('cached_partner') || '{}')?.public_key;
-        if (msg.message_type === 'text' && msg.text && sk && pk) {
-           msg.text = decryptMessage(msg.text, sk, pk);
-        }
         
         // Ensure msg object has 'id' property (backend sends 'message_id')
         if (msg.message_id && !msg.id) {
           msg.id = msg.message_id;
         }
-        
-        // Initialize reactions if missing
         msg.reactions = msg.reactions || {};
-        
+
         setMsgs(p => {
+          // If this is confirmation for sender's own optimistic message
           if (msg.sender_id === user?.id) {
-            const optIdx = p.findIndex(m => m.isOptimistic && m.message_type === msg.message_type && (m.message_type === 'text' ? m.text === msg.text : true));
+            const optIdx = p.findIndex(m => m.id === msg.temp_id || (m.isOptimistic && m.message_type === msg.message_type && (m.message_type === 'text' ? m.text === msg.text || m.text === (sk && pk ? decryptMessage(msg.text, sk, pk) : msg.text) : true)));
             if (optIdx !== -1) {
               const newMsgs = [...p];
-              msg.reactions = Object.keys(msg.reactions).length > 0 ? msg.reactions : (p[optIdx].reactions || {});
-              newMsgs[optIdx] = msg;
+              newMsgs[optIdx] = {
+                ...msg,
+                text: newMsgs[optIdx].text, // preserve plaintext
+                reactions: Object.keys(msg.reactions).length > 0 ? msg.reactions : (p[optIdx].reactions || {}),
+                isOptimistic: false
+              };
               return newMsgs;
             }
+            if (p.some(m => m.id === msg.id)) return p;
           }
-          if (p.some(m => m.id === msg.id)) {
-            return p;
+
+          // If from partner, decrypt text if needed
+          if (msg.message_type === 'text' && msg.text && sk && pk) {
+             msg.text = decryptMessage(msg.text, sk, pk);
           }
+          if (p.some(m => m.id === msg.id)) return p;
+
           return [...p, msg];
         });
       }),
@@ -405,9 +423,6 @@ export default function Chat() {
   const send = async () => {
     if (!text.trim() || sending) return;
     
-    setSending(true);
-    
-    // OPTIMISTIC UPDATE
     const rawText = text.trim();
     const tempId = `temp_${Date.now()}`;
     const tempMsg = {
@@ -420,36 +435,36 @@ export default function Chat() {
       isOptimistic: true,
       reactions: {}
     };
+
+    // Instant UI Update
+    setText('');
+    setReplyingTo(null);
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.focus();
+    }
     setMsgs(p => [...p, tempMsg]);
 
     const sk = localStorage.getItem('paxly_sk');
     const pk = partner?.public_key;
     let payloadText = rawText;
-    
     if (sk && pk) {
        payloadText = encryptMessage(rawText, sk, pk);
     }
 
-    // 1. WebSocket Delivery
-    wsService.sendMessage(payloadText, 'text', null, false, 1, replyingTo?.id);
-
-    // 2. REST API Guaranteed Persistence & Sync
-    api.post('/chat/messages', {
-      text: payloadText,
-      message_type: 'text',
-      reply_to_id: replyingTo?.id || null
-    }).then(res => {
-      setMsgs(prev => prev.map(m => (m.id === tempId ? { ...res.data, text: rawText, isOptimistic: false } : m)));
-    }).catch(err => {
-      console.error("REST message delivery fallback error:", err);
-    });
-
-    setText('');
-    setReplyingTo(null);
-    setSending(false);
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.focus();
+    if (wsService.isConnected()) {
+      wsService.sendMessage(payloadText, 'text', null, false, 1, replyingTo?.id, tempId);
+    } else {
+      api.post('/chat/messages', {
+        text: payloadText,
+        message_type: 'text',
+        reply_to_id: replyingTo?.id || null,
+        temp_id: tempId
+      }).then(res => {
+        setMsgs(prev => prev.map(m => (m.id === tempId ? { ...res.data, text: rawText, isOptimistic: false } : m)));
+      }).catch(err => {
+        console.error("REST message delivery fallback error:", err);
+      });
     }
   };
 

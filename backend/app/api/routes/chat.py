@@ -52,6 +52,7 @@ class MessageCreate(BaseModel):
     is_once_view: bool = False
     view_limit: int = 1
     reply_to_id: Optional[str] = None
+    temp_id: Optional[str] = None
 
 @router.post("/messages")
 async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -94,6 +95,7 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
     broadcast_data = {
         "type": "chat_message",
         "id": msg.id,
+        "temp_id": data.temp_id,
         "sender_id": cu.id,
         "sender_name": cu.name,
         "message_type": msg.message_type,
@@ -114,7 +116,9 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
     except Exception as e:
         print(f"WS Broadcast error: {e}")
         
-    return fmt_msg(msg, cu.name, True)
+    res = fmt_msg(msg, cu.name, True)
+    res["temp_id"] = data.temp_id
+    return res
 
 @router.get("/messages")
 async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

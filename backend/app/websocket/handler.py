@@ -78,6 +78,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     if p_type == "chat_message":
                         raw_text = payload.get("text", "")
                         encrypted_text = encrypt_data(raw_text)
+                        temp_id = payload.get("temp_id")
                         msg = Message(
                             id=str(uuid.uuid4()), couple_space_id=space_id, sender_id=user_id,
                             message_type=payload.get("message_type", "text"), text=encrypted_text,
@@ -101,19 +102,25 @@ async def websocket_endpoint(websocket: WebSocket):
                             )
                             db.add(vn)
                     
+                        db.add(msg)
+                        await db.commit()
+
                         broadcast_data = {
-                            "type": "chat_message", "id": msg.id, "sender_id": user_id, "sender_name": user_name,
-                            "message_type": msg.message_type, "text": raw_text, "media_url": msg.media_url,
-                            "reactions": msg.reactions,
+                            "type": "chat_message", 
+                            "id": msg.id, 
+                            "temp_id": temp_id,
+                            "sender_id": user_id, 
+                            "sender_name": user_name,
+                            "message_type": msg.message_type, 
+                            "text": raw_text, 
+                            "media_url": msg.media_url,
+                            "reactions": msg.reactions or {},
                             "is_once_view": msg.is_once_view,
                             "view_limit": msg.view_limit,
                             "views_used": msg.views_used,
                             "reply_to_id": msg.reply_to_id,
                             "timestamp": msg.timestamp.isoformat() + "Z"
                         }
-                    
-                        db.add(msg)
-                        await db.commit()
                     
                         await manager.send_to_space(space_id, broadcast_data)
 
