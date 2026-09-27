@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from groq import AsyncGroq
 from app.models.schemas import AIRequest, AIResponse, AISessionStart, AIInterviewRequest, AIAnalysisReport
 from app.core.security import get_current_user
 from app.core.config import settings
@@ -12,6 +11,7 @@ from sqlalchemy import update, desc
 from datetime import datetime, timedelta
 import json
 import re
+import httpx
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/ai", tags=["AI"])
@@ -34,6 +34,108 @@ Rules:
 - Match the energy: if they are joking, joke back. If they are sad, be there for them
 - You are NOT a therapist. You are a best friend."""
 
+async def call_groq_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    api_key = (settings.GROQ_API_KEY or "").strip()
+    if not api_key:
+        raise Exception("GROQ_API_KEY is empty")
+        
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    formatted_msgs = []
+    if system_prompt:
+        formatted_msgs.append({"role": "system", "content": system_prompt})
+    
+    for m in messages:
+        role = m.get("role", "user")
+        if role not in ["user", "assistant", "system"]:
+            role = "user"
+        content = m.get("content") or " "
+        clean_content = content.encode('utf-16', 'surrogatepass').decode('utf-16')
+        formatted_msgs.append({"role": role, "content": clean_content})
+        
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": formatted_msgs,
+        "temperature": 0.7,
+        "max_tokens": 600
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+        
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+        if resp.status_code != 200:
+            raise Exception(f"Groq API {resp.status_code}: {resp.text}")
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+async def call_gemini_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    api_key = (settings.GOOGLE_API_KEY or "").strip()
+    if not api_key:
+        raise Exception("GOOGLE_API_KEY is empty")
+        
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
+    contents = []
+    for m in messages:
+        role = "user" if m.get("role") == "user" else "model"
+        parts = []
+        if m.get("content"):
+            parts.append({"text": m.get("content")})
+        if m.get("attachments"):
+            for att in m.get("attachments"):
+                parts.append({
+                    "inline_data": {
+                        "mime_type": att.get("mime_type"),
+                        "data": att.get("data")
+                    }
+                })
+        if not parts:
+            parts.append({"text": " "})
+        contents.append({"role": role, "parts": parts})
+        
+    payload = {"contents": contents}
+    if system_prompt:
+        payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+    if json_mode:
+        payload["generationConfig"] = {"responseMimeType": "application/json"}
+        
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, json=payload)
+        if resp.status_code != 200:
+            raise Exception(f"Gemini API {resp.status_code}: {resp.text}")
+        data = resp.json()
+        candidates = data.get("candidates", [])
+        if not candidates or "content" not in candidates[0]:
+            raise Exception("No content in Gemini response")
+        return "".join(part.get("text", "") for part in candidates[0]["content"].get("parts", []))
+
+async def generate_ai_text(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    last_err = None
+    # 1. Try Gemini
+    if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip():
+        try:
+            return await call_gemini_direct(messages, system_prompt, json_mode)
+        except Exception as e:
+            print(f"Gemini error: {e}")
+            last_err = e
+            
+    # 2. Try Groq
+    if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip():
+        try:
+            return await call_groq_direct(messages, system_prompt, json_mode)
+        except Exception as e:
+            print(f"Groq error: {e}")
+            last_err = e
+            
+    if last_err:
+        raise HTTPException(500, f"AI generation error: {str(last_err)}")
+    raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY or GROQ_API_KEY to .env")
+
 @router.post("/chat", response_model=AIResponse)
 async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     partner_name = "your partner"
@@ -51,7 +153,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         if dates:
             dates_info = "Important Dates:\n" + "\n".join([f"- {d.title} ({d.type}): {d.date}" for d in dates])
         else:
-            dates_info = "Important Dates: None currently saved. If the user doesn't have any dates saved, you can let them know that their 'Important Dates' section is empty and warmly ask if they'd like to add one."
+            dates_info = "Important Dates: None currently saved."
             
     signup_date = cu.created_at.strftime("%B %d, %Y") if cu.created_at else "Unknown"
             
@@ -74,98 +176,18 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     {special_commands}
     """
 
-    reply_text = ""
+    # Merge frontend system prompts
+    frontend_system_prompt = ""
+    clean_messages = []
+    for m in data.messages:
+        if m.role == "system":
+            frontend_system_prompt += "\n" + m.content
+        else:
+            clean_messages.append(m.dict())
+            
+    final_system_prompt = dynamic_prompt + frontend_system_prompt
 
-    # 1. Try Gemini (Free & High Quality)
-    if settings.GOOGLE_API_KEY and not reply_text:
-        try:
-            import google.generativeai as genai
-            import base64
-            genai.configure(api_key=settings.GOOGLE_API_KEY)
-            
-            # Merge frontend system prompts
-            frontend_system_prompt = ""
-            for m in data.messages:
-                if m.role == "system":
-                    frontend_system_prompt += "\n" + m.content
-            
-            final_system_prompt = dynamic_prompt + frontend_system_prompt
-
-            model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                system_instruction=final_system_prompt
-            )
-            chat_history = []
-            for m in data.messages[:-1]:
-                if m.role == "system": continue
-                parts = [m.content or ""]
-                if m.attachments:
-                    for att in m.attachments:
-                        try:
-                            raw_bytes = base64.b64decode(att.data)
-                            parts.append({"mime_type": att.mime_type, "data": raw_bytes})
-                        except Exception:
-                            pass
-                chat_history.append({"role": "user" if m.role == "user" else "model", "parts": parts})
-            
-            chat = model.start_chat(history=chat_history)
-            
-            # Prepare last message parts
-            last_msg = data.messages[-1]
-            last_parts = [last_msg.content or ""]
-            if last_msg.attachments:
-                for att in last_msg.attachments:
-                    try:
-                        raw_bytes = base64.b64decode(att.data)
-                        last_parts.append({"mime_type": att.mime_type, "data": raw_bytes})
-                    except Exception:
-                        pass
-                    
-            response = await chat.send_message_async(last_parts)
-            reply_text = response.text
-        except Exception as e:
-            print(f"Gemini Error in ai_chat: {e}")
-            # Fallback to Groq if Gemini fails
-
-    # 2. Try Groq (Ultra Fast)
-    if settings.GROQ_API_KEY and not reply_text:
-        try:
-            client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-            
-            # Fix surrogates that cause Groq python client to crash
-            clean_messages = []
-            
-            # Merge frontend system prompts into the dynamic prompt
-            frontend_system_prompt = ""
-            for m in data.messages:
-                if m.role == "system":
-                    frontend_system_prompt += "\n" + m.content
-                    
-            final_system_prompt = dynamic_prompt + frontend_system_prompt
-            clean_messages.append({"role": "system", "content": final_system_prompt})
-            
-            for m in data.messages:
-                if m.role != "system":
-                    content_str = m.content or " "
-                    clean_content = content_str.encode('utf-16', 'surrogatepass').decode('utf-16')
-                    clean_messages.append({
-                        "role": "assistant" if m.role in ["assistant", "model"] else "user",
-                        "content": clean_content
-                    })
-
-            response = await client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=clean_messages,
-                temperature=0.7,
-                max_tokens=400,
-            )
-            reply_text = response.choices[0].message.content
-        except Exception as e:
-            print(f"Groq Error in ai_chat: {e}")
-            raise HTTPException(500, f"AI service error: {str(e)}")
-
-    if not reply_text:
-        raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY or GROQ_API_KEY to .env")
+    reply_text = await generate_ai_text(clean_messages, system_prompt=final_system_prompt)
 
     # Post-process: Check if AI wants to add a date
     match = re.search(r'\[ADD_DATE:\s*([^:]+):\s*([^:]+):\s*([^\]]+)\]', reply_text)
@@ -195,28 +217,8 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
 
 async def summarize_history(history_text: str) -> str:
     prompt = f"Analyze this chat history between a couple. Summarize the recurring themes, their emotional tone, and identify the main points of friction:\n\n{history_text}"
-    
     system = "You are a senior relationship analyst. Your tone is extremely friendly, warm, and insightful."
-    
-    if settings.GOOGLE_API_KEY:
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
-            resp = await model.generate_content_async(prompt)
-            return resp.text
-        except Exception:
-            pass
-            
-    if settings.GROQ_API_KEY:
-        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-        resp = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}]
-        )
-        return resp.choices[0].message.content
-        
-    raise Exception("No AI configured")
+    return await generate_ai_text([{"role": "user", "content": prompt}], system_prompt=system)
 
 @router.get("/session/active")
 async def get_active_session(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -228,7 +230,6 @@ async def get_active_session(cu: User = Depends(get_current_user), db: AsyncSess
     session = res.scalars().first()
     if not session: return None
     
-    # Determine user's POV status
     my_pov_done = False
     if cu.id == session.partner_a_id and session.partner_a_pov: my_pov_done = True
     elif cu.id == session.partner_b_id and session.partner_b_pov: my_pov_done = True
@@ -274,7 +275,6 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
     db.add(session)
     
     # Notify partner that session has started
-    from app.models.orm import Notification
     db.add(Notification(
         user_id=cu.partner_id,
         type="ai_report",
@@ -283,7 +283,7 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
     ))
     
     await db.commit()
-    return {"session_id": session.id, "synopsis": synopsis}
+    return {"session_id": session.id, "synopsis": summary}
 
 @router.post("/session/interview")
 async def interview_chat(data: AIInterviewRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -293,26 +293,8 @@ async def interview_chat(data: AIInterviewRequest, cu: User = Depends(get_curren
 
     system = f"You are conducting a private, one-on-one interview with {cu.name} regarding their relationship. You have analyzed their chat history and know: {session.history_synopsis}. Be extremely friendly, empathetic, and warm. Ask kind questions to uncover their true feelings and point of view that they haven't shared with their partner yet. Make them feel safe and heard."
     
-    if settings.GOOGLE_API_KEY:
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
-            resp = await model.generate_content_async(data.message)
-            return AIResponse(reply=resp.text)
-        except Exception:
-            pass
-            
-    if settings.GROQ_API_KEY:
-        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-        resp = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": data.message}],
-            temperature=0.7
-        )
-        return AIResponse(reply=resp.choices[0].message.content)
-        
-    raise HTTPException(503, "AI service not configured.")
+    reply = await generate_ai_text([{"role": "user", "content": data.message}], system_prompt=system)
+    return AIResponse(reply=reply)
 
 @router.post("/session/finish-interview")
 async def finish_interview(session_id: str, pov: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -329,7 +311,6 @@ async def finish_interview(session_id: str, pov: str, cu: User = Depends(get_cur
     
     # Check if both done
     if session.partner_a_pov and session.partner_b_pov:
-        # Trigger report generation
         return await finalize_session(session, db)
     
     return {"status": "waiting_for_partner"}
@@ -351,34 +332,18 @@ async def finalize_session(session: AICounselingSession, db: AsyncSession):
     
     system = "You are a world-class relationship mediator. Provide a structured JSON analysis. Your tone in the summary should be extremely friendly, warm, and compassionate. Output ONLY raw JSON."
     
-    report_data = None
-    if settings.GOOGLE_API_KEY:
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
-            resp = await model.generate_content_async(prompt)
-            # Clean up potential markdown formatting from Gemini
-            cleaned = resp.text.strip()
-            if cleaned.startswith("```json"): cleaned = cleaned[7:]
-            if cleaned.startswith("```"): cleaned = cleaned[3:]
-            if cleaned.endswith("```"): cleaned = cleaned[:-3]
-            report_data = json.loads(cleaned.strip())
-        except Exception as e:
-            print(f"Gemini fallback error: {e}")
-            pass
-            
-    if not report_data and settings.GROQ_API_KEY:
-        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-        resp = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}
-        )
-        report_data = json.loads(resp.choices[0].message.content)
+    reply = await generate_ai_text([{"role": "user", "content": prompt}], system_prompt=system, json_mode=True)
+    
+    cleaned = reply.strip()
+    if cleaned.startswith("```json"): cleaned = cleaned[7:]
+    if cleaned.startswith("```"): cleaned = cleaned[3:]
+    if cleaned.endswith("```"): cleaned = cleaned[:-3]
+    
+    try:
+        report_data = json.loads(cleaned.strip())
+    except Exception as e:
+        raise HTTPException(500, f"Could not parse report JSON: {e}")
         
-    if not report_data:
-        raise HTTPException(500, "Could not generate report")
     session.final_report = report_data
     session.status = "completed"
     session.completed_at = datetime.utcnow()
@@ -405,7 +370,6 @@ async def deep_analytics(cu: User = Depends(get_current_user), db: AsyncSession 
     ))
     messages = messages_res.scalars().all()
     
-    # Generate metadata summary (no actual message content to save tokens, or maybe just message counts and types)
     user_msg_count = sum(1 for m in messages if m.sender_id == cu.id)
     partner_msg_count = len(messages) - user_msg_count
     total_images = sum(1 for m in messages if m.message_type == 'image')
@@ -434,33 +398,17 @@ async def deep_analytics(cu: User = Depends(get_current_user), db: AsyncSession 
 
     system = "You are Aura, a world-class relationship AI. Provide a structured JSON analysis based ONLY on the provided metadata. Your tone should be extremely friendly, warm, and insightful. Output ONLY raw JSON."
 
-    report_data = None
-    if settings.GOOGLE_API_KEY:
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=settings.GOOGLE_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
-            resp = await model.generate_content_async(prompt)
-            cleaned = resp.text.strip()
-            if cleaned.startswith("```json"): cleaned = cleaned[7:]
-            if cleaned.startswith("```"): cleaned = cleaned[3:]
-            if cleaned.endswith("```"): cleaned = cleaned[:-3]
-            report_data = json.loads(cleaned.strip())
-        except Exception as e:
-            print(f"Gemini fallback error: {e}")
-            pass
-            
-    if not report_data and settings.GROQ_API_KEY:
-        client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-        resp = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}
-        )
-        report_data = json.loads(resp.choices[0].message.content)
-        
-    if not report_data:
-        raise HTTPException(500, "Could not generate deep analytics report")
+    reply = await generate_ai_text([{"role": "user", "content": prompt}], system_prompt=system, json_mode=True)
+    
+    cleaned = reply.strip()
+    if cleaned.startswith("```json"): cleaned = cleaned[7:]
+    if cleaned.startswith("```"): cleaned = cleaned[3:]
+    if cleaned.endswith("```"): cleaned = cleaned[:-3]
+    
+    try:
+        report_data = json.loads(cleaned.strip())
+    except Exception as e:
+        raise HTTPException(500, f"Could not parse analytics report: {e}")
 
     return report_data
 
@@ -479,7 +427,6 @@ async def get_threads(cu: User = Depends(get_current_user), db: AsyncSession = D
     decrypted_threads = []
     for t in threads:
         try:
-            # Decrypt the payload
             decrypted_json = decrypt_data(t.encrypted_messages)
             msgs = json.loads(decrypted_json) if decrypted_json else []
             decrypted_threads.append({
@@ -496,11 +443,9 @@ async def get_threads(cu: User = Depends(get_current_user), db: AsyncSession = D
 
 @router.post("/threads/sync")
 async def sync_thread(req: AIThreadSyncRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    # Encrypt the messages array
     json_msgs = json.dumps(req.messages)
     encrypted_msgs = encrypt_data(json_msgs)
     
-    # Upsert logic
     result = await db.execute(select(AIChatThread).filter(AIChatThread.id == req.id))
     existing = result.scalars().first()
     
