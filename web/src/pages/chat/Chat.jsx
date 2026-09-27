@@ -201,7 +201,7 @@ export default function Chat() {
       
       setMsgs(prev => {
         const prevRealMsgs = prev.filter(m => !m.isOptimistic);
-        if (prevRealMsgs.length === sorted.length && prevRealMsgs.length > 0 && sorted.length > 0) {
+        if (prevRealMsgs.length === sorted.length && prevRealMsgs.length > 0 && sorted.length > 0 && !prev.some(m => m.isOptimistic)) {
           if (prevRealMsgs[prevRealMsgs.length - 1].id === sorted[sorted.length - 1].id) {
             return prev;
           }
@@ -238,11 +238,15 @@ export default function Chat() {
   };
 
   useEffect(() => {
+    const token = localStorage.getItem('ros_token');
     getSpace().then(d => {
       setPartner(d.partner);
       localStorage.setItem('cached_partner', JSON.stringify(d.partner));
       setSpace(d.space);
       localStorage.setItem('cached_space', JSON.stringify(d));
+      if (token && d?.space?.id && !wsService.isConnected()) {
+        wsService.connect(token, d.space.id);
+      }
       syncMessages(d.partner?.public_key);
     });
 
@@ -447,7 +451,9 @@ export default function Chat() {
     setMsgs(p => [...p, tempMsg]);
 
     const sk = localStorage.getItem('paxly_sk');
-    const pk = partner?.public_key;
+    let cachedP = null;
+    try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
+    const pk = partner?.public_key || cachedP?.public_key;
     let payloadText = rawText;
     if (sk && pk) {
        payloadText = encryptMessage(rawText, sk, pk);
@@ -466,6 +472,13 @@ export default function Chat() {
       }).catch(err => {
         console.error("REST message delivery fallback error:", err);
       });
+      // Try to re-establish WebSocket connection immediately
+      const token = localStorage.getItem('ros_token');
+      const cachedSpace = JSON.parse(localStorage.getItem('cached_space') || '{}');
+      const spaceId = space?.id || cachedSpace?.space?.id || user?.couple_space_id;
+      if (token && spaceId) {
+        wsService.connect(token, spaceId);
+      }
     }
   };
 
