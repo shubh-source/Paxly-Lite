@@ -28,7 +28,9 @@ export default function Notifications() {
   }, []);
 
   const handleClick = (n) => {
-    if (n.type === 'ai_report') {
+    if (n.type === 'safety_alert') {
+      nav('/chat');
+    } else if (n.type === 'ai_report') {
       nav('/ai/lab');
     } else if (n.type === 'call_missed') {
       nav('/dashboard');
@@ -54,30 +56,82 @@ export default function Notifications() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {notifs.map(n => (
-              <div 
-                key={n.id} 
-                className="card" 
-                onClick={() => handleClick(n)}
-                style={{ 
-                  display: 'flex', gap: 16, alignItems: 'flex-start', cursor: 'pointer',
-                  background: n.read ? 'var(--s1)' : 'rgba(201,169,110,0.1)',
-                  border: n.read ? '1px solid transparent' : '1px solid rgba(201,169,110,0.3)',
-                  transition: 'transform 0.2s'
-                }}
-              >
-                <div style={{ padding: 8, background: 'rgba(255,255,255,0.05)', borderRadius: '50%' }}>
-                  {n.type === 'ai_report' ? <Icons.Star size={20} color="var(--accent)" /> : <Icons.Bell size={20} color="var(--text)" />}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: 4, color: n.read ? 'var(--text)' : 'var(--accent)' }}>{n.title}</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.4, marginBottom: 8 }}>{n.body}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--s2)' }}>
-                    {formatDistanceToNow(new Date(n.created_at))} ago
+            {notifs.map(n => {
+              const isSafety = n.type === 'safety_alert';
+              return (
+                <div 
+                  key={n.id} 
+                  className="card" 
+                  onClick={() => handleClick(n)}
+                  style={{ 
+                    display: 'flex', gap: 16, alignItems: 'flex-start', cursor: 'pointer',
+                    background: isSafety 
+                      ? 'linear-gradient(135deg, rgba(168,85,247,0.18) 0%, rgba(236,72,153,0.12) 100%)'
+                      : n.read ? 'var(--s1)' : 'rgba(201,169,110,0.1)',
+                    border: isSafety
+                      ? '1px solid rgba(216,180,254,0.4)'
+                      : n.read ? '1px solid transparent' : '1px solid rgba(201,169,110,0.3)',
+                    boxShadow: isSafety ? '0 4px 20px rgba(168,85,247,0.15)' : 'none',
+                    transition: 'transform 0.2s',
+                    borderRadius: 16,
+                    padding: 16
+                  }}
+                >
+                  <div style={{ 
+                    padding: 10, 
+                    background: isSafety ? 'rgba(168,85,247,0.2)' : 'rgba(255,255,255,0.05)', 
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    {isSafety ? (
+                      <Icons.Heart size={22} color="#ec4899" />
+                    ) : n.type === 'ai_report' ? (
+                      <Icons.Star size={20} color="var(--accent)" />
+                    ) : (
+                      <Icons.Bell size={20} color="var(--text)" />
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ 
+                      fontWeight: 600, 
+                      fontSize: '0.95rem', 
+                      marginBottom: 4, 
+                      color: isSafety ? '#f472b6' : n.read ? 'var(--text)' : 'var(--accent)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span>{n.title}</span>
+                      {isSafety && (
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          fontWeight: 600, 
+                          background: 'rgba(236,72,153,0.25)', 
+                          color: '#f472b6', 
+                          padding: '2px 8px', 
+                          borderRadius: 12 
+                        }}>Care Alert</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: isSafety ? '#e2e8f0' : 'var(--muted)', lineHeight: 1.45, marginBottom: 8 }}>
+                      {n.body}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--s2)' }}>
+                        {formatDistanceToNow(new Date(n.created_at))} ago
+                      </div>
+                      {isSafety && (
+                        <div style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 600 }}>
+                          Tap to open chat &rarr;
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

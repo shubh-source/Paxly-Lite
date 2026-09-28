@@ -92,11 +92,27 @@ export const AuthProvider = ({ children }) => {
             window.focus();
             notif.close();
           };
-        }
+    // Global Safety & Crisis Alert Listener (Part 57)
+    const offSafety = wsService.on('safety_alert', (d) => {
+      if ("Notification" in window && Notification.permission === "granted") {
+        const notif = new Notification(d.title || "Aura Care Alert 💜", {
+          body: d.body || "Your partner is feeling overwhelmed and needs your support right now.",
+          icon: '/vite.svg',
+          requireInteraction: true,
+          silent: false
+        });
+        notif.onclick = () => {
+          window.focus();
+          window.location.href = '/chat';
+          notif.close();
+        };
       }
     });
 
-    return () => off();
+    return () => {
+      off();
+      offSafety();
+    };
   }, [user?.id]);
 
   const loginUser = (token, userData) => {
