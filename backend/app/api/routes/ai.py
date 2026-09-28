@@ -1249,39 +1249,39 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         context_data={"couple_space_id": cu.couple_space_id, "is_premium": cu.is_premium}
     )
 
-    if runtime_state.safety.requires_intervention and runtime_state.safety.safety_message:
-        # Part 57 Crisis Escalation: Trigger partner safety notification if authorized
-        if runtime_state.safety.should_notify_partner and cu.partner_id and getattr(cu, "crisis_escalation_enabled", True):
-            # Check 15-minute anti-spam cooldown
-            cooldown_active = cu.last_crisis_alert_at and (datetime.utcnow() - cu.last_crisis_alert_at) < timedelta(minutes=15)
-            if not cooldown_active:
-                alert_title = runtime_state.safety.partner_alert_title or "Aura Safety Alert 🚨"
-                alert_body = runtime_state.safety.partner_alert_body or f"{cu.name} is going through severe distress and might need your support right now."
-                
-                # 1. Save in-app notification to DB for partner
-                db.add(Notification(
-                    user_id=cu.partner_id,
-                    type="safety_alert",
-                    title=alert_title,
-                    body=alert_body,
-                    data={"risk_level": runtime_state.safety.risk_level, "escalated_at": datetime.utcnow().isoformat()}
-                ))
-                
-                # 2. Push real-time alert via WebSocket to partner if online
-                try:
-                    await manager.send_to_user(cu.partner_id, {
-                        "type": "safety_alert",
-                        "title": alert_title,
-                        "body": alert_body,
-                        "risk_level": runtime_state.safety.risk_level,
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
-                except Exception as ws_err:
-                    print(f"Crisis WS push error: {ws_err}")
-                
-                cu.last_crisis_alert_at = datetime.utcnow()
-                await db.commit()
+    # Part 57 Crisis & Distress Escalation: Trigger partner safety notification if authorized
+    if runtime_state.safety.should_notify_partner and cu.partner_id and getattr(cu, "crisis_escalation_enabled", True):
+        # Check 15-minute anti-spam cooldown
+        cooldown_active = cu.last_crisis_alert_at and (datetime.utcnow() - cu.last_crisis_alert_at) < timedelta(minutes=15)
+        if not cooldown_active:
+            alert_title = runtime_state.safety.partner_alert_title or "Aura Care Alert 💜"
+            alert_body = runtime_state.safety.partner_alert_body or f"{cu.name} is feeling emotionally overwhelmed right now and needs your care and presence."
+            
+            # 1. Save in-app notification to DB for partner (ZERO chat logs shared)
+            db.add(Notification(
+                user_id=cu.partner_id,
+                type="safety_alert",
+                title=alert_title,
+                body=alert_body,
+                data={"risk_level": runtime_state.safety.risk_level, "escalated_at": datetime.utcnow().isoformat()}
+            ))
+            
+            # 2. Push real-time alert via WebSocket to partner if online
+            try:
+                await manager.send_to_user(cu.partner_id, {
+                    "type": "safety_alert",
+                    "title": alert_title,
+                    "body": alert_body,
+                    "risk_level": runtime_state.safety.risk_level,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            except Exception as ws_err:
+                print(f"Crisis WS push error: {ws_err}")
+            
+            cu.last_crisis_alert_at = datetime.utcnow()
+            await db.commit()
 
+    if runtime_state.safety.requires_intervention and runtime_state.safety.safety_message:
         return AIResponse(reply=runtime_state.safety.safety_message)
             
     special_commands = ""

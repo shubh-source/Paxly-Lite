@@ -118,14 +118,16 @@ class SafetyEngine:
             "crying for hours", "can't stop crying", "ro ro kar bura haal", "bohot zyada toot chuka",
             "bohot zyada toot chuki", "i feel completely broken", "i am drowning", "can't handle this anymore",
             "can't take this anymore", "everything is falling apart", "sab khatam ho gaya lagta hai",
-            "completely overwhelmed", "dimag phat raha hai", "itna dard nahi sah sakta"
+            "completely overwhelmed", "dimag phat raha hai", "itna dard nahi sah sakta", "bohot ro raha hu", "bohot ro rahi hu"
         ]
         if any(sig in text for sig in severe_distress_signals) or (emotion.primary_emotion == "sadness" and emotion.vulnerability_level == "high" and emotion.intensity >= 0.85):
             return SafetyState(
                 is_safe=True,
                 risk_level="RISK_2",
                 requires_intervention=False,
-                should_notify_partner=False,  # Can be suggested or notified if configured
+                should_notify_partner=True,
+                partner_alert_title="Aura Care Alert 💜",
+                partner_alert_body=f"{user_name} is feeling emotionally overwhelmed and vulnerable right now and needs your love, comfort, and presence. Please check in on them.",
                 flags=["severe_emotional_distress"]
             )
 
