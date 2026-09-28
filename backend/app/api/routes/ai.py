@@ -13,6 +13,7 @@ import json
 import re
 import httpx
 from pydantic import BaseModel
+from app.services.aura_core import aura_core
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -1218,6 +1219,24 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             dates_info = "Important Dates: None currently saved."
             
     signup_date = cu.created_at.strftime("%B %d, %Y") if cu.created_at else "Unknown"
+
+    # Extract last user message for AuraCore cognitive & safety evaluation
+    last_user_msg = ""
+    for m in reversed(data.messages):
+        if m.role == "user" and m.content:
+            last_user_msg = m.content
+            break
+
+    # Run Aura Core Early Runtime State & Safety Evaluation (55.4)
+    runtime_state = aura_core.prepare_runtime_state(
+        user_message=last_user_msg,
+        user_name=cu.name or "User",
+        partner_name=partner_name,
+        context_data={"couple_space_id": cu.couple_space_id, "is_premium": cu.is_premium}
+    )
+
+    if runtime_state.safety.requires_intervention and runtime_state.safety.safety_message:
+        return AIResponse(reply=runtime_state.safety.safety_message)
             
     special_commands = ""
     if cu.is_premium:
@@ -1251,29 +1270,24 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
 
     reply_text = await generate_ai_text(clean_messages, system_prompt=final_system_prompt)
 
-    # Post-process: Check if AI wants to add a date
-    match = re.search(r'\[ADD_DATE:\s*([^:]+):\s*([^:]+):\s*([^\]]+)\]', reply_text)
-    if match and cu.couple_space_id and cu.is_premium:
-        try:
-            date_val = match.group(1).strip()
-            title_val = match.group(2).strip()
-            type_val = match.group(3).strip()
-            
-            new_date = Anniversary(
-                couple_space_id=cu.couple_space_id,
-                date=date_val,
-                title=title_val,
-                type=type_val
-            )
-            db.add(new_date)
-            await db.commit()
-            
-            # Remove the tag from the final reply
-            reply_text = reply_text.replace(match.group(0), "").strip()
-        except Exception as e:
-            print(f"Failed to save date from AI: {e}")
+    # Aura Core Post-Processing, Special Commands & Quality Gate (55.4)
+    runtime_state = aura_core.handle_post_processing(reply_text, runtime_state)
 
-    return AIResponse(reply=reply_text)
+    if runtime_state.special_commands and cu.couple_space_id and cu.is_premium:
+        for cmd in runtime_state.special_commands:
+            try:
+                new_date = Anniversary(
+                    couple_space_id=cu.couple_space_id,
+                    date=cmd["date"],
+                    title=cmd["title"],
+                    type=cmd["type"]
+                )
+                db.add(new_date)
+                await db.commit()
+            except Exception as e:
+                print(f"Failed to save date from AI: {e}")
+
+    return AIResponse(reply=runtime_state.final_reply or reply_text)
 
 # ── COUNSELING SESSION LOGIC ────────────────────────────────
 
