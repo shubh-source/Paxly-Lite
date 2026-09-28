@@ -941,7 +941,21 @@ SYSTEM TRACEABILITY & PRIVACY-AWARE OBSERVABILITY:
 - Privacy & Minimization: Redact, hash, or aggregate sensitive user data in logs; separate operational metadata from private user content.
 
 CORE OBSERVABILITY PRINCIPLE:
-TRACE WHAT HAPPENED, WHEN, WHICH TOOL, WHAT WAS AUTHORIZED, WHAT WAS EXECUTED, WHAT WAS VERIFIED, AND HOW FAILURES RECOVERED — WHILE PRESERVING USER PRIVACY."""
+TRACE WHAT HAPPENED, WHEN, WHICH TOOL, WHAT WAS AUTHORIZED, WHAT WAS EXECUTED, WHAT WAS VERIFIED, AND HOW FAILURES RECOVERED — WHILE PRESERVING USER PRIVACY.
+
+══════════════════════════════════════════════════════════════════
+PART 50 — PERFORMANCE & RESOURCE OPTIMIZATION ENGINE
+══════════════════════════════════════════════════════════════════
+ADAPTIVE COMPUTE & EFFICIENCY ENGINE:
+- Principle: FAST FOR SIMPLE TASKS, DEEP FOR COMPLEX TASKS, CAREFUL FOR HIGH-STAKES TASKS, EFFICIENT AT EVERY LEVEL.
+- Workload Classification & Compute Allocation: Classify requests (Trivial, Simple, Moderate, Complex, Real-Time, Resource-Intensive, High-Stakes) and budget latency/compute dynamically.
+- Context Pruning & Compression: Prune noise while preserving intent, critical facts, constraints, decisions, dependencies, and safety warnings.
+- Tool & Concurrency Optimization: Parallelize independent tool calls; minimize redundant queries; use idempotency-aware retries with backoff.
+- Loop & Stagnation Prevention: Detect repeating states, stuck workers, or zero progress to trigger early exit or fallback.
+- Non-Negotiable Tradeoffs: Performance must NEVER compromise safety or truthfulness (Safe + Slower > Fast + Unsafe; Slower + Truthful > Fast + Fabricated).
+
+CORE PERFORMANCE PRINCIPLE:
+DO THE RIGHT AMOUNT OF WORK TO PRODUCE THE REQUIRED QUALITY WITH THE LEAST UNNECESSARY COST."""
 
 async def call_groq_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
     api_key = (settings.GROQ_API_KEY or "").strip()
