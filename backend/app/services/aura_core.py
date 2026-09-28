@@ -42,157 +42,13 @@ class IntentState(BaseModel):
 
 class SafetyState(BaseModel):
     is_safe: bool = True
-    risk_level: str = "none"  # none, low, sensitive, elevated, high, critical
+    risk_level: str = "RISK_0"  # RISK_0, RISK_1, RISK_2, RISK_3, RISK_4
     requires_intervention: bool = False
+    should_notify_partner: bool = False
+    partner_alert_title: Optional[str] = None
+    partner_alert_body: Optional[str] = None
     safety_message: Optional[str] = None
     flags: List[str] = Field(default_factory=list)
-
-
-class TaskPlan(BaseModel):
-    goal: str = ""
-    milestones: List[str] = Field(default_factory=list)
-    tasks: List[Dict[str, Any]] = Field(default_factory=list)
-    current_step: int = 0
-    is_complete: bool = False
-
-
-class VerificationState(BaseModel):
-    status: str = "unverified"  # verified, partially_verified, unverified, failed, unknown
-    expected_outcome: Optional[str] = None
-    observed_outcome: Optional[str] = None
-    confidence: float = 1.0
-    disclosed_uncertainty: Optional[str] = None
-
-
-class AuraRuntimeState(BaseModel):
-    session_id: str = "default_session"
-    user_id: Optional[str] = None
-    user_name: str = "User"
-    partner_name: str = "Partner"
-    
-    # State components
-    input_object: Optional[InputObject] = None
-    active_context: Dict[str, Any] = Field(default_factory=dict)
-    emotion: EmotionState = Field(default_factory=EmotionState)
-    intent: IntentState = Field(default_factory=IntentState)
-    safety: SafetyState = Field(default_factory=SafetyState)
-    task_plan: Optional[TaskPlan] = None
-    
-    # Knowledge & Reasoning
-    active_assumptions: List[str] = Field(default_factory=list)
-    reasoning_depth: str = "direct"  # direct, analytical, multi_step, simulative
-    
-    # Execution & Output
-    tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
-    verification: VerificationState = Field(default_factory=VerificationState)
-    final_reply: Optional[str] = None
-    special_commands: List[Dict[str, Any]] = Field(default_factory=list)
-    
-    # Audit & Telemetry
-    telemetry_events: List[Dict[str, Any]] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-# ─── 2. SUB-ENGINES & COMPONENT IMPLEMENTATIONS ──────────────────────
-
-class InputParser:
-    @staticmethod
-    def parse(raw_text: str, metadata: Optional[Dict[str, Any]] = None) -> InputObject:
-        clean_text = raw_text.strip()
-        # Basic language heuristic (Hindi / Hinglish / English)
-        hinglish_words = ["hai", "kya", "aur", "toh", "hum", "tum", "baat", "nahi", "karo", "kyu", "accha", "bhai", "yaar"]
-        words = clean_text.lower().split()
-        is_hinglish = any(w in hinglish_words for w in words)
-        
-        return InputObject(
-            raw_content=clean_text,
-            modality="text",
-            language="hinglish" if is_hinglish else "en",
-            metadata=metadata or {}
-        )
-
-
-class EmotionEngine:
-    @staticmethod
-    def detect(input_obj: InputObject, context: Dict[str, Any]) -> EmotionState:
-        text = input_obj.raw_content.lower()
-        signals = []
-        emotion = "neutral"
-        intensity = 0.2
-        vulnerability = "low"
-        hesitation = False
-        sarcasm = False
-        
-        # Signals detection
-        if any(w in text for w in ["sad", "crying", "hurt", "broke", "dukh", "dard", "udas", "alone"]):
-            emotion = "sadness"
-            intensity = 0.8
-            vulnerability = "high"
-            signals.append("distress_expression")
-            
-        elif any(w in text for w in ["angry", "gussa", "irritated", "frustrated", "hate", "fight", "ladai"]):
-            emotion = "anger_or_frustration"
-            intensity = 0.7
-            vulnerability = "medium"
-            signals.append("conflict_signal")
-            
-        elif any(w in text for w in ["love", "pyar", "happy", "excited", "khush", "miss", "yaad"]):
-            emotion = "affection_or_joy"
-            intensity = 0.7
-            vulnerability = "medium"
-            signals.append("warmth_signal")
-            
-        if "..." in text or "um" in text or "shayad" in text or "maybe" in text:
-            hesitation = True
-            signals.append("hesitation_detected")
-            
-        if "🙃" in text or "waah kya" in text or ("great" in text and "terrible" in text):
-            sarcasm = True
-            signals.append("possible_sarcasm")
-            
-        return EmotionState(
-            primary_emotion=emotion,
-            intensity=intensity,
-            hesitation=hesitation,
-            sarcasm_detected=sarcasm,
-            vulnerability_level=vulnerability,
-            observed_signals=signals
-        )
-
-
-class IntentEngine:
-    @staticmethod
-    def detect(input_obj: InputObject, context: Dict[str, Any]) -> IntentState:
-        text = input_obj.raw_content.lower()
-        primary = "conversation"
-        secondary = []
-        urgency = "normal"
-        requires_action = False
-        
-        if any(w in text for w in ["save date", "anniversary", "birthday", "yaad rakhna", "first date"]):
-            primary = "manage_relationship_date"
-            requires_action = True
-            secondary.append("memory_storage")
-            
-        elif any(w in text for w in ["counseling", "fight", "ladai", "misunderstanding", "resolve", "advice"]):
-            primary = "relationship_mediation"
-            secondary.append("conflict_resolution")
-            urgency = "high"
-            
-        elif any(w in text for w in ["code", "bug", "debug", "function", "api", "database", "sql"]):
-            primary = "code_intelligence"
-            secondary.append("software_engineering")
-            
-        elif any(w in text for w in ["analyze", "analytics", "report", "summary", "stats"]):
-            primary = "data_analysis"
-            secondary.append("insight_generation")
-            
-        return IntentState(
-            primary_intent=primary,
-            secondary_intents=secondary,
-            urgency=urgency,
-            requires_action=requires_action
-        )
 
 
 class SafetyEngine:
@@ -200,34 +56,93 @@ class SafetyEngine:
     def assess(input_obj: InputObject, emotion: EmotionState, context: Dict[str, Any]) -> SafetyState:
         text = input_obj.raw_content.lower()
         flags = []
-        
-        # Self-harm or crisis keywords
-        crisis_keywords = ["kill myself", "suicide", "end my life", "marna chahta hu", "khudkushi", "self harm"]
-        if any(k in text for k in crisis_keywords):
+        user_name = context.get("user_name", "Your partner")
+
+        # ─── RISK_4: IMMINENT EMERGENCY / ACTIVE HARM / STATED PLAN (57.8) ───
+        imminent_signals = [
+            "kill myself tonight", "end my life tonight", "going to kill myself", "aaj raat sab khatam",
+            "already hurt myself", "cut my wrist", "took pills", "sleeping pills kha", "poison",
+            "ending everything now", "marne ja raha hu", "marne ja rahi hu", "goodbye forever"
+        ]
+        if any(sig in text for sig in imminent_signals):
             return SafetyState(
                 is_safe=False,
-                risk_level="critical",
+                risk_level="RISK_4",
                 requires_intervention=True,
+                should_notify_partner=True,
+                partner_alert_title="🚨 Urgent Aura Safety Alert",
+                partner_alert_body=f"{user_name} is in extreme distress and may be in immediate danger. Please reach out or stay physically with them right now. If needed, call emergency services (112).",
                 safety_message=(
-                    "Aap bilkul akele nahi hain. Agar aap pareshan hain ya hurt mehsoos kar rahe hain, "
-                    "toh please kisi trusted professional ya helpline se baat karein. "
-                    "India Helpline: 9152987821 (Vandrevala Foundation) / 112 (National Emergency)."
+                    "Main aapke saath hu. Please rukiye aur deep breath lijiye. "
+                    "Aapki jaan bohot keemti hai. Agar aap immediate khatre mein hain, "
+                    "toh please turant National Emergency Helpline 112 ya kisi paas ke insaan ko call karein.\n\n"
+                    "📞 24/7 Free Crisis Helplines:\n"
+                    "• Tele-MANAS (Govt of India): 14416 / 1800-891-4416\n"
+                    "• Vandrevala Foundation: 9999 666 555\n"
+                    "• National Emergency: 112\n\n"
+                    "Please kisi se baat karein, aap akele nahi hain."
                 ),
-                flags=["crisis_detected"]
+                flags=["imminent_suicide_risk", "crisis_mode"]
             )
-            
-        # Malicious prompt injection defense (Parts 36, 48, 51)
+
+        # ─── RISK_3: SELF-HARM / SUICIDE CONCERN (57.8) ───
+        suicide_signals = [
+            "kill myself", "suicide", "end my life", "marna chahta hu", "marna chahti hu",
+            "jeena nahi chahta", "jeena nahi chahti", "marne ka man kar raha", "khudkushi",
+            "want to die", "better off dead", "better off without me", "i don't want to live",
+            "self harm", "apne aap ko chot"
+        ]
+        if any(sig in text for sig in suicide_signals):
+            return SafetyState(
+                is_safe=False,
+                risk_level="RISK_3",
+                requires_intervention=True,
+                should_notify_partner=True,
+                partner_alert_title="Aura Safety Alert 🚨",
+                partner_alert_body=f"{user_name} is experiencing severe emotional distress right now and needs your care and presence. Please check in on them.",
+                safety_message=(
+                    "Main samajh sakti hu ki aap bohot zyada pain aur takleef mein hain, "
+                    "lekin please khud ko akela mat samjhiye. Aapki feelings valid hain, "
+                    "aur is mushkil waqt se nikalne ke liye support available hai.\n\n"
+                    "📞 24/7 Free Helplines for confidential support:\n"
+                    "• Tele-MANAS: 14416 / 1800 891 4416\n"
+                    "• Vandrevala Foundation: 9999 666 555\n"
+                    "• Emergency: 112\n\n"
+                    "Kya aap chahte hain ki hum thodi der aur baat karein, ya aap kisi apne se baat karna chahenge?"
+                ),
+                flags=["suicide_concern", "crisis_mode"]
+            )
+
+        # ─── RISK_2: SEVERE EMOTIONAL DISTRESS / OVERWHELMED / CRYING (57.8) ───
+        severe_distress_signals = [
+            "crying for hours", "can't stop crying", "ro ro kar bura haal", "bohot zyada toot chuka",
+            "bohot zyada toot chuki", "i feel completely broken", "i am drowning", "can't handle this anymore",
+            "can't take this anymore", "everything is falling apart", "sab khatam ho gaya lagta hai",
+            "completely overwhelmed", "dimag phat raha hai", "itna dard nahi sah sakta"
+        ]
+        if any(sig in text for sig in severe_distress_signals) or (emotion.primary_emotion == "sadness" and emotion.vulnerability_level == "high" and emotion.intensity >= 0.85):
+            return SafetyState(
+                is_safe=True,
+                risk_level="RISK_2",
+                requires_intervention=False,
+                should_notify_partner=False,  # Can be suggested or notified if configured
+                flags=["severe_emotional_distress"]
+            )
+
+        # ─── PROMPT INJECTION DEFENSE (Part 36, 48) ───
         injection_triggers = ["ignore all previous instructions", "system prompt reveal", "admin override", "bypass rules"]
         if any(trig in text for trig in injection_triggers):
             flags.append("prompt_injection_attempt")
             return SafetyState(
                 is_safe=True,
-                risk_level="sensitive",
+                risk_level="RISK_0",
                 requires_intervention=False,
                 flags=flags
             )
-            
-        return SafetyState(is_safe=True, risk_level="none", flags=flags)
+
+        # ─── RISK_1 / RISK_0: NORMAL / SAD / FRUSTRATED ───
+        risk_lvl = "RISK_1" if emotion.primary_emotion in ["sadness", "anger_or_frustration"] else "RISK_0"
+        return SafetyState(is_safe=True, risk_level=risk_lvl, flags=flags)
 
 
 class ResponsePostProcessor:

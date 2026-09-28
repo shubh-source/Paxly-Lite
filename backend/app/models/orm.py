@@ -53,6 +53,10 @@ class User(Base):
     ai_personality = Column(String, default="compassionate")
     milestone_alerts = Column(Boolean, default=True)
 
+    # Safety & Crisis Escalation (Part 57)
+    crisis_escalation_enabled = Column(Boolean, default=True)
+    last_crisis_alert_at = Column(DateTime, nullable=True)
+
     # Compassionate Archive
     is_archived = Column(Boolean, default=False)
     closure_requested = Column(Boolean, default=False)

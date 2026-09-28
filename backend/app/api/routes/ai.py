@@ -14,6 +14,7 @@ import re
 import httpx
 from pydantic import BaseModel
 from app.services.aura_core import aura_core
+from app.websocket.manager import manager
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -1040,7 +1041,20 @@ FINAL SYSTEM CONTRACT & BEHAVIORAL BLUEPRINT (VERSION VLYNXLY-AURA-55):
 
 AURA FINAL MASTER DESIGN PRINCIPLE:
 UNDERSTAND DEEPLY. RESPOND CLEARLY. REASON CAREFULLY. REMEMBER RELEVANTLY. ACT ONLY WITH AUTHORITY. VERIFY IMPORTANT RESULTS. FAIL HONESTLY. RECOVER SAFELY. ADAPT CONTINUOUSLY. PROTECT THE USER. PRESERVE HUMAN AGENCY.
-THE SYSTEM FEELS EFFORTLESS AND NATURAL TO THE USER, ROOTED IN DEEP ARCHITECTURAL INTEGRITY."""
+THE SYSTEM FEELS EFFORTLESS AND NATURAL TO THE USER, ROOTED IN DEEP ARCHITECTURAL INTEGRITY.
+
+══════════════════════════════════════════════════════════════════
+PART 57 — TRUSTED CONTACT & CRISIS ESCALATION ENGINE
+══════════════════════════════════════════════════════════════════
+CRISIS ESCALATION & REAL-WORLD HUMAN SAFETY:
+- Principle: DETECT → ASSESS → RESPOND → ESCALATE WHEN AUTHORIZED → VERIFY.
+- Multi-Signal Risk Hierarchy:
+  * RISK 0-1 (Normal / Sad / Upset): Supportive conversation without alarm or partner notification.
+  * RISK 2 (Severe Distress / Overwhelmed / Crying for hours): Stay warmly with the user, validate feelings, encourage reaching out to trusted persons.
+  * RISK 3 (Self-Harm / Suicide Concern): Direct crisis support, 24/7 free helplines (Tele-MANAS: 14416, Vandrevala: 9999 666 555, Emergency: 112), and authorized privacy-preserving partner safety notification.
+  * RISK 4 (Imminent Danger / Active Harm / Stated Plan): Immediate critical crisis intervention, physical safety guidance, emergency services escalation, and instant trusted contact alert.
+- Privacy & Minimum Disclosure: Never leak private chat logs or intimate messages to the partner during escalation; only share the minimum necessary safety alert.
+- Anti-Abuse & User Control: Honor user authorization preferences; allow user to toggle escalation or mark unsafe contacts."""
 
 async def call_groq_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
     api_key = (settings.GROQ_API_KEY or "").strip()
@@ -1236,6 +1250,38 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     )
 
     if runtime_state.safety.requires_intervention and runtime_state.safety.safety_message:
+        # Part 57 Crisis Escalation: Trigger partner safety notification if authorized
+        if runtime_state.safety.should_notify_partner and cu.partner_id and getattr(cu, "crisis_escalation_enabled", True):
+            # Check 15-minute anti-spam cooldown
+            cooldown_active = cu.last_crisis_alert_at and (datetime.utcnow() - cu.last_crisis_alert_at) < timedelta(minutes=15)
+            if not cooldown_active:
+                alert_title = runtime_state.safety.partner_alert_title or "Aura Safety Alert 🚨"
+                alert_body = runtime_state.safety.partner_alert_body or f"{cu.name} is going through severe distress and might need your support right now."
+                
+                # 1. Save in-app notification to DB for partner
+                db.add(Notification(
+                    user_id=cu.partner_id,
+                    type="safety_alert",
+                    title=alert_title,
+                    body=alert_body,
+                    data={"risk_level": runtime_state.safety.risk_level, "escalated_at": datetime.utcnow().isoformat()}
+                ))
+                
+                # 2. Push real-time alert via WebSocket to partner if online
+                try:
+                    await manager.send_to_user(cu.partner_id, {
+                        "type": "safety_alert",
+                        "title": alert_title,
+                        "body": alert_body,
+                        "risk_level": runtime_state.safety.risk_level,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                except Exception as ws_err:
+                    print(f"Crisis WS push error: {ws_err}")
+                
+                cu.last_crisis_alert_at = datetime.utcnow()
+                await db.commit()
+
         return AIResponse(reply=runtime_state.safety.safety_message)
             
     special_commands = ""
