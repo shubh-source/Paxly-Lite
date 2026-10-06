@@ -1,14 +1,21 @@
 import os
 import aiofiles
-from supabase import create_client, Client
 from app.core.config import settings
 
 class StorageService:
     def __init__(self):
         self.mode = settings.STORAGE_MODE
-        if self.mode == "supabase":
-            self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-            self.bucket = settings.SUPABASE_BUCKET
+        self._supabase = None
+        self.bucket = settings.SUPABASE_BUCKET
+
+    @property
+    def supabase(self):
+        if self._supabase is None:
+            if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+                raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set to use Supabase storage.")
+            from supabase import create_client
+            self._supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        return self._supabase
 
     async def upload_file(self, content: bytes, filename: str, folder: str = "general") -> str:
         """
