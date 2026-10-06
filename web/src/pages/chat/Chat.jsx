@@ -36,6 +36,7 @@ export default function Chat() {
     try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
   });
   const [typing, setTyping]           = useState(false);
+  const [pinnedMsg, setPinnedMsg]     = useState(null);
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [sending, setSending]         = useState(false);
   const [secureMediaOpen, setSecureMediaOpen] = useState(null);
@@ -1143,6 +1144,49 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           </div>
         </div>
 
+        {/* Pinned Message Banner */}
+        {pinnedMsg && (
+          <div style={{
+            margin: '8px 16px 0',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            background: 'rgba(0, 0, 0, 0.25)',
+            backdropFilter: 'blur(10px)',
+            border: `1px solid ${activeTheme.accent || '#C9A96E'}55`,
+            borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            cursor: 'pointer',
+            zIndex: 10
+          }} onClick={() => {
+            const target = document.getElementById(`msg-${pinnedMsg.id}`);
+            if (target) {
+              target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              target.animate([
+                { backgroundColor: `rgba(255,255,255,0.15)`, transform: 'scale(1.02)' },
+                { backgroundColor: 'transparent', transform: 'scale(1)' }
+              ], { duration: 1000, easing: 'ease-out' });
+            }
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: activeTheme.accent || '#C9A96E', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icons.Pin size={12} /> Pinned Message
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {pinnedMsg.message_type === 'image' ? '🖼️ Image' : pinnedMsg.message_type === 'video' ? '🎥 Video' : pinnedMsg.message_type === 'audio' ? '🎤 Voice Note' : pinnedMsg.text}
+              </div>
+            </div>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setPinnedMsg(null); }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* E2EE Key Missing Notice Banner */}
         {!localStorage.getItem('paxly_sk') && (
           <div style={{
@@ -1319,19 +1363,14 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           : (activeTheme.textOther || '#fff'),
                         borderBottomRightRadius: me ? 4  : 20,
                         borderBottomLeftRadius:  me ? 20 : 4,
-                        boxShadow: isMedia ? 'none'
-                          : me
-                            ? `0 4px 18px ${activeTheme.accent || '#C9A96E'}40`
-                            : `0 2px 10px rgba(0,0,0,0.25)`,
-                        border: isSecure
-                          ? (me ? '1px solid rgba(0,0,0,0.2)' : `1px solid ${activeTheme.accent || '#b3945a'}`)
-                          : activeTheme.borderMe && me ? activeTheme.borderMe : 'none',
+                        boxShadow: isMedia ? 'none' : me ? (activeTheme.boxShadowMe || `0 4px 18px ${activeTheme.accent || '#C9A96E'}40`) : (activeTheme.boxShadowOther || `0 2px 10px rgba(0,0,0,0.25)`),
+                        border: isSecure ? (me ? '1px solid rgba(0,0,0,0.2)' : `1px solid ${activeTheme.accent || '#b3945a'}`) : (me ? (activeTheme.borderMe || 'none') : (activeTheme.borderOther || 'none')),
                         cursor: isSecure ? 'pointer' : 'default',
                         minWidth: isSecure ? 160 : 0,
                         position: 'relative',
                         maxWidth: '100%',
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
+                        backdropFilter: activeTheme.backdropBlur || 'blur(12px)',
+                        WebkitbackdropFilter: activeTheme.backdropBlur || 'blur(12px)',
                         transform: swipingMsgId === msg.id ? `translateX(${swipeOffset}px)` : 'none',
                         transition: swipingMsgId === msg.id ? 'none' : 'transform 0.2s',
                       }}
@@ -1778,11 +1817,16 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       { icon: <Icons.Reply size={18} />, label: 'Reply', action: () => { setReplyingTo(contextMenuMsg.msg); setContextMenuMsg(null); } },
                       { icon: <Icons.Copy size={18} />, label: 'Copy', action: () => { navigator.clipboard.writeText(contextMenuMsg.msg.text); setContextMenuMsg(null); } },
                       { icon: <Icons.Edit size={18} />, label: 'Edit', action: () => { alert('Editing coming soon!'); setContextMenuMsg(null); }, show: contextMenuMsg.msg.sender_id === user?.id },
-                      { icon: <Icons.Pin size={18} />, label: 'Pin to Chat', action: () => { alert('Pinning coming soon!'); setContextMenuMsg(null); } },
+                      { icon: <Icons.Pin size={18} />, label: 'Pin to Chat', action: () => { setPinnedMsg(contextMenuMsg.msg); setContextMenuMsg(null); } },
                       { icon: <Icons.Vault size={18} />, label: 'Save to Vault', action: () => { 
+                        if (contextMenuMsg.msg.id.startsWith('temp_')) {
+                          alert('Please wait for the message to finish sending before saving.');
+                          setContextMenuMsg(null);
+                          return;
+                        }
                         api.post('/memories/save-message', { message_id: contextMenuMsg.msg.id })
                           .then(() => alert('✨ Saved to Memory Vault!'))
-                          .catch(() => alert('Failed to save message.'));
+                          .catch((e) => alert('Failed to save message: ' + (e.response?.data?.detail || e.message)));
                         setContextMenuMsg(null); 
                       } },
                       { icon: <span style={{ fontSize: '1.2rem' }}>✨</span>, label: 'Ask Aura', action: () => { alert('Aura is analyzing this message...'); setContextMenuMsg(null); } },
@@ -1938,3 +1982,4 @@ function MediaWrap({ blurred, children }) {
     </div>
   );
 }
+

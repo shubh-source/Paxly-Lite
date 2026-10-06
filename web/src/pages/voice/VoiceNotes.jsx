@@ -206,7 +206,7 @@ export default function VoiceNotes() {
     const newName = prompt('Enter a name for this recording:', current || '');
     if (newName === null) return;
     try {
-      await api.patch(`/voice-notes/${id}/rename`, { custom_name: newName });
+      await api.patch(`/voice-notes/${id}/rename`, { custom_name: newName }); setNotes(prev => prev.map(n => n.id === id ? { ...n, custom_name: newName } : n));
       
       // Increment counter for free users
       if (!user?.is_premium) {
@@ -217,7 +217,7 @@ export default function VoiceNotes() {
       
       fetchNotes();
     } catch (err) {
-      alert('Failed to rename');
+      alert('Failed to rename: ' + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -242,15 +242,35 @@ export default function VoiceNotes() {
         <div style={{ width: 32 }} />
       </header>
 
-      {/* Search Bar Only (Cleaner UI) */}
-      <div style={{ padding: '8px 20px 24px' }}>
+      {/* Search & Filter Area */}
+      <div style={{ padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <input 
           type="text" 
-          placeholder="Search your whispers..." 
+          placeholder="Search by name..." 
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          style={{ width: '100%', padding: '16px 24px', borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}
+          style={{ width: '100%', padding: '14px 20px', borderRadius: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}
         />
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, marginLeft: 4 }}>From Date</label>
+            <input 
+              type="date" 
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--muted)', fontSize: '0.9rem', outline: 'none', colorScheme: 'dark' }}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, marginLeft: 4 }}>To Date</label>
+            <input 
+              type="date" 
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--muted)', fontSize: '0.9rem', outline: 'none', colorScheme: 'dark' }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Record button Area */}
@@ -320,3 +340,6 @@ export default function VoiceNotes() {
     </div>
   );
 }
+
+
+

@@ -1092,7 +1092,7 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
         except Exception as e:
             print(f"Could not list groq models: {e}")
 
-        last_err = None
+        errors = []
         for model in target_models:
             payload = {
                 "model": model,
@@ -1131,14 +1131,17 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
         if m.get("attachments"):
             for att in m.get("attachments"):
                 parts.append({
-                    "inline_data": {
-                        "mime_type": att.get("mime_type"),
+                    "inlineData": {
+                        "mimeType": att.get("mime_type"),
                         "data": att.get("data")
                     }
                 })
         if not parts:
             parts.append({"text": " "})
-        contents.append({"role": role, "parts": parts})
+        if contents and contents[-1]["role"] == role:
+            contents[-1]["parts"].extend(parts)
+        else:
+            contents.append({"role": role, "parts": parts})
         
     payload = {"contents": contents}
     if system_prompt:
@@ -1185,14 +1188,15 @@ async def call_ollama_direct(messages: list, system_prompt: str = None, json_mod
         return resp.json().get("message", {}).get("content", "")
 
 async def generate_ai_text(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
-    last_err = None
+    errors = []
+    
     # 1. Try Gemini
     if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip():
         try:
             return await call_gemini_direct(messages, system_prompt, json_mode)
         except Exception as e:
             print(f"Gemini error: {e}")
-            last_err = e
+            errors.append(f"Gemini Error: {e}")
             
     # 2. Try Groq
     if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip():
@@ -1200,17 +1204,19 @@ async def generate_ai_text(messages: list, system_prompt: str = None, json_mode:
             return await call_groq_direct(messages, system_prompt, json_mode)
         except Exception as e:
             print(f"Groq error: {e}")
-            last_err = e
+            errors.append(f"Groq Error: {e}")
             
     # 3. Try Local / Custom Ollama
     if getattr(settings, "OLLAMA_BASE_URL", None):
         try:
             return await call_ollama_direct(messages, system_prompt, json_mode)
         except Exception as e:
-            last_err = e
+            print(f"Ollama error: {e}")
+            errors.append(f"Ollama Error: {e}")
 
-    if last_err:
-        raise HTTPException(500, f"AI generation error: {str(last_err)}")
+    if errors:
+        raise HTTPException(500, f"AI generation error: {' | '.join(errors)}")
+    
     raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY, GROQ_API_KEY, or OLLAMA_BASE_URL to .env")
 
 @router.post("/chat", response_model=AIResponse)
@@ -1600,3 +1606,7 @@ async def delete_thread(thread_id: str, cu: User = Depends(get_current_user), db
     await db.delete(thread)
     await db.commit()
     return {"status": "deleted"}
+
+
+
+

@@ -333,7 +333,7 @@ async def get_chat_space(cu: User = Depends(get_current_user), db: AsyncSession 
 async def update_theme(data: dict, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = ensure_space(cu)
     theme_id = data.get("theme_id", "classic")
-    await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(theme_id=theme_id))
+    await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(theme_id=theme_id, chat_wallpaper=None))
     await db.commit()
     return {"theme_id": theme_id}
 
@@ -344,11 +344,12 @@ async def update_wallpaper(file: UploadFile = File(...), cu: User = Depends(get_
     
     space_id = ensure_space(cu)
     ext = file.filename.split(".")[-1].lower()
-    filename = f"wp_{space_id}.{ext}" # Reuse per space
+    import uuid
+    filename = f"wp_{space_id}_{uuid.uuid4().hex[:8]}.{ext}"
     path = os.path.join(settings.MEDIA_DIR, "chat", filename)
     
     content = await file.read()
     url = await storage.upload_file(content, filename, "chat")
-    await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(chat_wallpaper=url))
+    await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(chat_wallpaper=url, theme_id="custom"))
     await db.commit()
     return {"chat_wallpaper": url}

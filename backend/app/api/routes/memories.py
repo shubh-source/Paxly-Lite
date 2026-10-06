@@ -90,7 +90,7 @@ async def create_memory(
         image_url=new_mem.image_url,
         date=new_mem.date,
         created_by=new_mem.created_by,
-        created_by_name=cu.name,
+        created_by_name=cu.name or "Unknown",
         created_at=new_mem.created_at
     )
 
@@ -137,7 +137,7 @@ async def save_message_to_vault(req: SaveMessageRequest, cu: User = Depends(get_
         image_url=new_mem.image_url,
         date=new_mem.date,
         created_by=new_mem.created_by,
-        created_by_name=cu.name,
+        created_by_name=cu.name or "Unknown",
         created_at=new_mem.created_at
     )
 

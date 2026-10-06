@@ -189,7 +189,7 @@ export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate,
                 minHeight: 88, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative'
               }}>
                 <label style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                  <input type="file" style={{ display: 'none' }} onChange={handleWallpaper} disabled={loading} />
+                  <input type="file" style={{ display: 'none' }} onClick={(e) => { e.target.value = null; }} onChange={handleWallpaper} disabled={loading} />
                   <span style={{ fontSize: '1.4rem' }}>🖼️</span>
                   <span style={{ fontSize: '0.62rem', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
                     {loading ? 'Uploading...' : 'Custom Photo'}
@@ -221,3 +221,4 @@ export default function ThemePicker({ currentTheme, onSelect, onWallpaperUpdate,
     </div>
   );
 }
+

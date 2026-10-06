@@ -83,7 +83,7 @@ async def rename_voice_note(note_id: str, data: VoiceRename, cu: User = Depends(
     
     note.custom_name = data.custom_name
     await db.commit()
-    return note
+    return {"id": note.id, "custom_name": note.custom_name}
 
 @router.delete("/{note_id}")
 async def delete_voice_note(note_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
