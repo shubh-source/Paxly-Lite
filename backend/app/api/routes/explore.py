@@ -12,7 +12,6 @@ from app.core.database import get_db
 router = APIRouter(prefix="/explore", tags=["Explore"])
 
 SEED_PLACES = [
-    {"name": "Hanuman Garhi", "category": "temple", "address": "Sai Nagar, Ayodhya, Uttar Pradesh", "rating": 4.9, "description": "A prominent temple in Ayodhya dedicated to Lord Hanuman. Here, devotees also have the sacred darshan of Ahiravan.", "latitude": 26.7972, "longitude": 82.2023},
     {"name": "The Cozy Corner Café", "category": "cafe", "address": "MG Road, Bangalore", "rating": 4.5, "description": "Perfect for quiet mornings with your partner. Great filter coffee.", "latitude": 12.9758, "longitude": 77.6095},
     {"name": "Brewbird Coffee", "category": "cafe", "address": "Koramangala, Bangalore", "rating": 4.3, "description": "Artisan coffee and freshly baked pastries.", "latitude": 12.9352, "longitude": 77.6245},
     {"name": "The Reading Room", "category": "cafe", "address": "Indiranagar, Bangalore", "rating": 4.7, "description": "Books, coffee, and calm vibes. Perfect date spot.", "latitude": 12.9784, "longitude": 77.6408},
@@ -115,4 +114,5 @@ async def get_place(place_id: str, cu: User = Depends(get_current_user), db: Asy
         "longitude": p.longitude,
         "image_url": p.image_url,
     }
+
 
