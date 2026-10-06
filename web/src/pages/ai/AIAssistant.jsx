@@ -283,10 +283,15 @@ export default function AIAssistant() {
       }]);
     } catch (err) {
       console.error("AI Error:", err);
-      const errDetail = err.response?.data?.detail || err.message || "Unknown error";
-      const errorMsg = err.response?.status === 503 
-        ? "Yaar, Aura abhi configured nahi hai. Groq API Key check karo .env mein! 🔑"
-        : `Yaar kuch gadbad ho gayi: ${errDetail}`;
+      let errorMsg;
+      if (!err.response || err.message === 'Network Error') {
+        errorMsg = "Aura ka server abhi wakeup ho raha hai (Render free tier). Please 30 seconds baad dobara try karein! 🔄";
+      } else if (err.response?.status === 503) {
+        errorMsg = "Aura ka AI engine configure nahi hua hai. Backend me GOOGLE_API_KEY set karein! 🔑";
+      } else {
+        const errDetail = err.response?.data?.detail || err.message || "Unknown error";
+        errorMsg = `Aura: ${errDetail}`;
+      }
       setMsgs(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setLoading(false);
