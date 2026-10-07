@@ -284,14 +284,29 @@ export default function AIAssistant() {
     } catch (err) {
       console.error("AI Error:", err);
       let errorMsg;
+      const errDetail = err.response?.data?.detail || err.message || "Unknown error";
+
       if (!err.response || err.message === 'Network Error') {
         errorMsg = "Aura ka server abhi wakeup ho raha hai (Render free tier). Please 30 seconds baad dobara try karein! 🔄";
       } else if (err.response?.status === 503) {
         errorMsg = "Aura ka AI engine configure nahi hua hai. Backend me GOOGLE_API_KEY set karein! 🔑";
       } else {
-        const errDetail = err.response?.data?.detail || err.message || "Unknown error";
         errorMsg = `Aura: ${errDetail}`;
       }
+
+      // Force log to backend (even if axios interceptor missed it due to Network Error)
+      try {
+        fetch(`${import.meta.env.VITE_API_URL || 'https://paxly-lite.onrender.com'}/api/health/report-client-error`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            error: `[Aura AI Error] ${errDetail}`,
+            componentStack: `Status: ${err.response?.status || 'Network Error'} | Endpoint: /api/ai/chat`,
+            url: window.location.href
+          })
+        }).catch(() => {});
+      } catch (_) {}
+
       setMsgs(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setLoading(false);
