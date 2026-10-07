@@ -92,6 +92,10 @@ export const AuthProvider = ({ children }) => {
             window.focus();
             notif.close();
           };
+        }
+      }
+    });
+
     // Global Safety & Crisis Alert Listener (Part 57)
     const offSafety = wsService.on('safety_alert', (d) => {
       if ("Notification" in window && Notification.permission === "granted") {
