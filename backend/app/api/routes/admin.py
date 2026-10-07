@@ -74,7 +74,18 @@ async def update_config(key: str, value: str, request: Request, cu: User = Depen
 @router.get("/users")
 async def get_users_admin(cu: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).order_by(User.created_at.desc()))
-    return result.scalars().all()
+    users = result.scalars().all()
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role,
+            "is_premium": u.is_premium,
+            "created_at": u.created_at.isoformat() if u.created_at else None
+        }
+        for u in users
+    ]
 
 @router.patch("/theatres/{theatre_id}/approve")
 async def approve_theatre(theatre_id: str, request: Request, db: AsyncSession = Depends(get_db), admin: User = Depends(admin_only)):
