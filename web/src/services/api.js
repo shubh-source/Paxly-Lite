@@ -43,6 +43,31 @@ api.interceptors.response.use(
   }
 );
 
+// ─── Global Alert Override for System Logs ──────────────────────────────────
+// Overrides the default window.alert to show the popup AND log it to the backend.
+// This captures all "coming soon" or unimplemented feature alerts across the app.
+if (typeof window !== 'undefined') {
+  const originalAlert = window.alert;
+  window.alert = function (message) {
+    // 1. Show normal popup to user
+    originalAlert.apply(window, [message]);
+
+    // 2. Report to backend logs silently
+    try {
+      fetch(`${baseURL}/health/report-client-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: `[User Alert/Popup] ${message}`,
+          componentStack: `Page: ${window.location.pathname} | Type: App Popup/Unimplemented Feature`,
+          url: window.location.href
+        })
+      }).catch(() => {});
+    } catch (_) {}
+  };
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 // Auth
 export const register = (name, email, password, public_key) =>
   api.post('/auth/register', { name, email, password, public_key }).then(r => r.data);
