@@ -101,8 +101,8 @@ export default function AILab() {
       const fullContext = updated.map(m => `${m.role === 'user' ? 'User' : 'Counselor'}: ${m.content}`).join('\n');
       const { reply } = await sendAIInterviewMessage(sessionId, fullContext + '\n\nPlease respond to the User directly.');
       setMsgs([...updated, { role: 'assistant', content: reply }]);
-    } catch {
-      alert('Error communicating with AI.');
+      } catch (err) {
+      alert(err.response?.data?.detail || err.message || 'Error communicating with AI.');
     }
     setLoading(false);
   };
