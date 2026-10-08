@@ -1120,7 +1120,7 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
     if not api_key:
         raise Exception("GOOGLE_API_KEY is empty")
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     
     contents = []
     for m in messages:
@@ -1593,7 +1593,22 @@ async def sync_thread(req: AIThreadSyncRequest, cu: User = Depends(get_current_u
         )
         db.add(new_thread)
         
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        # Handle race condition for duplicate insert
+        await db.execute(
+            update(AIChatThread)
+            .where(AIChatThread.id == req.id)
+            .values(
+                title=req.title,
+                encrypted_messages=encrypted_msgs,
+                updated_at=datetime.utcnow()
+            )
+        )
+        await db.commit()
+        
     return {"status": "synced"}
 
 @router.delete("/threads/{thread_id}")
