@@ -58,6 +58,23 @@ class AuraRuntimeState(BaseModel):
     emotion: EmotionState
     intent: IntentState
     safety: SafetyState
+    telemetry_events: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+
+class InputParser:
+    def parse(self, user_message: str) -> InputObject:
+        return InputObject(raw_content=user_message)
+
+
+class EmotionEngine:
+    def detect(self, input_obj: InputObject, context: Dict[str, Any]) -> EmotionState:
+        return EmotionState()
+
+
+class IntentEngine:
+    def detect(self, input_obj: InputObject, context: Dict[str, Any]) -> IntentState:
+        return IntentState()
 
 
 class SafetyEngine:
