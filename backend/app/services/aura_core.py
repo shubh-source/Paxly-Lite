@@ -50,6 +50,15 @@ class SafetyState(BaseModel):
     safety_message: Optional[str] = None
     flags: List[str] = Field(default_factory=list)
 
+class AuraRuntimeState(BaseModel):
+    user_name: str
+    partner_name: str
+    input_object: InputObject
+    active_context: Dict[str, Any]
+    emotion: EmotionState
+    intent: IntentState
+    safety: SafetyState
+
 
 class SafetyEngine:
     @staticmethod
