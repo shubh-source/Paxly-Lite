@@ -1147,11 +1147,15 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         {/* Pinned Message Banner */}
         {pinnedMsg && (
           <div style={{
-            margin: '8px 16px 0',
+            position: 'fixed',
+            top: '90px',
+            left: '16px',
+            right: '16px',
             padding: '10px 14px',
             borderRadius: '12px',
-            background: 'rgba(0, 0, 0, 0.25)',
-            backdropFilter: 'blur(10px)',
+            background: 'rgba(0, 0, 0, 0.45)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             border: `1px solid ${activeTheme.accent || '#C9A96E'}55`,
             borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
             display: 'flex',
@@ -1159,7 +1163,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             justifyContent: 'space-between',
             gap: 12,
             cursor: 'pointer',
-            zIndex: 10
+            zIndex: 99,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            animation: 'fadeInDown 0.3s ease-out'
           }} onClick={() => {
             const target = document.getElementById(`msg-${pinnedMsg.id}`);
             if (target) {
