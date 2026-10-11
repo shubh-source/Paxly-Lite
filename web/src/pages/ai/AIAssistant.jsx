@@ -429,20 +429,14 @@ export default function AIAssistant() {
         @media (max-width: 640px) {
           .ai-assistant-header {
             margin: 8px 10px 0 !important;
-            padding: 8px 12px !important;
-            border-radius: 16px !important;
-            gap: 8px !important;
+            padding: 10px 14px !important;
+            border-radius: 18px !important;
           }
-          .ai-btn-text {
+          .ai-header-desktop-actions {
             display: none !important;
           }
-          .ai-header-btn.analytics-btn,
-          .ai-header-btn.lab-btn {
-            width: 34px !important;
-            height: 34px !important;
-            padding: 0 !important;
-            justify-content: center !important;
-            border-radius: 10px !important;
+          .ai-header-mobile-action {
+            display: block !important;
           }
         }
       `}</style>
@@ -468,7 +462,7 @@ export default function AIAssistant() {
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+        <div className="ai-header-desktop-actions" style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
           <button 
             onClick={() => setShowPersonalityModal(true)}
             className="ai-header-btn personality-btn"
@@ -498,30 +492,90 @@ export default function AIAssistant() {
             <span className="ai-btn-text">Deep Lab</span>
           </Link>
         </div>
+
+        {/* Mobile Header Quick Action (New Chat) */}
+        <div className="ai-header-mobile-action" style={{ display: 'none' }}>
+          <button 
+            onClick={startNewChat} 
+            title="New Chat" 
+            style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+          >
+            <Icons.Plus size={18} />
+          </button>
+        </div>
       </header>
 
       {/* Drawer */}
-      <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 280, background: 'var(--bg)', borderRight: '1px solid rgba(255,255,255,0.05)', transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: 600 }}>Chat History</span>
-          <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}>×</button>
+      <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 290, background: 'var(--bg)', borderRight: '1px solid rgba(255,255,255,0.06)', transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, display: 'flex', flexDirection: 'column', boxShadow: '10px 0 35px rgba(0,0,0,0.6)' }}>
+        
+        {/* 1. SBSE UPR: Back to Dashboard & Close */}
+        <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Link to="/dashboard" onClick={() => setIsDrawerOpen(false)} style={{ color: 'var(--text)', textDecoration: 'none', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icons.Back size={18} /> Back to Dashboard
+          </Link>
+          <button onClick={() => setIsDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '1.3rem', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
         </div>
-        <div style={{ padding: 16 }}>
-          <button onClick={startNewChat} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '12px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 16 }}>
-            <span style={{ fontSize: '1.2rem' }}>+</span> New Chat
+
+        {/* 2. THEN: Analytics & Deep Lab (Chat History ke upr) */}
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 10 }}>
+          <button 
+            onClick={() => { setIsDrawerOpen(false); handleDeepAnalytics(); }} 
+            style={{ flex: 1, padding: '10px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', transition: 'all 0.2s' }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            Analytics
+          </button>
+          <Link 
+            to="/ai/lab" 
+            onClick={() => setIsDrawerOpen(false)}
+            style={{ flex: 1, padding: '10px 12px', background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.25)', borderRadius: 12, color: 'var(--accent)', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v7.31L4.62 19.4A2 2 0 0 0 6.38 22h11.24a2 2 0 0 0 1.76-2.6L14 9.31V2"></path><line x1="8.5" y1="2" x2="15.5" y2="2"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
+            Deep Lab
+          </Link>
+        </div>
+
+        {/* 3. AND THEN: + New Chat & Chat History */}
+        <div style={{ padding: '14px 16px 8px' }}>
+          <button onClick={() => { setIsDrawerOpen(false); startNewChat(); }} style={{ width: '100%', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '11px', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>
+            <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>+</span> New Chat
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 20px' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 12, fontWeight: 600 }}>Recents</div>
-          {threads.length === 0 ? <div style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>No recent chats.</div> : null}
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 16px' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 8, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>Chat History</div>
+          {threads.length === 0 ? <div style={{ color: 'var(--muted)', fontSize: '0.82rem', padding: '8px 0' }}>No recent chats.</div> : null}
           {threads.map(t => (
-            <div key={t.id} onClick={() => switchThread(t.id)} style={{ padding: '12px', borderRadius: 12, background: activeThreadId === t.id ? 'rgba(255,255,255,0.08)' : 'transparent', color: activeThreadId === t.id ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', marginBottom: 4, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div 
+              key={t.id} 
+              onClick={() => { switchThread(t.id); }} 
+              style={{ 
+                padding: '11px 12px', 
+                borderRadius: 10, 
+                background: activeThreadId === t.id ? 'rgba(255,255,255,0.1)' : 'transparent', 
+                color: activeThreadId === t.id ? 'var(--text)' : 'var(--muted)', 
+                cursor: 'pointer', 
+                marginBottom: 4, 
+                fontSize: '0.85rem', 
+                whiteSpace: 'nowrap', 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis',
+                border: activeThreadId === t.id ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent'
+              }}
+            >
               {t.title}
             </div>
           ))}
         </div>
-        <div style={{ padding: 16, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          <Link to="/dashboard" style={{ color: 'var(--muted)', textDecoration: 'none', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 8 }}><Icons.Back size={16} /> Back to Dashboard</Link>
+
+        {/* 4. FIR SBSE NEECHE: Settings (jha pehle back to dashboard tha) */}
+        <div style={{ padding: 16, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <button 
+            onClick={() => { setIsDrawerOpen(false); setShowPersonalityModal(true); }}
+            style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--muted)', textDecoration: 'none', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: 0 }}
+          >
+            <Icons.Settings size={18} /> Settings
+          </button>
         </div>
       </div>
 
