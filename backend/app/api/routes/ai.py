@@ -1163,19 +1163,24 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
     payload = {"contents": contents}
     if system_prompt:
         payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
-    
-    gen_config = {
-        "temperature": 0.7,
-        "maxOutputTokens": 350
-    }
-    if json_mode:
-        gen_config["responseMimeType"] = "application/json"
-    payload["generationConfig"] = gen_config
         
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=20.0) as client:
         last_err = None
         for model in candidate_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            
+            # Configure per-model generation parameters
+            model_gen_config = {
+                "temperature": 0.7,
+                "maxOutputTokens": 1000
+            }
+            # Gemini 2.5 models think by default which adds 3-5s delay and eats tokens; turn off thinking for instant conversational chat
+            if "2.5" in model:
+                model_gen_config["thinkingConfig"] = {"thinkingBudget": 0}
+            if json_mode:
+                model_gen_config["responseMimeType"] = "application/json"
+                
+            payload["generationConfig"] = model_gen_config
             try:
                 resp = await client.post(url, json=payload)
                 if resp.status_code == 200:
