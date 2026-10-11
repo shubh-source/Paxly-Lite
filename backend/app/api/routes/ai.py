@@ -1079,20 +1079,21 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
         clean_content = content.encode('utf-16', 'surrogatepass').decode('utf-16')
         formatted_msgs.append({"role": role, "content": clean_content})
         
-    target_models = ["llama-3.1-8b-instant", "llama3-8b-8192", "gemma2-9b-it", "mixtral-8x7b-32768"]
+    target_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"]
     
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Dynamically query available models for this key
+        # Dynamically query available models for this key, preserving priority order
         try:
             m_res = await client.get("https://api.groq.com/openai/v1/models", headers=headers)
             if m_res.status_code == 200:
-                available_ids = [item["id"] for item in m_res.json().get("data", []) if "whisper" not in item["id"].lower() and "guard" not in item["id"].lower()]
-                if available_ids:
-                    target_models = available_ids
+                available_ids = set(item["id"] for item in m_res.json().get("data", []) if "whisper" not in item["id"].lower() and "guard" not in item["id"].lower())
+                valid_priority = [m for m in target_models if m in available_ids]
+                if valid_priority:
+                    target_models = valid_priority
         except Exception as e:
             print(f"Could not list groq models: {e}")
 
-        errors = []
+        last_err = None
         for model in target_models:
             payload = {
                 "model": model,
@@ -1120,7 +1121,14 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
     if not api_key:
         raise Exception("GOOGLE_API_KEY is empty")
         
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    candidate_models = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+        "gemini-pro"
+    ]
     
     contents = []
     for m in messages:
@@ -1150,14 +1158,39 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
         payload["generationConfig"] = {"responseMimeType": "application/json"}
         
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, json=payload)
-        if resp.status_code != 200:
-            raise Exception(f"Gemini API {resp.status_code}: {resp.text}")
-        data = resp.json()
-        candidates = data.get("candidates", [])
-        if not candidates or "content" not in candidates[0]:
-            raise Exception("No content in Gemini response")
-        return "".join(part.get("text", "") for part in candidates[0]["content"].get("parts", []))
+        # Dynamically list models available for this specific Google API key
+        try:
+            list_resp = await client.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}")
+            if list_resp.status_code == 200:
+                available = [
+                    m["name"].replace("models/", "")
+                    for m in list_resp.json().get("models", [])
+                    if "generateContent" in m.get("supportedGenerationMethods", [])
+                ]
+                preferred = [m for m in available if "flash" in m and "image" not in m]
+                if preferred:
+                    candidate_models = preferred + [m for m in available if m not in preferred]
+                elif available:
+                    candidate_models = available
+        except Exception as e:
+            print(f"Could not fetch dynamic Gemini model list: {e}")
+
+        last_err = None
+        for model in candidate_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            try:
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        return "".join(part.get("text", "") for part in candidates[0]["content"].get("parts", []))
+                else:
+                    last_err = f"Gemini ({model}) {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_err = f"Gemini ({model}) Exception: {e}"
+
+        raise Exception(last_err or "Gemini failed with all candidate models")
 
 async def call_ollama_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
     base_url = (getattr(settings, "OLLAMA_BASE_URL", None) or "http://localhost:11434").rstrip("/")
