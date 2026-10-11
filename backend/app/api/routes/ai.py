@@ -1367,10 +1367,14 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     if user_settings.get("formality"): settings_directives.append(f"Formality: {user_settings['formality']}")
     if user_settings.get("humor"): settings_directives.append(f"Humor: {user_settings['humor']}")
     if user_settings.get("directness"): settings_directives.append(f"Directness: {user_settings['directness']}")
+    if user_settings.get("teachingStyle"): settings_directives.append(f"Teaching Style: {user_settings['teachingStyle']}")
     if user_settings.get("correctionStyle"): settings_directives.append(f"Correction Style: {user_settings['correctionStyle']}")
     if user_settings.get("supportStyle"): settings_directives.append(f"Support Style: {user_settings['supportStyle']}")
-    if user_settings.get("language"): settings_directives.append(f"Language: {user_settings['language']}")
-    if user_settings.get("responseLength"): settings_directives.append(f"Response Length: {user_settings['responseLength']}")
+    if user_settings.get("proactivity"): settings_directives.append(f"Proactivity: {user_settings['proactivity']}")
+    if user_settings.get("language") or user_settings.get("defaultLanguage"): 
+        settings_directives.append(f"Language: {user_settings.get('language') or user_settings.get('defaultLanguage')}")
+    if user_settings.get("responseLength") or user_settings.get("defaultResponseLength"): 
+        settings_directives.append(f"Response Length: {user_settings.get('responseLength') or user_settings.get('defaultResponseLength')}")
     if user_settings.get("customInstructions"): settings_directives.append(f"User Instructions: {user_settings['customInstructions']}")
 
     settings_block = ""
@@ -1715,15 +1719,30 @@ async def delete_all_threads(cu: User = Depends(get_current_user), db: AsyncSess
 
 # ── Aura Settings Persistence ──────────────────────────────────────────
 DEFAULT_AURA_SETTINGS = {
+    # 01. General
+    "defaultLanguage": "Hinglish",
+    "defaultResponseLength": "Balanced",
+    "defaultAiMode": "Auto",
+    "startupBehavior": "Restore previous session",
+    "defaultLandingPage": "Chat",
+    "autoSaveConversations": True,
+    "sendWithEnter": True,
+    "showKeyboardShortcuts": True,
+
+    # 02. Personality
     "preset": "Balanced",
     "customInstructions": "",
     "warmth": "High",
     "formality": "Casual",
     "humor": "Medium",
     "directness": "Balanced",
-    "initiative": "Suggestive",
+    "teachingStyle": "Concept first",
     "correctionStyle": "Gentle",
-    "supportStyle": "Supportive",
+    "supportStyle": "Reassure",
+    "proactivity": "Suggestive",
+    "initiative": "Suggestive",
+
+    # 03. Chat & Responses
     "language": "Hinglish",
     "responseLength": "Balanced",
     "explanationLevel": "Adaptive",
@@ -1731,30 +1750,92 @@ DEFAULT_AURA_SETTINGS = {
     "stepByStep": True,
     "useContext": True,
     "streaming": False,
+    "markdownRendering": True,
+    "codeSyntaxHighlighting": True,
+    "autoCodeFormatting": True,
+    "showTimestamps": False,
+    "followUpSuggestions": True,
+    "autoConversationTitles": True,
+
+    # 04. Memory & Context
     "memoryEnabled": True,
     "autoSavePreferences": True,
+    "saveProjectProgress": True,
+    "retrievePastContext": True,
     "retention": "Until deleted",
     "showMemoryReason": True,
+    "confirmSensitiveMemories": True,
+
+    # 05. Voice & Real-Time
     "voiceInput": True,
     "voiceResponses": False,
     "speechSpeed": "1.0x",
     "pushToTalk": True,
+    "wakeWordEnabled": False,
+    "interruptSpeech": True,
+    "noiseSuppression": True,
+
+    # 06. Models & Intelligence
     "modelProvider": "Automatic",
     "fastResponseMode": True,
     "deepReasoning": False,
     "structuredOutput": True,
+    "autoModelRouting": True,
+    "localModelEndpoint": "http://localhost:11434",
+    "maxOutputTokens": 1000,
+    "temperature": 0.7,
+
+    # 07. Tools & Automation
+    "webSearchEnabled": True,
+    "fileAccessEnabled": True,
+    "codeExecutionEnabled": False,
+    "confirmExternalActions": True,
+    "confirmFileModifications": True,
+
+    # 08. Safety & Trusted Contacts
     "emotionalSupportMode": True,
     "crisisDetection": True,
     "escalationMode": "Suggest",
     "trustedContact": "",
-    "theme": "Dark",
-    "bubbleStyle": "Modern Glass",
-    "chatDensity": "Comfortable",
-    "chatWidth": "Standard",
-    "performanceMode": "Balanced",
-    "cacheRetention": True,
+    "locationSharingCrisis": False,
+
+    # 09. Notifications
+    "inAppNotifications": True,
+    "pushNotifications": True,
+    "securityAlerts": True,
+    "trustedContactAlerts": True,
+    "quietHoursEnabled": False,
+
+    # 10. Privacy & Security
     "dataRetention": "Standard",
     "analyticsConsent": True,
+    "secretMasking": True,
+    "anonymousDiagnostics": True,
+
+    # 11. Appearance & Accessibility
+    "theme": "Dark",
+    "accentColor": "Gold",
+    "fontSize": "Medium",
+    "chatDensity": "Comfortable",
+    "bubbleStyle": "Modern Glass",
+    "chatWidth": "Standard",
+    "reducedMotion": False,
+    "highContrastMode": False,
+
+    # 12. Performance & Limits
+    "performanceMode": "Balanced",
+    "cacheRetention": True,
+    "requestTimeoutSec": 30,
+    "maxAttachmentSizeMb": 5,
+
+    # 13. Activity & Diagnostics
+    "logLatency": True,
+    "reportErrorsSilently": True,
+
+    # 14. Advanced & Developer
+    "debugMode": False,
+    "verboseLogging": False,
+    "customApiEndpoint": "",
 }
 
 @router.get("/settings")
