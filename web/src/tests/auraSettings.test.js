@@ -22,11 +22,29 @@ function validateAuraSettings(settings) {
   return errors;
 }
 
-// Safety authorization logic replicating ai.py
-function shouldNotifyPartnerSafety(escalationMode, riskLevel, crisisEscalationEnabled) {
-  if (!crisisEscalationEnabled) return false;
+// Production safety authorization logic replicating ai.py
+function evaluateSafetyEscalation(escalationMode, riskLevel, crisisEscalationEnabled, hasRecipient) {
+  if (!crisisEscalationEnabled) return { autoAlert: false, askConsent: false };
   const isCrisisLevel = riskLevel === 'RISK_3' || riskLevel === 'RISK_4';
-  return escalationMode === 'Pre-authorized' && isCrisisLevel;
+
+  if (!isCrisisLevel) {
+    return { autoAlert: false, askConsent: false };
+  }
+
+  if (escalationMode === 'Pre-authorized') {
+    return { autoAlert: Boolean(hasRecipient), askConsent: false };
+  }
+
+  if (escalationMode === 'Ask first') {
+    return { autoAlert: false, askConsent: Boolean(hasRecipient) };
+  }
+
+  return { autoAlert: false, askConsent: false };
+}
+
+// User-isolated cache key generation replicating AIAssistant.jsx
+function getThreadsStorageKey(userId) {
+  return userId ? `paxly_aura_threads_${userId}` : 'paxly_aura_threads_guest';
 }
 
 describe('Aura 15-Category Settings Blueprint Suite', () => {
@@ -72,30 +90,41 @@ describe('Aura 15-Category Settings Blueprint Suite', () => {
 
   it('SAFETY AUDIT: ordinary sadness / crying (RISK_1 / RISK_2) NEVER triggers auto partner alert', () => {
     // Ordinary sadness
-    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_1', true), false);
+    assert.deepEqual(evaluateSafetyEscalation('Pre-authorized', 'RISK_1', true, true), { autoAlert: false, askConsent: false });
     // Severe crying / heartbreak without self-harm intent
-    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_2', true), false);
-    assert.equal(shouldNotifyPartnerSafety('Suggest', 'RISK_2', true), false);
-    assert.equal(shouldNotifyPartnerSafety('Ask first', 'RISK_2', true), false);
-    assert.equal(shouldNotifyPartnerSafety('Off', 'RISK_2', true), false);
+    assert.deepEqual(evaluateSafetyEscalation('Pre-authorized', 'RISK_2', true, true), { autoAlert: false, askConsent: false });
+    assert.deepEqual(evaluateSafetyEscalation('Suggest', 'RISK_2', true, true), { autoAlert: false, askConsent: false });
+    assert.deepEqual(evaluateSafetyEscalation('Ask first', 'RISK_2', true, true), { autoAlert: false, askConsent: false });
+    assert.deepEqual(evaluateSafetyEscalation('Off', 'RISK_2', true, true), { autoAlert: false, askConsent: false });
   });
 
-  it('SAFETY AUDIT: Critical danger (RISK_3 / RISK_4) ONLY alerts when explicitly Pre-authorized', () => {
-    // When Pre-authorized and RISK_3 or RISK_4
-    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_3', true), true);
-    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_4', true), true);
+  it('SAFETY AUDIT: Critical danger (RISK_3 / RISK_4) requires Pre-authorization AND a verified recipient', () => {
+    // Pre-authorized WITH verified recipient -> autoAlert true
+    assert.deepEqual(evaluateSafetyEscalation('Pre-authorized', 'RISK_3', true, true), { autoAlert: true, askConsent: false });
+    assert.deepEqual(evaluateSafetyEscalation('Pre-authorized', 'RISK_4', true, true), { autoAlert: true, askConsent: false });
 
-    // If user chose 'Suggest' or 'Off', automatic notification is blocked
-    assert.equal(shouldNotifyPartnerSafety('Suggest', 'RISK_4', true), false);
-    assert.equal(shouldNotifyPartnerSafety('Off', 'RISK_4', true), false);
-    assert.equal(shouldNotifyPartnerSafety('Ask first', 'RISK_4', true), false);
+    // Pre-authorized WITHOUT verified recipient -> BLOCKED!
+    assert.deepEqual(evaluateSafetyEscalation('Pre-authorized', 'RISK_4', true, false), { autoAlert: false, askConsent: false });
+
+    // "Ask first" mode prompts user for consent instead of silent auto-alerting
+    assert.deepEqual(evaluateSafetyEscalation('Ask first', 'RISK_4', true, true), { autoAlert: false, askConsent: true });
+
+    // "Off" or "Suggest" blocks automated dispatch
+    assert.deepEqual(evaluateSafetyEscalation('Off', 'RISK_4', true, true), { autoAlert: false, askConsent: false });
+    assert.deepEqual(evaluateSafetyEscalation('Suggest', 'RISK_4', true, true), { autoAlert: false, askConsent: false });
   });
 
-  it('PRIVACY AUDIT: Multi-tenant user isolation prevents cross-account data leakage', () => {
-    const userASettings = { user_id: 'user_123', customInstructions: 'Private partner note' };
-    const userBSettings = { user_id: 'user_456', customInstructions: 'Different life goal' };
+  it('PRIVACY AUDIT: Account isolation isolates localStorage keys per authenticated user', () => {
+    const keyUser1 = getThreadsStorageKey('user_abc123');
+    const keyUser2 = getThreadsStorageKey('user_xyz789');
+    const keyGuest = getThreadsStorageKey(null);
 
-    assert.notEqual(userASettings.user_id, userBSettings.user_id);
-    assert.notEqual(userASettings.customInstructions, userBSettings.customInstructions);
+    assert.equal(keyUser1, 'paxly_aura_threads_user_abc123');
+    assert.equal(keyUser2, 'paxly_aura_threads_user_xyz789');
+    assert.equal(keyGuest, 'paxly_aura_threads_guest');
+
+    // Confirm keys never collide across accounts
+    assert.notEqual(keyUser1, keyUser2);
+    assert.notEqual(keyUser1, keyGuest);
   });
 });

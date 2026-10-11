@@ -232,12 +232,21 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
       setSaving(true);
       try {
         await deleteAllAIThreads();
-        localStorage.removeItem('paxly_aura_threads');
+        // Purge all legacy and user-isolated thread cache entries
+        Object.keys(localStorage).forEach(k => {
+          if (k.startsWith('paxly_aura_threads') || k === 'paxly_aura_chat_history') {
+            localStorage.removeItem(k);
+          }
+        });
         if (onClearAllChats) onClearAllChats();
         setSuccessMsg('All chat history permanently deleted! ✓');
         setTimeout(() => setSuccessMsg(''), 1500);
       } catch (err) {
-        localStorage.removeItem('paxly_aura_threads');
+        Object.keys(localStorage).forEach(k => {
+          if (k.startsWith('paxly_aura_threads') || k === 'paxly_aura_chat_history') {
+            localStorage.removeItem(k);
+          }
+        });
         if (onClearAllChats) onClearAllChats();
         setErrorMsg('Cleared local chats. (Cloud sync error: ' + (err.message || 'offline') + ')');
       } finally {

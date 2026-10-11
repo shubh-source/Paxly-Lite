@@ -54,15 +54,23 @@ async def lifespan(app: FastAPI):
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_crisis_alert_at TIMESTAMP",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS aura_settings JSONB DEFAULT '{}'::jsonb",
             ]
+            migration_errors = []
             for q in alter_queries:
                 try:
                     await conn.execute(text(q))
                 except Exception as e:
-                    print(f"Skipping alter: {e}")
+                    err_msg = str(e).lower()
+                    if "already exists" in err_msg or "duplicate column" in err_msg:
+                        continue
+                    migration_errors.append(f"Migration statement failed: {e}")
+                    print(f"⚠️ Migration statement failed: {e}")
             
-        print("✅ Database tables verified and migrated.")
-    except Exception as e:
-        print(f"⚠️ DB auto-init warning: {e}")
+            if migration_errors:
+                print(f"⚠️ Database startup migrations finished with {len(migration_errors)} warning(s).")
+            else:
+                print("✅ Database tables verified and migrated successfully.")
+        except Exception as e:
+            print(f"⚠️ DB auto-init failure: {e}")
     
     await connect_db()
     os.makedirs("./media", exist_ok=True)
@@ -140,10 +148,10 @@ async def global_exception_handler(request: Request, exc: Exception):
     tasks = BackgroundTasks()
     tasks.add_task(email_service.send_error_alert, admin_email, str(exc), error_trace, "Backend (FastAPI)")
 
-    # Bypass security check for now to debug the crash
+    # Client-facing response MUST NOT leak raw python exception strings or stack traces
     response = JSONResponse(
         status_code=500,
-        content={"detail": f"Server Error: {str(exc)}", "trace": error_trace},
+        content={"detail": "An internal server error occurred. Our engineering team has been notified."},
         background=tasks
     )
     # Add CORS headers explicitly to the 500 error so the frontend can read it

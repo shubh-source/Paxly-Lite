@@ -98,40 +98,52 @@ export default function AIAssistant() {
     }).catch(() => {});
   }, [user?.is_premium]);
 
-  // Load threads on mount
+  // User-isolated cache key helper
+  const getThreadsStorageKey = (uid) => uid ? `paxly_aura_threads_${uid}` : 'paxly_aura_threads_guest';
+
+  // Load threads on mount and when user switches
   useEffect(() => {
+    // Purge deprecated un-namespaced cache to prevent data leaks across accounts
+    localStorage.removeItem('paxly_aura_threads');
+    localStorage.removeItem('paxly_aura_chat_history');
+
+    const threadsKey = getThreadsStorageKey(user?.id);
+    let isCancelled = false;
+
     const initThreads = async () => {
       try {
         const { data } = await api.get('/ai/threads');
+        if (isCancelled) return;
+
         if (data && data.length > 0) {
           setThreads(data);
           setActiveThreadId(prev => prev || data[0].id);
           setMsgs(prev => (prev && prev.length > 0 ? prev : (data[0].messages || [])));
-          localStorage.setItem('paxly_aura_threads', JSON.stringify(data));
+          localStorage.setItem(threadsKey, JSON.stringify(data));
         } else {
-          // Fallback to local and sync up if server is empty
-          let parsed = [];
-          const cachedThreads = localStorage.getItem('paxly_aura_threads');
-          if (cachedThreads) {
-            parsed = JSON.parse(cachedThreads);
-          } else {
-            // WE MUST NOT LOAD 'paxly_aura_chat_history' as it contains old mediator dummy data.
-            // We'll just ignore it.
-            localStorage.removeItem('paxly_aura_chat_history');
+          // Server has no threads for this user - do NOT inherit previous user's cached threads!
+          const cachedThisUser = localStorage.getItem(threadsKey);
+          if (cachedThisUser) {
+            try {
+              const parsed = JSON.parse(cachedThisUser);
+              if (parsed && parsed.length > 0) {
+                setThreads(parsed);
+                setActiveThreadId(parsed[0].id);
+                setMsgs(parsed[0].messages || []);
+                return;
+              }
+            } catch (e) {}
           }
-          if (parsed.length > 0) {
-            setThreads(parsed);
-            setActiveThreadId(parsed[0].id);
-            setMsgs(parsed[0].messages || []);
-            localStorage.setItem('paxly_aura_threads', JSON.stringify(parsed));
-            // Sync up
-            parsed.forEach(t => api.post('/ai/threads/sync', {id: t.id, title: t.title, messages: t.messages}).catch(()=>{}));
-          }
+          // Clean state for fresh user
+          setThreads([]);
+          setActiveThreadId(null);
+          setMsgs([]);
         }
       } catch (err) {
+        if (isCancelled) return;
         console.error("Failed to load threads from server", err);
-        // Load local on error
-        const cachedThreads = localStorage.getItem('paxly_aura_threads');
+        // Load only this user's local cache on offline/error
+        const cachedThreads = localStorage.getItem(threadsKey);
         if (cachedThreads) {
           try {
             const parsed = JSON.parse(cachedThreads);
@@ -144,19 +156,23 @@ export default function AIAssistant() {
         }
       }
     };
+
     initThreads();
-  }, []);
+    return () => { isCancelled = true; };
+  }, [user?.id]);
 
   // Sync active thread messages
   useEffect(() => {
     if (msgs.length === 0) return;
+    const threadsKey = getThreadsStorageKey(user?.id);
+
     if (!activeThreadId) {
       const id = 'thread_' + Date.now();
       const title = msgs[0].content.substring(0, 30) + '...';
       const newThread = { id, title, messages: msgs, updated_at: Date.now() };
       setThreads(prev => {
         const next = [newThread, ...prev];
-        localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
+        localStorage.setItem(threadsKey, JSON.stringify(next));
         return next;
       });
       setActiveThreadId(id);
@@ -172,13 +188,13 @@ export default function AIAssistant() {
           }
           return t;
         });
-        localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
+        localStorage.setItem(threadsKey, JSON.stringify(next));
         return next;
       });
       
       api.post('/ai/threads/sync', {id: activeThreadId, title, messages: msgs}).catch(()=>{});
     }
-  }, [msgs, activeThreadId]);
+  }, [msgs, activeThreadId, user?.id]);
 
   const startNewChat = () => {
     setActiveThreadId(null);

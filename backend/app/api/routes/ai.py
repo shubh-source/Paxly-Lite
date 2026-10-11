@@ -1056,10 +1056,25 @@ CRISIS ESCALATION & REAL-WORLD HUMAN SAFETY:
 - Privacy & Minimum Disclosure: Never leak private chat logs or intimate messages to the partner during escalation; only share the minimum necessary safety alert.
 - Anti-Abuse & User Control: Honor user authorization preferences; allow user to toggle escalation or mark unsafe contacts."""
 
-async def call_groq_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+def sanitize_ai_error(err_text: str) -> str:
+    """Strip API keys, authorization tokens, and query parameters from error strings."""
+    if not err_text:
+        return ""
+    cleaned = str(err_text)
+    if settings.GOOGLE_API_KEY:
+        cleaned = cleaned.replace(settings.GOOGLE_API_KEY.strip(), "[REDACTED_GEMINI_KEY]")
+    if settings.GROQ_API_KEY:
+        cleaned = cleaned.replace(settings.GROQ_API_KEY.strip(), "[REDACTED_GROQ_KEY]")
+    cleaned = re.sub(r'key=[A-Za-z0-9_\-]+', 'key=[REDACTED_KEY]', cleaned)
+    cleaned = re.sub(r'Bearer\s+[A-Za-z0-9_\-\.]+', 'Bearer [REDACTED_TOKEN]', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'gsk_[A-Za-z0-9]+', '[REDACTED_GROQ_KEY]', cleaned)
+    cleaned = re.sub(r'AIzaSy[A-Za-z0-9_\-]+', '[REDACTED_GEMINI_KEY]', cleaned)
+    return cleaned
+
+async def call_groq_direct(messages: list, system_prompt: str = None, json_mode: bool = False, timeout: float = 30.0) -> str:
     api_key = (settings.GROQ_API_KEY or "").strip()
     if not api_key:
-        raise Exception("GROQ_API_KEY is empty")
+        raise Exception("GROQ_API_KEY is not configured")
         
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -1080,8 +1095,9 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
         formatted_msgs.append({"role": role, "content": clean_content})
         
     target_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"]
+    effective_timeout = max(5.0, min(float(timeout), 90.0))
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=effective_timeout) as client:
         # Dynamically query available models for this key, preserving priority order
         try:
             m_res = await client.get("https://api.groq.com/openai/v1/models", headers=headers)
@@ -1091,7 +1107,7 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
                 if valid_priority:
                     target_models = valid_priority
         except Exception as e:
-            print(f"Could not list groq models: {e}")
+            print(f"Could not list groq models: {sanitize_ai_error(str(e))}")
 
         last_err = None
         for model in target_models:
@@ -1110,21 +1126,21 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
                     data = resp.json()
                     return data["choices"][0]["message"]["content"]
                 else:
-                    last_err = f"Groq API ({model}) {resp.status_code}: {resp.text}"
+                    last_err = f"Groq HTTP {resp.status_code} for {model}"
             except Exception as e:
-                last_err = f"Groq request exception ({model}): {e}"
+                last_err = f"Groq request error ({model}): {sanitize_ai_error(str(e))}"
                 
-        raise Exception(last_err or "Groq failed with all models")
+        raise Exception(last_err or "Groq failed with all candidate models")
 
 # Cached working model to avoid redundant network lookups on every request
 _cached_gemini_model = "gemini-2.5-flash"
 _cached_groq_model = "llama-3.1-8b-instant"
 
-async def call_gemini_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+async def call_gemini_direct(messages: list, system_prompt: str = None, json_mode: bool = False, timeout: float = 30.0) -> str:
     global _cached_gemini_model
     api_key = (settings.GOOGLE_API_KEY or "").strip()
     if not api_key:
-        raise Exception("GOOGLE_API_KEY is empty")
+        raise Exception("GOOGLE_API_KEY is not configured")
         
     candidate_models = [
         "gemini-2.5-flash",
@@ -1164,10 +1180,16 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
     if system_prompt:
         payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
         
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    effective_timeout = max(5.0, min(float(timeout), 90.0))
+    headers = {
+        "x-goog-api-key": api_key,
+        "Content-Type": "application/json"
+    }
+
+    async with httpx.AsyncClient(timeout=effective_timeout) as client:
         last_err = None
         for model in candidate_models:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             
             # Configure per-model generation parameters
             model_gen_config = {
@@ -1182,7 +1204,7 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
                 
             payload["generationConfig"] = model_gen_config
             try:
-                resp = await client.post(url, json=payload)
+                resp = await client.post(url, headers=headers, json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
                     candidates = data.get("candidates", [])
@@ -1190,13 +1212,13 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
                         _cached_gemini_model = model
                         return "".join(part.get("text", "") for part in candidates[0]["content"].get("parts", []))
                 else:
-                    last_err = f"Gemini ({model}) {resp.status_code}: {resp.text}"
+                    last_err = f"Gemini HTTP {resp.status_code} for {model}"
             except Exception as e:
-                last_err = f"Gemini ({model}) Exception: {e}"
+                last_err = f"Gemini exception ({model}): {sanitize_ai_error(str(e))}"
 
         raise Exception(last_err or "Gemini failed with all candidate models")
 
-async def call_ollama_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+async def call_ollama_direct(messages: list, system_prompt: str = None, json_mode: bool = False, timeout: float = 30.0) -> str:
     base_url = (getattr(settings, "OLLAMA_BASE_URL", None) or "http://localhost:11434").rstrip("/")
     model = getattr(settings, "OLLAMA_MODEL", None) or "llama3"
     url = f"{base_url}/api/chat"
@@ -1218,13 +1240,14 @@ async def call_ollama_direct(messages: list, system_prompt: str = None, json_mod
     if json_mode:
         payload["format"] = "json"
         
-    async with httpx.AsyncClient(timeout=45.0) as client:
+    effective_timeout = max(5.0, min(float(timeout), 90.0))
+    async with httpx.AsyncClient(timeout=effective_timeout) as client:
         resp = await client.post(url, json=payload)
         if resp.status_code != 200:
-            raise Exception(f"Ollama error {resp.status_code}: {resp.text}")
+            raise Exception(f"Ollama HTTP {resp.status_code}")
         return resp.json().get("message", {}).get("content", "")
 
-async def generate_ai_text(messages: list, system_prompt: str = None, json_mode: bool = False, model_provider: str = "Automatic", fast_mode: bool = True) -> str:
+async def generate_ai_text(messages: list, system_prompt: str = None, json_mode: bool = False, model_provider: str = "Automatic", fast_mode: bool = True, timeout: float = 30.0) -> str:
     errors = []
     provider_clean = (model_provider or "Automatic").strip().lower()
 
@@ -1233,47 +1256,53 @@ async def generate_ai_text(messages: list, system_prompt: str = None, json_mode:
         # 1. Groq priority
         if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip():
             try:
-                return await call_groq_direct(messages, system_prompt, json_mode)
+                return await call_groq_direct(messages, system_prompt, json_mode, timeout=timeout)
             except Exception as e:
-                print(f"Groq error: {e}")
-                errors.append(f"Groq Error: {e}")
+                sanitized = sanitize_ai_error(str(e))
+                print(f"Groq provider error: {sanitized}")
+                errors.append(f"Groq: {sanitized}")
         # Fallback to Gemini if groq failed
         if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip():
             try:
-                return await call_gemini_direct(messages, system_prompt, json_mode)
+                return await call_gemini_direct(messages, system_prompt, json_mode, timeout=timeout)
             except Exception as e:
-                print(f"Gemini fallback error: {e}")
-                errors.append(f"Gemini Fallback Error: {e}")
+                sanitized = sanitize_ai_error(str(e))
+                print(f"Gemini fallback error: {sanitized}")
+                errors.append(f"Gemini fallback: {sanitized}")
     else:
         # Default or Gemini priority
         # 1. Try Gemini
         if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip():
             try:
-                return await call_gemini_direct(messages, system_prompt, json_mode)
+                return await call_gemini_direct(messages, system_prompt, json_mode, timeout=timeout)
             except Exception as e:
-                print(f"Gemini error: {e}")
-                errors.append(f"Gemini Error: {e}")
+                sanitized = sanitize_ai_error(str(e))
+                print(f"Gemini provider error: {sanitized}")
+                errors.append(f"Gemini: {sanitized}")
                 
         # 2. Try Groq
         if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip():
             try:
-                return await call_groq_direct(messages, system_prompt, json_mode)
+                return await call_groq_direct(messages, system_prompt, json_mode, timeout=timeout)
             except Exception as e:
-                print(f"Groq error: {e}")
-                errors.append(f"Groq Error: {e}")
+                sanitized = sanitize_ai_error(str(e))
+                print(f"Groq provider error: {sanitized}")
+                errors.append(f"Groq: {sanitized}")
             
     # 3. Try Local / Custom Ollama
     if getattr(settings, "OLLAMA_BASE_URL", None):
         try:
-            return await call_ollama_direct(messages, system_prompt, json_mode)
+            return await call_ollama_direct(messages, system_prompt, json_mode, timeout=timeout)
         except Exception as e:
-            print(f"Ollama error: {e}")
-            errors.append(f"Ollama Error: {e}")
+            sanitized = sanitize_ai_error(str(e))
+            print(f"Ollama provider error: {sanitized}")
+            errors.append(f"Ollama: {sanitized}")
 
     if errors:
-        raise HTTPException(500, f"AI generation error: {' | '.join(errors)}")
+        # Client receives a clean, non-leaking message while internal logs hold sanitized details
+        raise HTTPException(status_code=500, detail="AI generation service temporarily unavailable. Please try again shortly.")
     
-    raise HTTPException(503, "AI service not configured. Add GOOGLE_API_KEY, GROQ_API_KEY, or OLLAMA_BASE_URL to .env")
+    raise HTTPException(status_code=503, detail="AI service not configured on server. Please add GOOGLE_API_KEY or GROQ_API_KEY to configuration.")
 
 @router.post("/chat", response_model=AIResponse)
 async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -1315,44 +1344,61 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     # Default safety policy: ordinary sadness/crying (RISK_1/2) DOES NOT auto-notify.
     user_settings = cu.aura_settings or {}
     escalation_mode = user_settings.get("escalationMode", "Suggest")
+    trusted_contact_name = (user_settings.get("trustedContactName") or "").strip()
+    trusted_contact_phone = (user_settings.get("trustedContactPhone") or "").strip()
     
-    # Pre-authorized escalation ONLY triggers on verified severe crisis (RISK_3 / RISK_4)
+    # Pre-authorized escalation ONLY triggers on verified severe crisis (RISK_3 / RISK_4) with a verified recipient
     is_crisis_level = runtime_state.safety.risk_level in ["RISK_3", "RISK_4"]
-    authorized_for_auto_alert = (escalation_mode == "Pre-authorized" and is_crisis_level)
+    has_verified_recipient = bool(cu.partner_id or (trusted_contact_phone and len(trusted_contact_phone) >= 7))
+    authorized_for_auto_alert = (escalation_mode == "Pre-authorized" and is_crisis_level and has_verified_recipient)
 
-    if authorized_for_auto_alert and cu.partner_id and getattr(cu, "crisis_escalation_enabled", True):
+    if authorized_for_auto_alert and getattr(cu, "crisis_escalation_enabled", True):
         # Check 15-minute anti-spam cooldown
         cooldown_active = cu.last_crisis_alert_at and (datetime.utcnow() - cu.last_crisis_alert_at) < timedelta(minutes=15)
         if not cooldown_active:
             alert_title = runtime_state.safety.partner_alert_title or "Aura Care Alert 💜"
             alert_body = runtime_state.safety.partner_alert_body or f"{cu.name} is in critical distress and may need emergency support."
+            delivery_status = "persisted_in_app"
             
             # 1. Save in-app notification to DB for partner (ZERO private chat logs shared)
-            db.add(Notification(
-                user_id=cu.partner_id,
-                type="safety_alert",
-                title=alert_title,
-                body=alert_body,
-                data={"risk_level": runtime_state.safety.risk_level, "escalated_at": datetime.utcnow().isoformat()}
-            ))
+            if cu.partner_id:
+                db.add(Notification(
+                    user_id=cu.partner_id,
+                    type="safety_alert",
+                    title=alert_title,
+                    body=alert_body,
+                    data={
+                        "risk_level": runtime_state.safety.risk_level, 
+                        "escalated_at": datetime.utcnow().isoformat(),
+                        "recipient": "partner",
+                        "delivery_status": "queued"
+                    }
+                ))
             
             # 2. Push real-time alert via WebSocket to partner if online
-            try:
-                await manager.send_to_user(cu.partner_id, {
-                    "type": "safety_alert",
-                    "title": alert_title,
-                    "body": alert_body,
-                    "risk_level": runtime_state.safety.risk_level,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-            except Exception as ws_err:
-                print(f"Crisis WS push error: {ws_err}")
+            if cu.partner_id:
+                try:
+                    await manager.send_to_user(cu.partner_id, {
+                        "type": "safety_alert",
+                        "title": alert_title,
+                        "body": alert_body,
+                        "risk_level": runtime_state.safety.risk_level,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    delivery_status = "delivered_via_websocket"
+                except Exception as ws_err:
+                    print(f"Crisis WS push error: {sanitize_ai_error(str(ws_err))}")
             
             cu.last_crisis_alert_at = datetime.utcnow()
             await db.commit()
 
     if runtime_state.safety.requires_intervention and runtime_state.safety.safety_message:
-        return AIResponse(reply=runtime_state.safety.safety_message)
+        intervention_text = runtime_state.safety.safety_message
+        # Implement explicit "Ask first" confirmation consent flow
+        if escalation_mode == "Ask first" and is_crisis_level and has_verified_recipient:
+            contact_label = trusted_contact_name or partner_name
+            intervention_text += f"\n\n Agar aap chahein, toh kya main {contact_label} ko ek gentle care check-in message bhejkar bata doon?"
+        return AIResponse(reply=intervention_text)
             
     special_commands = ""
     if cu.is_premium:
@@ -1367,6 +1413,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     user_settings = cu.aura_settings or {}
     model_provider = data.model_provider or user_settings.get("modelProvider", "Automatic")
     fast_mode = data.fast_mode if data.fast_mode is not None else user_settings.get("fastResponseMode", True)
+    request_timeout = float(user_settings.get("requestTimeoutSec") or 30.0)
 
     # Inject persistent preferences if not already present in message list
     settings_directives = []
@@ -1383,6 +1430,18 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         settings_directives.append(f"Language: {user_settings.get('language') or user_settings.get('defaultLanguage')}")
     if user_settings.get("responseLength") or user_settings.get("defaultResponseLength"): 
         settings_directives.append(f"Response Length: {user_settings.get('responseLength') or user_settings.get('defaultResponseLength')}")
+    if user_settings.get("explanationLevel"):
+        settings_directives.append(f"Explanation Level: {user_settings['explanationLevel']}")
+    if user_settings.get("responseFormat"):
+        settings_directives.append(f"Response Format: {user_settings['responseFormat']}")
+    if user_settings.get("teachingMode"):
+        settings_directives.append("Teaching Mode: Enabled (use educational examples and verify understanding)")
+    if user_settings.get("stepByStep"):
+        settings_directives.append("Step-by-Step: Provide numbered breakdown when solving complex tasks")
+    if user_settings.get("askBeforeAssume"):
+        settings_directives.append("Clarification: Politely ask clarifying questions when user intent has high ambiguity")
+    if user_settings.get("personalizationLevel"):
+        settings_directives.append(f"Personalization Depth: {user_settings['personalizationLevel']}")
     if user_settings.get("customInstructions"): settings_directives.append(f"User Instructions: {user_settings['customInstructions']}")
 
     settings_block = ""
@@ -1409,13 +1468,19 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         else:
             clean_messages.append(m.dict())
             
+    # Apply user's configured context window turns
+    context_turns = max(2, min(int(user_settings.get("contextWindowTurns") or 10), 30))
+    if len(clean_messages) > context_turns:
+        clean_messages = clean_messages[-context_turns:]
+
     final_system_prompt = dynamic_prompt + frontend_system_prompt
 
     reply_text = await generate_ai_text(
         clean_messages, 
         system_prompt=final_system_prompt,
         model_provider=model_provider,
-        fast_mode=fast_mode
+        fast_mode=fast_mode,
+        timeout=request_timeout
     )
 
     # Aura Core Post-Processing, Special Commands & Quality Gate (55.4)
