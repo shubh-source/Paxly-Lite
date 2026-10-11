@@ -252,7 +252,10 @@ def test_ciphertext_detection_structural_checks():
     if valid_token.endswith("="):
         unpadded_token = valid_token.rstrip("=")
         assert not is_fernet_ciphertext(unpadded_token)
-    # Whitespace or corrupted non-base64 characters
+    # Whitespace tests: leading, trailing, internal whitespace MUST be rejected
+    assert not is_fernet_ciphertext(valid_token + " ")
+    assert not is_fernet_ciphertext(" " + valid_token)
+    assert not is_fernet_ciphertext(valid_token + "\n")
     assert not is_fernet_ciphertext(valid_token[:-2] + "\n\n")
 
     # 6. Length >= 73 bytes (exactly 73 bytes: 25 header + 16 AES block + 32 HMAC), but version byte is 0x81 (not 0x80)

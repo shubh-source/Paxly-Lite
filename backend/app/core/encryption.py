@@ -87,25 +87,27 @@ def is_fernet_ciphertext(data: str) -> bool:
     Validates whether a given string is a structurally valid Fernet token per the specification.
     Checks:
     1. String type and non-empty.
-    2. URL-safe Base64 character set with valid padding.
-    3. Successful URL-safe Base64 decode.
-    4. Canonical Base64 encoding check (no sloppy/permissive encoding).
-    5. Minimum length of 73 bytes: Version (1) + Timestamp (8) + IV (16) + Ciphertext (>=16) + HMAC (32).
-    6. Version byte must be 0x80 (128) per the Fernet specification.
-    7. Ciphertext payload length must be a non-zero multiple of 16 bytes (AES-128-CBC block size).
+    2. Strictly no leading or trailing whitespace.
+    3. URL-safe Base64 character set with valid padding syntax.
+    4. Successful URL-safe Base64 decode.
+    5. Minimum raw decoded length of 73 bytes: Version (1) + Timestamp (8) + IV (16) + Ciphertext (>=16) + HMAC (32).
+    6. Canonical Base64 encoding check (exact string equality with re-encoded raw bytes).
+    7. Version byte must be 0x80 (128) per the Fernet specification.
+    8. Ciphertext payload length must be a non-zero multiple of 16 bytes (AES-128-CBC block size).
     """
     if not data or not isinstance(data, str):
         return False
-    stripped = data.strip()
-    if len(stripped) < 100: # 73 raw bytes in base64url is at least 98-100 characters
+
+    # Strictly reject leading, trailing, or internal whitespace
+    if data != data.strip():
         return False
 
     # Check URL-safe charset and padding
-    if not re.match(r"^[A-Za-z0-9_-]+={0,2}$", stripped):
+    if not re.match(r"^[A-Za-z0-9_-]+={0,2}$", data):
         return False
 
     try:
-        raw = base64.urlsafe_b64decode(stripped.encode("utf-8"))
+        raw = base64.urlsafe_b64decode(data.encode("utf-8"))
     except Exception:
         return False
 
@@ -119,7 +121,7 @@ def is_fernet_ciphertext(data: str) -> bool:
     # Canonical Base64 re-encoding verification:
     # Fernet specification requires canonical URL-safe Base64 with exact padding.
     canonical_b64 = base64.urlsafe_b64encode(raw).decode("utf-8")
-    if canonical_b64 != stripped:
+    if canonical_b64 != data:
         return False
 
     # Fernet specification: Version byte MUST be 0x80
