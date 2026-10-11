@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from app.models.schemas import AIRequest, AIResponse, AISessionStart, AIInterviewRequest, AIAnalysisReport
+from app.models.schemas import AIRequest, AIResponse, AISessionStart, AIInterviewRequest, AIAnalysisReport, AuraSettingsSchema
 from app.core.security import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
@@ -1224,24 +1224,43 @@ async def call_ollama_direct(messages: list, system_prompt: str = None, json_mod
             raise Exception(f"Ollama error {resp.status_code}: {resp.text}")
         return resp.json().get("message", {}).get("content", "")
 
-async def generate_ai_text(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+async def generate_ai_text(messages: list, system_prompt: str = None, json_mode: bool = False, model_provider: str = "Automatic", fast_mode: bool = True) -> str:
     errors = []
-    
-    # 1. Try Gemini
-    if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip():
-        try:
-            return await call_gemini_direct(messages, system_prompt, json_mode)
-        except Exception as e:
-            print(f"Gemini error: {e}")
-            errors.append(f"Gemini Error: {e}")
-            
-    # 2. Try Groq
-    if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip():
-        try:
-            return await call_groq_direct(messages, system_prompt, json_mode)
-        except Exception as e:
-            print(f"Groq error: {e}")
-            errors.append(f"Groq Error: {e}")
+    provider_clean = (model_provider or "Automatic").strip().lower()
+
+    # Route according to user preference
+    if provider_clean == "groq":
+        # 1. Groq priority
+        if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip():
+            try:
+                return await call_groq_direct(messages, system_prompt, json_mode)
+            except Exception as e:
+                print(f"Groq error: {e}")
+                errors.append(f"Groq Error: {e}")
+        # Fallback to Gemini if groq failed
+        if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip():
+            try:
+                return await call_gemini_direct(messages, system_prompt, json_mode)
+            except Exception as e:
+                print(f"Gemini fallback error: {e}")
+                errors.append(f"Gemini Fallback Error: {e}")
+    else:
+        # Default or Gemini priority
+        # 1. Try Gemini
+        if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip():
+            try:
+                return await call_gemini_direct(messages, system_prompt, json_mode)
+            except Exception as e:
+                print(f"Gemini error: {e}")
+                errors.append(f"Gemini Error: {e}")
+                
+        # 2. Try Groq
+        if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip():
+            try:
+                return await call_groq_direct(messages, system_prompt, json_mode)
+            except Exception as e:
+                print(f"Groq error: {e}")
+                errors.append(f"Groq Error: {e}")
             
     # 3. Try Local / Custom Ollama
     if getattr(settings, "OLLAMA_BASE_URL", None):
@@ -1336,6 +1355,28 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
       - Example: [ADD_DATE: 2023-07-27: Our First Meeting: first_date]
       - The system will automatically intercept this and save it to the database. You should also verbally confirm to the user that you've saved it."""
 
+    # User Aura Settings Injection & Routing
+    user_settings = cu.aura_settings or {}
+    model_provider = data.model_provider or user_settings.get("modelProvider", "Automatic")
+    fast_mode = data.fast_mode if data.fast_mode is not None else user_settings.get("fastResponseMode", True)
+
+    # Inject persistent preferences if not already present in message list
+    settings_directives = []
+    if user_settings.get("preset"): settings_directives.append(f"Preset: {user_settings['preset']}")
+    if user_settings.get("warmth"): settings_directives.append(f"Warmth: {user_settings['warmth']}")
+    if user_settings.get("formality"): settings_directives.append(f"Formality: {user_settings['formality']}")
+    if user_settings.get("humor"): settings_directives.append(f"Humor: {user_settings['humor']}")
+    if user_settings.get("directness"): settings_directives.append(f"Directness: {user_settings['directness']}")
+    if user_settings.get("correctionStyle"): settings_directives.append(f"Correction Style: {user_settings['correctionStyle']}")
+    if user_settings.get("supportStyle"): settings_directives.append(f"Support Style: {user_settings['supportStyle']}")
+    if user_settings.get("language"): settings_directives.append(f"Language: {user_settings['language']}")
+    if user_settings.get("responseLength"): settings_directives.append(f"Response Length: {user_settings['responseLength']}")
+    if user_settings.get("customInstructions"): settings_directives.append(f"User Instructions: {user_settings['customInstructions']}")
+
+    settings_block = ""
+    if settings_directives:
+        settings_block = "\n    ACTIVE USER PREFERENCES (From Database):\n    - " + "\n    - ".join(settings_directives)
+
     dynamic_prompt = f"""{SYSTEM_PROMPT}
     
     Context:
@@ -1344,6 +1385,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     - User's Vlynxly signup date: {signup_date}
     {dates_info}
     {special_commands}
+    {settings_block}
     """
 
     # Merge frontend system prompts
@@ -1357,7 +1399,12 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             
     final_system_prompt = dynamic_prompt + frontend_system_prompt
 
-    reply_text = await generate_ai_text(clean_messages, system_prompt=final_system_prompt)
+    reply_text = await generate_ai_text(
+        clean_messages, 
+        system_prompt=final_system_prompt,
+        model_provider=model_provider,
+        fast_mode=fast_mode
+    )
 
     # Aura Core Post-Processing, Special Commands & Quality Gate (55.4)
     runtime_state = aura_core.handle_post_processing(reply_text, runtime_state)
@@ -1658,6 +1705,108 @@ async def delete_thread(thread_id: str, cu: User = Depends(get_current_user), db
     await db.delete(thread)
     await db.commit()
     return {"status": "deleted"}
+
+@router.delete("/threads")
+async def delete_all_threads(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import delete
+    await db.execute(delete(AIChatThread).where(AIChatThread.user_id == cu.id))
+    await db.commit()
+    return {"status": "all_threads_deleted"}
+
+# ── Aura Settings Persistence ──────────────────────────────────────────
+DEFAULT_AURA_SETTINGS = {
+    "preset": "Balanced",
+    "customInstructions": "",
+    "warmth": "High",
+    "formality": "Casual",
+    "humor": "Medium",
+    "directness": "Balanced",
+    "initiative": "Suggestive",
+    "correctionStyle": "Gentle",
+    "supportStyle": "Supportive",
+    "language": "Hinglish",
+    "responseLength": "Balanced",
+    "explanationLevel": "Adaptive",
+    "formatStyle": "Paragraphs",
+    "stepByStep": True,
+    "useContext": True,
+    "streaming": False,
+    "memoryEnabled": True,
+    "autoSavePreferences": True,
+    "retention": "Until deleted",
+    "showMemoryReason": True,
+    "voiceInput": True,
+    "voiceResponses": False,
+    "speechSpeed": "1.0x",
+    "pushToTalk": True,
+    "modelProvider": "Automatic",
+    "fastResponseMode": True,
+    "deepReasoning": False,
+    "structuredOutput": True,
+    "emotionalSupportMode": True,
+    "crisisDetection": True,
+    "escalationMode": "Suggest",
+    "trustedContact": "",
+    "theme": "Dark",
+    "bubbleStyle": "Modern Glass",
+    "chatDensity": "Comfortable",
+    "chatWidth": "Standard",
+    "performanceMode": "Balanced",
+    "cacheRetention": True,
+    "dataRetention": "Standard",
+    "analyticsConsent": True,
+}
+
+@router.get("/settings")
+async def get_aura_settings(cu: User = Depends(get_current_user)):
+    user_settings = cu.aura_settings if isinstance(cu.aura_settings, dict) else {}
+    merged = {**DEFAULT_AURA_SETTINGS, **user_settings}
+    return merged
+
+@router.put("/settings")
+async def update_aura_settings(
+    settings_in: AuraSettingsSchema,
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Validation
+    if settings_in.customInstructions and len(settings_in.customInstructions) > 2500:
+        raise HTTPException(400, "Custom instructions cannot exceed 2500 characters.")
+
+    valid_presets = ["Balanced", "Friendly", "Professional", "Teacher", "Technical", "Minimal"]
+    if settings_in.preset and settings_in.preset not in valid_presets:
+        raise HTTPException(400, f"Invalid personality preset. Must be one of: {', '.join(valid_presets)}")
+
+    valid_escalation = ["Suggest", "Ask first", "Pre-authorized", "Off"]
+    if settings_in.escalationMode and settings_in.escalationMode not in valid_escalation:
+        raise HTTPException(400, f"Invalid escalation mode. Must be one of: {', '.join(valid_escalation)}")
+
+    valid_providers = ["Automatic", "Gemini", "Groq"]
+    if settings_in.modelProvider and settings_in.modelProvider not in valid_providers:
+        raise HTTPException(400, f"Invalid model provider. Must be one of: {', '.join(valid_providers)}")
+
+    data_dict = settings_in.dict()
+    cu.aura_settings = data_dict
+
+    # Sync user-level flags for compatibility
+    if settings_in.preset:
+        cu.ai_personality = settings_in.preset.lower()
+    if settings_in.escalationMode:
+        cu.crisis_escalation_enabled = (settings_in.escalationMode != "Off")
+
+    await db.commit()
+    return data_dict
+
+@router.post("/settings/reset")
+async def reset_aura_settings(
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    cu.aura_settings = DEFAULT_AURA_SETTINGS
+    cu.ai_personality = "balanced"
+    cu.crisis_escalation_enabled = True
+    await db.commit()
+    return DEFAULT_AURA_SETTINGS
 
 
 

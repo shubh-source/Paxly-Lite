@@ -319,11 +319,30 @@ export default function AIAssistant() {
         aiRequestPayload.unshift({ role: 'system', content: globalContext });
       }
 
-      const { reply } = await askAI(aiRequestPayload);
+      const { reply } = await askAI(
+        aiRequestPayload, 
+        auraSettings?.modelProvider || 'Automatic',
+        auraSettings?.fastResponseMode ?? true
+      );
       
       let finalReply = reply;
       if (needsCounseling && !msgs.some(m => m.isLabPrompt)) {
         finalReply += "\n\nI can help you analyze the situation, but I'll need your **One-Time Permission** to read your recent chat history. Want me to request access for the last (7, 30, or 90) days?";
+      }
+
+      // Voice Audio Response (SpeechSynthesis) when enabled
+      if (auraSettings?.voiceResponses && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const cleanSpeech = finalReply.replace(/[*_#`[\]()]/g, '').trim();
+          const utterance = new SpeechSynthesisUtterance(cleanSpeech);
+          if (auraSettings.speechSpeed) {
+            utterance.rate = parseFloat(auraSettings.speechSpeed) || 1.0;
+          }
+          window.speechSynthesis.speak(utterance);
+        } catch (ttsErr) {
+          console.warn('TTS playback error:', ttsErr);
+        }
       }
 
       setMsgs(prev => [...prev, { 
@@ -412,6 +431,11 @@ export default function AIAssistant() {
         onSettingsChange={(newSettings) => {
           setAuraSettings(newSettings);
           setCustomPersonality(newSettings.customInstructions || '');
+        }}
+        onClearAllChats={() => {
+          setThreads([]);
+          setMsgs([]);
+          setActiveThreadId(null);
         }}
       />
 

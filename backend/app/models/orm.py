@@ -57,6 +57,9 @@ class User(Base):
     crisis_escalation_enabled = Column(Boolean, default=True)
     last_crisis_alert_at = Column(DateTime, nullable=True)
 
+    # Aura Comprehensive Settings (Preferences, behavior & model controls)
+    aura_settings = Column(JSONB, default=dict)
+
     # Compassionate Archive
     is_archived = Column(Boolean, default=False)
     closure_requested = Column(Boolean, default=False)

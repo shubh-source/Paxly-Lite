@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI):
                 "ALTER TABLE notes ADD COLUMN IF NOT EXISTS unlock_at TIMESTAMP",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS crisis_escalation_enabled BOOLEAN DEFAULT TRUE",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_crisis_alert_at TIMESTAMP",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS aura_settings JSONB DEFAULT '{}'::jsonb",
             ]
             for q in alter_queries:
                 try:

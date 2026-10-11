@@ -131,9 +131,53 @@ class AIMessage(BaseModel):
 
 class AIRequest(BaseModel):
     messages: List[AIMessage]
+    model_provider: Optional[str] = None # Automatic | Gemini | Groq
+    fast_mode: Optional[bool] = None
 
 class AIResponse(BaseModel):
     reply: str
+
+class AuraSettingsSchema(BaseModel):
+    preset: Optional[str] = "Balanced"
+    customInstructions: Optional[str] = ""
+    warmth: Optional[str] = "High"
+    formality: Optional[str] = "Casual"
+    humor: Optional[str] = "Medium"
+    directness: Optional[str] = "Balanced"
+    initiative: Optional[str] = "Suggestive"
+    correctionStyle: Optional[str] = "Gentle"
+    supportStyle: Optional[str] = "Supportive"
+    language: Optional[str] = "Hinglish"
+    responseLength: Optional[str] = "Balanced"
+    explanationLevel: Optional[str] = "Adaptive"
+    formatStyle: Optional[str] = "Paragraphs"
+    stepByStep: Optional[bool] = True
+    useContext: Optional[bool] = True
+    streaming: Optional[bool] = False
+    memoryEnabled: Optional[bool] = True
+    autoSavePreferences: Optional[bool] = True
+    retention: Optional[str] = "Until deleted"
+    showMemoryReason: Optional[bool] = True
+    voiceInput: Optional[bool] = True
+    voiceResponses: Optional[bool] = False
+    speechSpeed: Optional[str] = "1.0x"
+    pushToTalk: Optional[bool] = True
+    modelProvider: Optional[str] = "Automatic"
+    fastResponseMode: Optional[bool] = True
+    deepReasoning: Optional[bool] = False
+    structuredOutput: Optional[bool] = True
+    emotionalSupportMode: Optional[bool] = True
+    crisisDetection: Optional[bool] = True
+    escalationMode: Optional[str] = "Suggest"
+    trustedContact: Optional[str] = ""
+    theme: Optional[str] = "Dark"
+    bubbleStyle: Optional[str] = "Modern Glass"
+    chatDensity: Optional[str] = "Comfortable"
+    chatWidth: Optional[str] = "Standard"
+    performanceMode: Optional[str] = "Balanced"
+    cacheRetention: Optional[bool] = True
+    dataRetention: Optional[str] = "Standard"
+    analyticsConsent: Optional[bool] = True
 
 # ── AI Counseling Lab ──────────────────────────────────────────
 class AISessionStart(BaseModel):

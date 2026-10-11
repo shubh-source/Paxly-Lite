@@ -155,8 +155,20 @@ export const getCategories = () =>
   api.get('/explore/categories').then(r => r.data);
 
 // AI
-export const askAI = (messages) =>
-  api.post('/ai/chat', { messages }).then(r => r.data);
+export const askAI = (messages, model_provider = null, fast_mode = null) =>
+  api.post('/ai/chat', { messages, model_provider, fast_mode }).then(r => r.data);
+
+export const getAuraSettings = () => 
+  api.get('/ai/settings').then(r => r.data);
+
+export const saveAuraSettings = (settings) => 
+  api.put('/ai/settings', settings).then(r => r.data);
+
+export const resetAuraSettings = () => 
+  api.post('/ai/settings/reset').then(r => r.data);
+
+export const deleteAllAIThreads = () => 
+  api.delete('/ai/threads').then(r => r.data);
 
 export const getActiveAISession = () =>
   api.get('/ai/session/active').then(r => r.data);
