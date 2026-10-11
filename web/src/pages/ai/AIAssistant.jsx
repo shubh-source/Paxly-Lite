@@ -258,7 +258,8 @@ export default function AIAssistant() {
         globalContext += "\n\nCRITICAL USER INSTRUCTIONS FOR YOUR PERSONALITY/BEHAVIOR:\n" + customPersonality;
       }
 
-      const aiRequestPayload = updated.map(m => {
+      // Send recent messages for instant response latency
+      const aiRequestPayload = updated.slice(-8).map(m => {
         const payload = { role: m.role, content: m.content };
         if (m.attachments) {
           payload.attachments = m.attachments.map(a => ({ mime_type: a.mime_type, data: a.data }));

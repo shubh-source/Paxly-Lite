@@ -1116,7 +1116,12 @@ async def call_groq_direct(messages: list, system_prompt: str = None, json_mode:
                 
         raise Exception(last_err or "Groq failed with all models")
 
+# Cached working model to avoid redundant network lookups on every request
+_cached_gemini_model = "gemini-2.5-flash"
+_cached_groq_model = "llama-3.1-8b-instant"
+
 async def call_gemini_direct(messages: list, system_prompt: str = None, json_mode: bool = False) -> str:
+    global _cached_gemini_model
     api_key = (settings.GOOGLE_API_KEY or "").strip()
     if not api_key:
         raise Exception("GOOGLE_API_KEY is empty")
@@ -1129,9 +1134,13 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
         "gemini-1.5-flash",
         "gemini-pro"
     ]
+    if _cached_gemini_model and _cached_gemini_model in candidate_models:
+        candidate_models.remove(_cached_gemini_model)
+        candidate_models.insert(0, _cached_gemini_model)
     
     contents = []
-    for m in messages:
+    # Keep only last 10 messages for high-speed inference
+    for m in messages[-10:]:
         role = "user" if m.get("role") == "user" else "model"
         parts = []
         if m.get("content"):
@@ -1154,27 +1163,16 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
     payload = {"contents": contents}
     if system_prompt:
         payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+    
+    gen_config = {
+        "temperature": 0.7,
+        "maxOutputTokens": 350
+    }
     if json_mode:
-        payload["generationConfig"] = {"responseMimeType": "application/json"}
+        gen_config["responseMimeType"] = "application/json"
+    payload["generationConfig"] = gen_config
         
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # Dynamically list models available for this specific Google API key
-        try:
-            list_resp = await client.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}")
-            if list_resp.status_code == 200:
-                available = [
-                    m["name"].replace("models/", "")
-                    for m in list_resp.json().get("models", [])
-                    if "generateContent" in m.get("supportedGenerationMethods", [])
-                ]
-                preferred = [m for m in available if "flash" in m and "image" not in m]
-                if preferred:
-                    candidate_models = preferred + [m for m in available if m not in preferred]
-                elif available:
-                    candidate_models = available
-        except Exception as e:
-            print(f"Could not fetch dynamic Gemini model list: {e}")
-
+    async with httpx.AsyncClient(timeout=15.0) as client:
         last_err = None
         for model in candidate_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
@@ -1184,6 +1182,7 @@ async def call_gemini_direct(messages: list, system_prompt: str = None, json_mod
                     data = resp.json()
                     candidates = data.get("candidates", [])
                     if candidates and "content" in candidates[0]:
+                        _cached_gemini_model = model
                         return "".join(part.get("text", "") for part in candidates[0]["content"].get("parts", []))
                 else:
                     last_err = f"Gemini ({model}) {resp.status_code}: {resp.text}"
