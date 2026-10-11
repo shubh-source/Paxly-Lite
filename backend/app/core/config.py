@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     # App
     APP_NAME: str = "Vlynxly"
+    ENVIRONMENT: str = "development" # 'development', 'test', 'production'
     FRONTEND_URL: str = "http://localhost:3000"
     BACKEND_URL: str = "http://localhost:8000"
 
