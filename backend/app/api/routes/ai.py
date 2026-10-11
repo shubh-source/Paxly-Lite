@@ -1057,16 +1057,22 @@ CRISIS ESCALATION & REAL-WORLD HUMAN SAFETY:
 - Anti-Abuse & User Control: Honor user authorization preferences; allow user to toggle escalation or mark unsafe contacts."""
 
 def sanitize_ai_error(err_text: str) -> str:
-    """Strip API keys, authorization tokens, and query parameters from error strings."""
+    """Strip API keys, authorization tokens, query parameters, and credentials from error strings."""
     if not err_text:
         return ""
     cleaned = str(err_text)
-    if settings.GOOGLE_API_KEY:
+    if getattr(settings, "GOOGLE_API_KEY", None):
         cleaned = cleaned.replace(settings.GOOGLE_API_KEY.strip(), "[REDACTED_GEMINI_KEY]")
-    if settings.GROQ_API_KEY:
+    if getattr(settings, "GROQ_API_KEY", None):
         cleaned = cleaned.replace(settings.GROQ_API_KEY.strip(), "[REDACTED_GROQ_KEY]")
-    cleaned = re.sub(r'key=[A-Za-z0-9_\-]+', 'key=[REDACTED_KEY]', cleaned)
+    if getattr(settings, "SECRET_KEY", None):
+        cleaned = cleaned.replace(settings.SECRET_KEY.strip(), "[REDACTED_SECRET_KEY]")
+    # Strip URL query parameters like ?key=..., ?token=..., ?api_key=...
+    cleaned = re.sub(r'([?&](?:key|api_key|token|auth)=)[^&\s]+', r'\1[REDACTED_KEY]', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'key=[A-Za-z0-9_\-]+', 'key=[REDACTED_KEY]', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'Bearer\s+[A-Za-z0-9_\-\.]+', 'Bearer [REDACTED_TOKEN]', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'Authorization:\s*[^\s,]+', 'Authorization: [REDACTED_AUTH]', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'x-goog-api-key:\s*[^\s,]+', 'x-goog-api-key: [REDACTED_KEY]', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'gsk_[A-Za-z0-9]+', '[REDACTED_GROQ_KEY]', cleaned)
     cleaned = re.sub(r'AIzaSy[A-Za-z0-9_\-]+', '[REDACTED_GEMINI_KEY]', cleaned)
     return cleaned
@@ -1340,12 +1346,13 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         context_data={"couple_space_id": cu.couple_space_id, "is_premium": cu.is_premium}
     )
 
-    # Part 57 Crisis & Distress Escalation: Trigger partner safety notification ONLY if explicitly authorized
-    # Default safety policy: ordinary sadness/crying (RISK_1/2) DOES NOT auto-notify.
+    # Part 57 Crisis & Distress Escalation: Trigger safety notification ONLY if explicitly authorized
+    # Default safety policy: ordinary sadness/crying (RISK_0/1/2) DOES NOT auto-notify.
     user_settings = cu.aura_settings or {}
     escalation_mode = user_settings.get("escalationMode", "Suggest")
+    raw_trusted_contact = (user_settings.get("trustedContact") or "").strip()
     trusted_contact_name = (user_settings.get("trustedContactName") or "").strip()
-    trusted_contact_phone = (user_settings.get("trustedContactPhone") or "").strip()
+    trusted_contact_phone = (user_settings.get("trustedContactPhone") or raw_trusted_contact).strip()
     
     # Pre-authorized escalation ONLY triggers on verified severe crisis (RISK_3 / RISK_4) with a verified recipient
     is_crisis_level = runtime_state.safety.risk_level in ["RISK_3", "RISK_4"]
@@ -1396,7 +1403,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         intervention_text = runtime_state.safety.safety_message
         # Implement explicit "Ask first" confirmation consent flow
         if escalation_mode == "Ask first" and is_crisis_level and has_verified_recipient:
-            contact_label = trusted_contact_name or partner_name
+            contact_label = trusted_contact_name or (trusted_contact_phone if trusted_contact_phone else partner_name)
             intervention_text += f"\n\n Agar aap chahein, toh kya main {contact_label} ko ek gentle care check-in message bhejkar bata doon?"
         return AIResponse(reply=intervention_text)
             
@@ -1412,6 +1419,11 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     # User Aura Settings Injection & Routing
     user_settings = cu.aura_settings or {}
     model_provider = data.model_provider or user_settings.get("modelProvider", "Automatic")
+    
+    valid_providers = ["Automatic", "Gemini", "Groq"]
+    if model_provider and model_provider not in valid_providers:
+        raise HTTPException(status_code=400, detail=f"Unsupported model provider: '{model_provider}'. Must be one of: {', '.join(valid_providers)}")
+        
     fast_mode = data.fast_mode if data.fast_mode is not None else user_settings.get("fastResponseMode", True)
     request_timeout = float(user_settings.get("requestTimeoutSec") or 30.0)
 
@@ -1870,6 +1882,8 @@ DEFAULT_AURA_SETTINGS = {
     "crisisDetection": True,
     "escalationMode": "Suggest",
     "trustedContact": "",
+    "trustedContactName": "",
+    "trustedContactPhone": "",
     "locationSharingCrisis": False,
 
     # 09. Notifications

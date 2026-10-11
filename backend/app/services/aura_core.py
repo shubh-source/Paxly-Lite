@@ -229,8 +229,9 @@ class AuraCoreController:
         partner_name: str = "Partner",
         context_data: Optional[Dict[str, Any]] = None
     ) -> AuraRuntimeState:
-        """Initializes and runs early cognitive parsing layers."""
-        context = context_data or {}
+        context = dict(context_data) if context_data else {}
+        context.setdefault("user_name", user_name)
+        context.setdefault("partner_name", partner_name)
         input_obj = self.input_parser.parse(user_message)
         emotion = self.emotion_engine.detect(input_obj, context)
         intent = self.intent_engine.detect(input_obj, context)

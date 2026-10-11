@@ -216,6 +216,8 @@ class AuraSettingsSchema(BaseModel):
     crisisDetection: Optional[bool] = True
     escalationMode: Optional[str] = "Suggest"
     trustedContact: Optional[str] = ""
+    trustedContactName: Optional[str] = ""
+    trustedContactPhone: Optional[str] = ""
     locationSharingCrisis: Optional[bool] = False
 
     # 09. Notifications
