@@ -50,7 +50,8 @@ def test_production_rejects_arbitrary_passphrase():
     with pytest.raises(EncryptionConfigurationError) as exc_info:
         get_cipher(force_reload=True)
 
-    assert "must decode to exactly 32 bytes" in str(exc_info.value) or "valid urlsafe" in str(exc_info.value)
+    err = str(exc_info.value)
+    assert "must be exactly 44 characters" in err or "invalid characters" in err or "must decode to exactly 32 bytes" in err
 
 def test_production_environment_missing_key_fails_closed():
     settings.ENCRYPTION_KEY = ""

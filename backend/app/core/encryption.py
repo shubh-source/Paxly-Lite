@@ -37,12 +37,25 @@ _initialized_environment: Optional[str] = None
 def _validate_strict_fernet_key(key_str: str, key_name: str = "ENCRYPTION_KEY") -> bytes:
     """
     Validates that key_str is a strict 32-byte urlsafe-base64 encoded Fernet key.
-    Rejects arbitrary passwords or invalid lengths.
+    Enforces URL-safe Base64 character set, exactly 32 decoded bytes, and canonical re-encoding check.
     """
     if not key_str or not isinstance(key_str, str) or not key_str.strip():
         raise EncryptionConfigurationError(f"{key_name} cannot be empty.")
     
-    key_bytes = key_str.strip().encode("utf-8")
+    clean_str = key_str.strip()
+    # Check length: 32 raw bytes in urlsafe base64 is exactly 44 chars (including padding '=' or not)
+    if len(clean_str) not in (43, 44):
+        raise EncryptionConfigurationError(
+            f"{key_name} must be exactly 44 characters for a 32-byte Fernet key. Got {len(clean_str)}."
+        )
+
+    # Ensure URL-safe base64 charset only (A-Z, a-z, 0-9, -, _, and padding =)
+    if not re.match(r"^[A-Za-z0-9_-]{43}={0,1}$", clean_str):
+        raise EncryptionConfigurationError(
+            f"{key_name} contains invalid characters. Must be strictly URL-safe Base64."
+        )
+
+    key_bytes = clean_str.encode("utf-8")
     try:
         raw_key = base64.urlsafe_b64decode(key_bytes)
     except Exception as e:
@@ -55,12 +68,19 @@ def _validate_strict_fernet_key(key_str: str, key_name: str = "ENCRYPTION_KEY") 
             f"{key_name} must decode to exactly 32 bytes (Fernet specification). Got {len(raw_key)} bytes."
         )
 
+    # Canonical re-encoding comparison to reject permissive or malformed encodings
+    canonical_encoded = base64.urlsafe_b64encode(raw_key).decode("utf-8")
+    if canonical_encoded != clean_str and canonical_encoded.rstrip("=") != clean_str.rstrip("="):
+        raise EncryptionConfigurationError(
+            f"{key_name} is not canonically encoded URL-safe Base64."
+        )
+
     try:
         Fernet(key_bytes)
     except Exception as e:
         raise EncryptionConfigurationError(f"{key_name} is not a valid Fernet cipher key: {type(e).__name__}")
 
-    return key_bytes
+    return canonical_encoded.encode("utf-8")
 
 def is_fernet_ciphertext(data: str) -> bool:
     """
