@@ -7,15 +7,37 @@ import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 
 export default function AIAssistant() {
   const { user } = useAuth();
-  const [msgs, setMsgs] = useState([]);
+  
+  // Instant synchronous cache restoration on mount (0ms delay)
+  const [threads, setThreads] = useState(() => {
+    try {
+      const cached = localStorage.getItem('paxly_aura_threads');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  
+  const [activeThreadId, setActiveThreadId] = useState(() => {
+    try {
+      const cached = localStorage.getItem('paxly_aura_threads');
+      const parsed = cached ? JSON.parse(cached) : [];
+      return parsed.length > 0 ? parsed[0].id : null;
+    } catch { return null; }
+  });
+
+  const [msgs, setMsgs] = useState(() => {
+    try {
+      const cached = localStorage.getItem('paxly_aura_threads');
+      const parsed = cached ? JSON.parse(cached) : [];
+      return (parsed.length > 0 && Array.isArray(parsed[0].messages)) ? parsed[0].messages : [];
+    } catch { return []; }
+  });
+
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [attachment, setAttachment] = useState(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const endRef = useRef(null);
   const inputRef = useRef(null); 
-  const [threads, setThreads] = useState([]);
-  const [activeThreadId, setActiveThreadId] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [importantDates, setImportantDates] = useState([]);
   
@@ -75,8 +97,8 @@ export default function AIAssistant() {
         const { data } = await api.get('/ai/threads');
         if (data && data.length > 0) {
           setThreads(data);
-          setActiveThreadId(data[0].id);
-          setMsgs(data[0].messages || []);
+          setActiveThreadId(prev => prev || data[0].id);
+          setMsgs(prev => (prev && prev.length > 0 ? prev : (data[0].messages || [])));
           localStorage.setItem('paxly_aura_threads', JSON.stringify(data));
         } else {
           // Fallback to local and sync up if server is empty
