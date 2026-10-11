@@ -4,6 +4,7 @@ import api, { askAI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
+import AuraSettingsModal from '../../components/ai/AuraSettingsModal';
 
 export default function AIAssistant() {
   const { user } = useAuth();
@@ -41,8 +42,14 @@ export default function AIAssistant() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [importantDates, setImportantDates] = useState([]);
   
-  // Custom AI Personality
+  // Custom AI Personality & Settings
   const [customPersonality, setCustomPersonality] = useState(() => localStorage.getItem('paxly_aura_personality') || '');
+  const [auraSettings, setAuraSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('paxly_aura_comprehensive_settings');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [showPersonalityModal, setShowPersonalityModal] = useState(false);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
@@ -275,9 +282,29 @@ export default function AIAssistant() {
       // App Knowledge
       globalContext += "\nApp Knowledge: Vlynxly Premium features: Deep Lab (counseling), Vibe Sites (webpages for partner), Stealth Mode, E2EE chats. You are Aura, the AI guide. CRITICAL RULE: You ONLY talk to the current user. You CANNOT and DO NOT communicate with their partner. NEVER pretend, joke, or hallucinate that you were talking to their partner.";
       
+      // Dynamic Personality & Behavior Settings
+      if (auraSettings) {
+        let behaviorDirectives = [];
+        if (auraSettings.preset) behaviorDirectives.push(`Preset: ${auraSettings.preset}`);
+        if (auraSettings.warmth) behaviorDirectives.push(`Warmth: ${auraSettings.warmth}`);
+        if (auraSettings.formality) behaviorDirectives.push(`Formality: ${auraSettings.formality}`);
+        if (auraSettings.humor) behaviorDirectives.push(`Humor: ${auraSettings.humor}`);
+        if (auraSettings.directness) behaviorDirectives.push(`Directness: ${auraSettings.directness}`);
+        if (auraSettings.correctionStyle) behaviorDirectives.push(`Correction Style: ${auraSettings.correctionStyle}`);
+        if (auraSettings.supportStyle) behaviorDirectives.push(`Emotional Support Style: ${auraSettings.supportStyle}`);
+        if (auraSettings.language) behaviorDirectives.push(`Language preference: ${auraSettings.language}`);
+        if (auraSettings.responseLength) behaviorDirectives.push(`Response length: ${auraSettings.responseLength}`);
+        if (auraSettings.formatStyle) behaviorDirectives.push(`Format preference: ${auraSettings.formatStyle}`);
+        
+        if (behaviorDirectives.length > 0) {
+          globalContext += "\n\nAURA PERSONALITY & BEHAVIOR DIRECTIVES:\n" + behaviorDirectives.join(' | ');
+        }
+      }
+
       // Custom User Instructions
-      if (customPersonality) {
-        globalContext += "\n\nCRITICAL USER INSTRUCTIONS FOR YOUR PERSONALITY/BEHAVIOR:\n" + customPersonality;
+      const activeCustomInstructions = auraSettings?.customInstructions || customPersonality;
+      if (activeCustomInstructions) {
+        globalContext += "\n\nCRITICAL USER INSTRUCTIONS FOR YOUR PERSONALITY/BEHAVIOR:\n" + activeCustomInstructions;
       }
 
       // Send recent messages for instant response latency
@@ -378,30 +405,15 @@ export default function AIAssistant() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'fixed', inset: 0, background: 'var(--bg)', overflow: 'hidden' }}>
 
-      {/* Personality Settings Modal */}
-      {showPersonalityModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: 'var(--accent)' }}>Aura's Personality 🧠</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 16 }}>
-              Aap decide kar sakte hain ki Aura aapse kaise baat kare. Uska tone kaisa ho? (Eg: "Talk like a tapori", "Be strictly professional", "Use Gen-Z slang", "Only reply in Hindi").
-            </p>
-            <textarea 
-              value={customPersonality}
-              onChange={e => setCustomPersonality(e.target.value)}
-              placeholder="Example: Talk to me like a sassy best friend and use lots of emojis."
-              style={{ width: '100%', height: 120, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: 12, color: '#fff', fontSize: '0.9rem', resize: 'none', marginBottom: 16 }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <button onClick={() => setShowPersonalityModal(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '8px 16px', borderRadius: 20, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => {
-                localStorage.setItem('paxly_aura_personality', customPersonality);
-                setShowPersonalityModal(false);
-              }} style={{ background: 'var(--accent)', border: 'none', color: '#000', padding: '8px 24px', borderRadius: 20, fontWeight: 600, cursor: 'pointer' }}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Comprehensive Aura Settings Modal */}
+      <AuraSettingsModal 
+        isOpen={showPersonalityModal}
+        onClose={() => setShowPersonalityModal(false)}
+        onSettingsChange={(newSettings) => {
+          setAuraSettings(newSettings);
+          setCustomPersonality(newSettings.customInstructions || '');
+        }}
+      />
 
       {/* Responsive Header Style */}
       <style>{`
