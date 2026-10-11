@@ -61,12 +61,15 @@ def get_cipher(force_reload: bool = False) -> Fernet:
         if not current_key_setting or not current_key_setting.strip():
             logger.error("ENCRYPTION_KEY is required in production environment.")
             raise EncryptionConfigurationError("ENCRYPTION_KEY must be configured in production environment.")
+        if current_key_setting.strip().encode("utf-8") == LEGACY_FALLBACK_KEY_RAW or current_key_setting.strip() == LEGACY_FERNET_KEY:
+            logger.error("Legacy fallback key cannot be used as primary encryption key in production.")
+            raise EncryptionConfigurationError("Insecure legacy encryption key is forbidden in production.")
 
     effective_key = current_key_setting.strip() if current_key_setting else ""
     if not effective_key:
-        # Development / test fallback
-        logger.warning("ENCRYPTION_KEY is not set. Using development fallback key.")
-        effective_key = LEGACY_FERNET_KEY
+        # Development / test fallback only (never production)
+        logger.warning("ENCRYPTION_KEY is not set. Generating ephemeral key for development session.")
+        effective_key = Fernet.generate_key().decode()
 
     try:
         fernet_key = _derive_fernet_key(effective_key)

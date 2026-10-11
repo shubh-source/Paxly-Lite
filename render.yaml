@@ -3,11 +3,13 @@ services:
     name: Paxly-Lite
     runtime: docker
     rootDir: backend
-    branch: api-refactor
+    branch: main
     dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT
         value: 10000
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY

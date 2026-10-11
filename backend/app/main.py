@@ -16,8 +16,20 @@ from app.websocket.handler import router as ws_router
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.encryption import get_cipher, EncryptionConfigurationError
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 0. Startup Security & Configuration Validation
+    try:
+        get_cipher(force_reload=True)
+    except EncryptionConfigurationError as e:
+        print(f"❌ FATAL STARTUP CONFIGURATION ERROR: {e}")
+        raise RuntimeError(f"Application startup rejected due to unsafe configuration: {e}") from e
+    except Exception as e:
+        print(f"❌ FATAL STARTUP ENCRYPTION ERROR: {e}")
+        raise RuntimeError(f"Application startup rejected due to encryption initialization error: {e}") from e
+
     # Try to create tables, but don't block startup forever
     try:
         async with engine.begin() as conn:

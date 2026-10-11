@@ -147,3 +147,32 @@ def test_error_and_exceptions_do_not_leak_secrets(monkeypatch):
 
     assert "super_secret_master_key_123" not in str(exc.value)
     assert secret_input not in str(exc.value)
+
+def test_production_rejects_legacy_insecure_key():
+    settings.ENCRYPTION_KEY = LEGACY_FERNET_KEY
+    settings.ENVIRONMENT = "production"
+
+    with pytest.raises(EncryptionConfigurationError) as exc_info:
+        get_cipher(force_reload=True)
+    assert "Insecure legacy encryption key is forbidden in production" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_app_lifespan_startup_fails_in_production_with_missing_key():
+    from app.main import app, lifespan
+    settings.ENCRYPTION_KEY = ""
+    settings.ENVIRONMENT = "production"
+
+    with pytest.raises(RuntimeError) as exc_info:
+        async with lifespan(app):
+            pass
+    assert "Application startup rejected due to unsafe configuration" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_app_lifespan_startup_succeeds_with_valid_key():
+    from app.main import app, lifespan
+    settings.ENCRYPTION_KEY = Fernet.generate_key().decode()
+    settings.ENVIRONMENT = "production"
+
+    async with lifespan(app):
+        # Startup completed successfully
+        pass
