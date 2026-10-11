@@ -84,13 +84,48 @@ def _validate_strict_fernet_key(key_str: str, key_name: str = "ENCRYPTION_KEY") 
 
 def is_fernet_ciphertext(data: str) -> bool:
     """
-    Checks if a given string matches the standard Fernet token structure.
-    Used to distinguish between legacy unencrypted plaintext and encrypted ciphertext.
+    Validates whether a given string is a structurally valid Fernet token.
+    Checks:
+    1. String type and non-empty.
+    2. URL-safe Base64 character set with valid padding.
+    3. Successful URL-safe Base64 decode.
+    4. Minimum length of 73 bytes: Version (1) + Timestamp (8) + IV (16) + Ciphertext (>=16) + HMAC (32).
+    5. Version byte must be 0x80 (128) per the Fernet specification.
+    6. Ciphertext length must be a multiple of 16 bytes (AES block size).
     """
     if not data or not isinstance(data, str):
         return False
     stripped = data.strip()
-    return bool(FERNET_PREFIX_PATTERN.match(stripped))
+    # Fast check: Fernet base64url string starts with 'gAAAAA' because version is 0x80
+    if not stripped.startswith("gAAAAA"):
+        return False
+
+    # Check charset and padding
+    if not re.match(r"^[A-Za-z0-9_-]+={0,2}$", stripped):
+        return False
+
+    try:
+        raw = base64.urlsafe_b64decode(stripped.encode("utf-8"))
+    except Exception:
+        return False
+
+    # Structure checks:
+    # Header: Version (1 byte) + Timestamp (8 bytes) + IV (16 bytes) = 25 bytes
+    # Tail: HMAC (32 bytes)
+    # Total minimum payload before padding = 25 + 16 (min AES block) + 32 = 73 bytes
+    if len(raw) < 73:
+        return False
+
+    # Fernet specification: Version byte MUST be 0x80
+    if raw[0] != 0x80:
+        return False
+
+    # AES block size check: ciphertext portion = total_len - 25 (header) - 32 (HMAC)
+    ciphertext_len = len(raw) - 57
+    if ciphertext_len <= 0 or (ciphertext_len % 16) != 0:
+        return False
+
+    return True
 
 def get_cipher(force_reload: bool = False) -> Fernet:
     """

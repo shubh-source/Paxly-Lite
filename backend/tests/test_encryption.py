@@ -221,3 +221,61 @@ async def test_app_lifespan_startup_succeeds_with_valid_key():
     async with lifespan(app):
         # Startup completed successfully
         pass
+
+def test_ciphertext_detection_structural_checks():
+    """Verify is_fernet_ciphertext strictly evaluates length, version, Base64, and AES blocks."""
+    # 1. Non-string or empty
+    assert not is_fernet_ciphertext("")
+    assert not is_fernet_ciphertext(None)
+    assert not is_fernet_ciphertext(12345)
+
+    # 2. Doesn't start with gAAAAA
+    assert not is_fernet_ciphertext("not_a_fernet_token")
+    assert not is_fernet_ciphertext("gBBBBBB" + "A" * 60)
+
+    # 3. Invalid Base64 charset
+    assert not is_fernet_ciphertext("gAAAAA!@#$%^&*()_+{}[]:;<>?,./")
+
+    # 4. Valid Base64 and starts with gAAAAA, but decoded length < 73 bytes
+    short_raw = bytes([0x80]) + bytes(40) # 41 bytes total
+    short_token = base64.urlsafe_b64encode(short_raw).decode()
+    assert not is_fernet_ciphertext(short_token)
+
+    # 5. Length >= 73 bytes, but version byte is not 0x80
+    invalid_version_raw = bytes([0x81]) + bytes(72) # 73 bytes, version 0x81
+    # Ensure ciphertext block length is multiple of 16 (73 - 57 = 16)
+    invalid_version_token = base64.urlsafe_b64encode(invalid_version_raw).decode()
+    assert not is_fernet_ciphertext(invalid_version_token)
+
+    # 6. Length >= 73 bytes and version 0x80, but ciphertext block is NOT a multiple of 16
+    bad_aes_raw = bytes([0x80]) + bytes(70) # 71 bytes total: 71 - 57 = 14 bytes (not multiple of 16)
+    bad_aes_token = base64.urlsafe_b64encode(bad_aes_raw).decode()
+    assert not is_fernet_ciphertext(bad_aes_token)
+
+    # 7. Valid genuine Fernet token
+    valid_key = Fernet.generate_key()
+    valid_token = Fernet(valid_key).encrypt(b"Hello Paxly Fortress").decode()
+    assert is_fernet_ciphertext(valid_token)
+
+def test_corrupted_ciphertext_raises_decryption_error_in_production():
+    """Structurally valid Fernet token that was corrupted during transit/storage must raise DecryptionError in production."""
+    settings.ENCRYPTION_KEY = Fernet.generate_key().decode()
+    settings.ENVIRONMENT = "production"
+    get_cipher(force_reload=True)
+
+    secret = "Top Secret Journal Entry"
+    valid_token = encrypt_data(secret)
+    assert is_fernet_ciphertext(valid_token)
+
+    # Corrupt the payload (flip characters in the HMAC/ciphertext body while maintaining structural validness)
+    raw_token = bytearray(base64.urlsafe_b64decode(valid_token.encode()))
+    raw_token[-1] ^= 0x01 # Flip last bit of HMAC
+    corrupted_token = base64.urlsafe_b64encode(raw_token).decode()
+
+    # The corrupted token is still structurally a Fernet token
+    assert is_fernet_ciphertext(corrupted_token)
+
+    # Decrypting must raise DecryptionError and NEVER return corrupted_token as plaintext
+    with pytest.raises(DecryptionError):
+        decrypt_data(corrupted_token)
+
