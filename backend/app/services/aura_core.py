@@ -50,6 +50,10 @@ class SafetyState(BaseModel):
     safety_message: Optional[str] = None
     flags: List[str] = Field(default_factory=list)
 
+class VerificationState(BaseModel):
+    status: str = "pending"
+    passed: bool = True
+
 class AuraRuntimeState(BaseModel):
     user_name: str
     partner_name: str
@@ -58,7 +62,12 @@ class AuraRuntimeState(BaseModel):
     emotion: EmotionState
     intent: IntentState
     safety: SafetyState
+    verification: VerificationState = Field(default_factory=VerificationState)
+    final_reply: Optional[str] = None
+    special_commands: List[Dict[str, Any]] = Field(default_factory=list)
     telemetry_events: List[Dict[str, Any]] = Field(default_factory=list)
+
+    model_config = {"extra": "allow"}
 
 
 
