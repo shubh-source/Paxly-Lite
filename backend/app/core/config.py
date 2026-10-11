@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "change-this-secret-key"
     ENCRYPTION_KEY: str = "" # Fernet key for field encryption
+    PREVIOUS_ENCRYPTION_KEYS: str = "" # Comma-separated list of rotated previous Fernet keys
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
