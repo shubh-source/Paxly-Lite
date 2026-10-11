@@ -69,8 +69,8 @@ async def lifespan(app: FastAPI):
                 print(f"⚠️ Database startup migrations finished with {len(migration_errors)} warning(s).")
             else:
                 print("✅ Database tables verified and migrated successfully.")
-        except Exception as e:
-            print(f"⚠️ DB auto-init failure: {e}")
+    except Exception as e:
+        print(f"⚠️ DB auto-init failure: {e}")
     
     await connect_db()
     os.makedirs("./media", exist_ok=True)

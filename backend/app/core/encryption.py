@@ -10,13 +10,17 @@ def get_cipher():
     if _cipher is None:
         key = settings.ENCRYPTION_KEY
         if not key:
-            # Fallback for development if no key is in .env
-            key = "L3B4X2ZvcnRyZXNzX21hc3Rlcl9rZXlfOTkxMg=="
+            key = base64.urlsafe_b64encode(b"paxly_fortress_master_key_32byte").decode()
         try:
-            _cipher = Fernet(key.encode())
-        except Exception as e:
-            print(f"⚠️ Encryption initialization error: {e}")
-            return None
+            _cipher = Fernet(key.encode() if isinstance(key, str) else key)
+        except Exception:
+            import hashlib
+            derived = base64.urlsafe_b64encode(hashlib.sha256(str(key).encode()).digest())
+            try:
+                _cipher = Fernet(derived)
+            except Exception as e:
+                print(f"⚠️ Encryption initialization error: {e}")
+                return None
     return _cipher
 
 def encrypt_data(data: str) -> str:

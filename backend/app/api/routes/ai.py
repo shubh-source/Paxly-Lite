@@ -1939,7 +1939,7 @@ async def update_aura_settings(
     if settings_in.modelProvider and settings_in.modelProvider not in valid_providers:
         raise HTTPException(400, f"Invalid model provider. Must be one of: {', '.join(valid_providers)}")
 
-    data_dict = settings_in.dict()
+    data_dict = settings_in.model_dump() if hasattr(settings_in, "model_dump") else settings_in.dict()
     cu.aura_settings = data_dict
 
     # Sync user-level flags for compatibility
