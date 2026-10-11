@@ -297,3 +297,28 @@ def test_corrupted_ciphertext_raises_decryption_error_in_production():
     with pytest.raises(DecryptionError):
         decrypt_data(corrupted_token)
 
+def test_malformed_truncated_ciphertext_raises_in_production():
+    """Malformed Fernet-like ciphertext (e.g. truncated base64) must raise DecryptionError in production, never return plaintext."""
+    settings.ENCRYPTION_KEY = Fernet.generate_key().decode()
+    settings.ENVIRONMENT = "production"
+    get_cipher(force_reload=True)
+
+    # Malformed token that starts like a Fernet token but is severely truncated
+    malformed_token = "gAAAAABl8Zabcdefghijk_truncated_corrupt_payload"
+    
+    with pytest.raises(DecryptionError):
+        decrypt_data(malformed_token)
+
+def test_legacy_plaintext_never_treated_as_suspected_ciphertext():
+    """Legitimate legacy plaintext strings do not trigger DecryptionError."""
+    settings.ENCRYPTION_KEY = Fernet.generate_key().decode()
+    settings.ENVIRONMENT = "production"
+    get_cipher(force_reload=True)
+
+    plaintext1 = "Hey, are we still meeting at 5 PM today?"
+    plaintext2 = "Here is the summary of our date night notes: pizza and movie."
+    
+    assert decrypt_data(plaintext1) == plaintext1
+    assert decrypt_data(plaintext2) == plaintext2
+
+

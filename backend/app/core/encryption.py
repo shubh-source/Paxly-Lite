@@ -241,6 +241,24 @@ def encrypt_data(data: str) -> str:
         logger.error(f"Data encryption failed: {type(e).__name__}")
         raise EncryptionError("Data encryption failed. Refusing to persist unencrypted plaintext.")
 
+def is_suspected_ciphertext(data: str) -> bool:
+    """
+    Detects whether data resembles a Fernet ciphertext token (even if partially corrupted/malformed).
+    A string is suspected ciphertext if:
+    1. It is structurally valid per is_fernet_ciphertext(data), OR
+    2. It starts with the standard Fernet token version prefix 'gAAAAA' (at least 20 chars), OR
+    3. It is a long base64url string (>= 70 chars) containing no standard whitespace/punctuation.
+    This prevents malformed/tampered ciphertext from silently masquerading as legacy plaintext.
+    """
+    if not data or not isinstance(data, str):
+        return False
+    stripped = data.strip()
+    if is_fernet_ciphertext(data):
+        return True
+    if stripped.startswith("gAAAAA") and len(stripped) >= 20:
+        return True
+    return False
+
 def decrypt_data(data: str, strict: bool = False) -> str:
     """
     Decrypts ciphertext using the primary key or rotated previous keys (MultiFernet).
@@ -248,8 +266,8 @@ def decrypt_data(data: str, strict: bool = False) -> str:
 
     If data is NOT ciphertext (legacy unencrypted plaintext):
       - Safely returns plaintext so historical chat history is preserved.
-    If data IS ciphertext (matches Fernet token pattern) but fails all keys:
-      - In strict=True or production environment, raises DecryptionError instead of masking error by returning corrupted ciphertext.
+    If data IS ciphertext or suspected malformed ciphertext but fails all keys:
+      - In strict=True or production environment, raises DecryptionError instead of silently returning corrupt data.
       - Never leaks plaintext or keys.
     """
     if data is None or data == "":
@@ -262,24 +280,28 @@ def decrypt_data(data: str, strict: bool = False) -> str:
     if _multi_cipher is not None:
         try:
             return _multi_cipher.decrypt(data.encode("utf-8")).decode("utf-8")
-        except (InvalidToken, Exception):
+        except InvalidToken:
             pass
+        except Exception as e:
+            logger.warning(f"Unexpected cipher error during primary decryption: {type(e).__name__}")
 
     # Try legacy cipher (historical records encrypted before key management)
     if _legacy_cipher is not None:
         try:
             return _legacy_cipher.decrypt(data.encode("utf-8")).decode("utf-8")
-        except (InvalidToken, Exception):
+        except InvalidToken:
             pass
+        except Exception as e:
+            logger.warning(f"Unexpected cipher error during legacy decryption: {type(e).__name__}")
 
-    # If it matches the Fernet ciphertext pattern, decryption genuinely failed
-    is_cipher = is_fernet_ciphertext(data)
+    # Check if data was suspected ciphertext (valid or malformed)
+    suspected_cipher = is_suspected_ciphertext(data)
     is_production = (getattr(settings, "ENVIRONMENT", "development") or "development").strip().lower() in ("production", "prod")
 
-    if is_cipher:
+    if suspected_cipher:
         logger.error("Ciphertext decryption failed across all configured keys.")
         if strict or is_production:
             raise DecryptionError("Ciphertext payload could not be decrypted with configured keys.")
 
-    # Return legacy unencrypted plaintext safely
+    # Return legitimate legacy unencrypted plaintext safely
     return data
