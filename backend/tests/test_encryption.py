@@ -229,32 +229,39 @@ def test_ciphertext_detection_structural_checks():
     assert not is_fernet_ciphertext(None)
     assert not is_fernet_ciphertext(12345)
 
-    # 2. Doesn't start with gAAAAA
+    # 2. Too short (< 100 characters in base64url)
     assert not is_fernet_ciphertext("not_a_fernet_token")
-    assert not is_fernet_ciphertext("gBBBBBB" + "A" * 60)
+    assert not is_fernet_ciphertext("gAAAAA" + "A" * 50)
 
     # 3. Invalid Base64 charset
-    assert not is_fernet_ciphertext("gAAAAA!@#$%^&*()_+{}[]:;<>?,./")
+    assert not is_fernet_ciphertext("gAAAAA" + "!@#$%^&*()_+{}[]:;<>?,./" * 5)
 
-    # 4. Valid Base64 and starts with gAAAAA, but decoded length < 73 bytes
+    # 4. Valid Base64 and >= 100 chars, but decoded raw length < 73 bytes
     short_raw = bytes([0x80]) + bytes(40) # 41 bytes total
-    short_token = base64.urlsafe_b64encode(short_raw).decode()
-    assert not is_fernet_ciphertext(short_token)
+    # Pad to reach string length check if necessary
+    assert not is_fernet_ciphertext(base64.urlsafe_b64encode(short_raw).decode())
 
-    # 5. Length >= 73 bytes, but version byte is not 0x80
-    invalid_version_raw = bytes([0x81]) + bytes(72) # 73 bytes, version 0x81
-    # Ensure ciphertext block length is multiple of 16 (73 - 57 = 16)
-    invalid_version_token = base64.urlsafe_b64encode(invalid_version_raw).decode()
-    assert not is_fernet_ciphertext(invalid_version_token)
-
-    # 6. Length >= 73 bytes and version 0x80, but ciphertext block is NOT a multiple of 16
-    bad_aes_raw = bytes([0x80]) + bytes(70) # 71 bytes total: 71 - 57 = 14 bytes (not multiple of 16)
-    bad_aes_token = base64.urlsafe_b64encode(bad_aes_raw).decode()
-    assert not is_fernet_ciphertext(bad_aes_token)
-
-    # 7. Valid genuine Fernet token
+    # 5. Non-canonical Base64 encoding (rejected)
     valid_key = Fernet.generate_key()
     valid_token = Fernet(valid_key).encrypt(b"Hello Paxly Fortress").decode()
+    # Add whitespace or invalid canonical representation
+    assert not is_fernet_ciphertext(valid_token + "==")
+
+    # 6. Length >= 73 bytes (exactly 73 bytes: 25 header + 16 AES block + 32 HMAC), but version byte is 0x81 (not 0x80)
+    invalid_version_raw = bytes([0x81]) + bytes(72) # 73 bytes total, raw[0] = 0x81
+    invalid_version_token = base64.urlsafe_b64encode(invalid_version_raw).decode()
+    assert len(invalid_version_raw) >= 73
+    assert not is_fernet_ciphertext(invalid_version_token)
+
+    # 7. Length >= 73 bytes and version 0x80, but ciphertext portion is NOT a multiple of 16 bytes
+    # Total raw bytes = 25 (header) + 15 (bad ciphertext len) + 32 (HMAC) = 72 + 15 = 87 bytes
+    bad_aes_raw = bytes([0x80]) + bytes(86) # 87 bytes total: ciphertext portion = 87 - 57 = 30 bytes (30 % 16 != 0)
+    bad_aes_token = base64.urlsafe_b64encode(bad_aes_raw).decode()
+    assert len(bad_aes_raw) >= 73
+    assert bad_aes_raw[0] == 0x80
+    assert not is_fernet_ciphertext(bad_aes_token)
+
+    # 8. Valid genuine Fernet token
     assert is_fernet_ciphertext(valid_token)
 
 def test_corrupted_ciphertext_raises_decryption_error_in_production():

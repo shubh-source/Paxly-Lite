@@ -84,23 +84,23 @@ def _validate_strict_fernet_key(key_str: str, key_name: str = "ENCRYPTION_KEY") 
 
 def is_fernet_ciphertext(data: str) -> bool:
     """
-    Validates whether a given string is a structurally valid Fernet token.
+    Validates whether a given string is a structurally valid Fernet token per the specification.
     Checks:
     1. String type and non-empty.
     2. URL-safe Base64 character set with valid padding.
     3. Successful URL-safe Base64 decode.
-    4. Minimum length of 73 bytes: Version (1) + Timestamp (8) + IV (16) + Ciphertext (>=16) + HMAC (32).
-    5. Version byte must be 0x80 (128) per the Fernet specification.
-    6. Ciphertext length must be a multiple of 16 bytes (AES block size).
+    4. Canonical Base64 encoding check (no sloppy/permissive encoding).
+    5. Minimum length of 73 bytes: Version (1) + Timestamp (8) + IV (16) + Ciphertext (>=16) + HMAC (32).
+    6. Version byte must be 0x80 (128) per the Fernet specification.
+    7. Ciphertext payload length must be a non-zero multiple of 16 bytes (AES-128-CBC block size).
     """
     if not data or not isinstance(data, str):
         return False
     stripped = data.strip()
-    # Fast check: Fernet base64url string starts with 'gAAAAA' because version is 0x80
-    if not stripped.startswith("gAAAAA"):
+    if len(stripped) < 100: # 73 raw bytes in base64url is at least 98-100 characters
         return False
 
-    # Check charset and padding
+    # Check URL-safe charset and padding
     if not re.match(r"^[A-Za-z0-9_-]+={0,2}$", stripped):
         return False
 
@@ -114,6 +114,11 @@ def is_fernet_ciphertext(data: str) -> bool:
     # Tail: HMAC (32 bytes)
     # Total minimum payload before padding = 25 + 16 (min AES block) + 32 = 73 bytes
     if len(raw) < 73:
+        return False
+
+    # Canonical Base64 re-encoding verification
+    canonical_b64 = base64.urlsafe_b64encode(raw).decode("utf-8")
+    if canonical_b64.rstrip("=") != stripped.rstrip("="):
         return False
 
     # Fernet specification: Version byte MUST be 0x80
