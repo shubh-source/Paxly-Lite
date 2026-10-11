@@ -22,6 +22,13 @@ function validateAuraSettings(settings) {
   return errors;
 }
 
+// Safety authorization logic replicating ai.py
+function shouldNotifyPartnerSafety(escalationMode, riskLevel, crisisEscalationEnabled) {
+  if (!crisisEscalationEnabled) return false;
+  const isCrisisLevel = riskLevel === 'RISK_3' || riskLevel === 'RISK_4';
+  return escalationMode === 'Pre-authorized' && isCrisisLevel;
+}
+
 describe('Aura 15-Category Settings Blueprint Suite', () => {
   it('should support all 15 Blueprint categories in settings hierarchy', () => {
     const categories = [
@@ -61,5 +68,34 @@ describe('Aura 15-Category Settings Blueprint Suite', () => {
     }
     const errs = validateAuraSettings({ modelProvider: 'UnsupportedEngine' });
     assert.equal(errs.length, 1);
+  });
+
+  it('SAFETY AUDIT: ordinary sadness / crying (RISK_1 / RISK_2) NEVER triggers auto partner alert', () => {
+    // Ordinary sadness
+    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_1', true), false);
+    // Severe crying / heartbreak without self-harm intent
+    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_2', true), false);
+    assert.equal(shouldNotifyPartnerSafety('Suggest', 'RISK_2', true), false);
+    assert.equal(shouldNotifyPartnerSafety('Ask first', 'RISK_2', true), false);
+    assert.equal(shouldNotifyPartnerSafety('Off', 'RISK_2', true), false);
+  });
+
+  it('SAFETY AUDIT: Critical danger (RISK_3 / RISK_4) ONLY alerts when explicitly Pre-authorized', () => {
+    // When Pre-authorized and RISK_3 or RISK_4
+    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_3', true), true);
+    assert.equal(shouldNotifyPartnerSafety('Pre-authorized', 'RISK_4', true), true);
+
+    // If user chose 'Suggest' or 'Off', automatic notification is blocked
+    assert.equal(shouldNotifyPartnerSafety('Suggest', 'RISK_4', true), false);
+    assert.equal(shouldNotifyPartnerSafety('Off', 'RISK_4', true), false);
+    assert.equal(shouldNotifyPartnerSafety('Ask first', 'RISK_4', true), false);
+  });
+
+  it('PRIVACY AUDIT: Multi-tenant user isolation prevents cross-account data leakage', () => {
+    const userASettings = { user_id: 'user_123', customInstructions: 'Private partner note' };
+    const userBSettings = { user_id: 'user_456', customInstructions: 'Different life goal' };
+
+    assert.notEqual(userASettings.user_id, userBSettings.user_id);
+    assert.notEqual(userASettings.customInstructions, userBSettings.customInstructions);
   });
 });

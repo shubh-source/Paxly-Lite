@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 import AuraSettingsModal from '../../components/ai/AuraSettingsModal';
+import ReactMarkdown from 'react-markdown';
 
 export default function AIAssistant() {
   const { user } = useAuth();
@@ -658,16 +659,16 @@ export default function AIAssistant() {
               </div>
             )}
             <div style={{
-              maxWidth: '78%',
-              padding: '12px 18px',
-              borderRadius: 22,
-              borderBottomRightRadius: m.role === 'user' ? 6 : 22,
-              borderBottomLeftRadius: m.role === 'user' ? 22 : 6,
-              background: m.role === 'user' ? 'var(--accent)' : 'rgba(255,255,255,0.06)',
+              maxWidth: auraSettings?.chatWidth === 'Compact' ? '65%' : '80%',
+              padding: auraSettings?.chatDensity === 'Compact' ? '8px 12px' : '12px 18px',
+              borderRadius: auraSettings?.bubbleStyle === 'Classic' ? 14 : auraSettings?.bubbleStyle === 'Minimal Compact' ? 8 : 22,
+              borderBottomRightRadius: m.role === 'user' ? 4 : (auraSettings?.bubbleStyle === 'Classic' ? 14 : 22),
+              borderBottomLeftRadius: m.role === 'user' ? (auraSettings?.bubbleStyle === 'Classic' ? 14 : 22) : 4,
+              background: m.role === 'user' ? 'var(--accent)' : auraSettings?.bubbleStyle === 'Minimal Compact' ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.06)',
               color: m.role === 'user' ? '#000' : '#fff',
               border: m.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.08)',
-              backdropFilter: 'blur(16px)',
-              fontSize: '0.95rem',
+              backdropFilter: auraSettings?.bubbleStyle === 'Modern Glass' ? 'blur(16px)' : 'none',
+              fontSize: auraSettings?.fontSize === 'Small' ? '0.85rem' : auraSettings?.fontSize === 'Large' ? '1.05rem' : '0.95rem',
               lineHeight: 1.6,
               boxShadow: m.role === 'user' ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)',
               whiteSpace: 'pre-wrap',
@@ -683,7 +684,16 @@ export default function AIAssistant() {
                   )}
                 </div>
               ))}
-              {m.content}
+              {m.role === 'assistant' && (auraSettings?.markdownRendering ?? true) ? (
+                <ReactMarkdown>{m.content}</ReactMarkdown>
+              ) : (
+                m.content
+              )}
+              {auraSettings?.showTimestamps && (
+                <div style={{ fontSize: '0.65rem', opacity: 0.5, marginTop: 4, textAlign: 'right' }}>
+                  {m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              )}
               {m.isPremiumPrompt && (
                 <button onClick={() => setShowPremiumModal(true)} style={{ marginTop: 12, padding: '10px 20px', borderRadius: 20, background: '#000', color: 'var(--accent)', border: 'none', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
                   Upgrade to Premium
@@ -751,7 +761,8 @@ export default function AIAssistant() {
               e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
             }}
             onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              const shouldSendWithEnter = auraSettings?.sendWithEnter ?? true;
+              if (shouldSendWithEnter && e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 send();
               }

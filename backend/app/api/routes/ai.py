@@ -1311,15 +1311,23 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         context_data={"couple_space_id": cu.couple_space_id, "is_premium": cu.is_premium}
     )
 
-    # Part 57 Crisis & Distress Escalation: Trigger partner safety notification if authorized
-    if runtime_state.safety.should_notify_partner and cu.partner_id and getattr(cu, "crisis_escalation_enabled", True):
+    # Part 57 Crisis & Distress Escalation: Trigger partner safety notification ONLY if explicitly authorized
+    # Default safety policy: ordinary sadness/crying (RISK_1/2) DOES NOT auto-notify.
+    user_settings = cu.aura_settings or {}
+    escalation_mode = user_settings.get("escalationMode", "Suggest")
+    
+    # Pre-authorized escalation ONLY triggers on verified severe crisis (RISK_3 / RISK_4)
+    is_crisis_level = runtime_state.safety.risk_level in ["RISK_3", "RISK_4"]
+    authorized_for_auto_alert = (escalation_mode == "Pre-authorized" and is_crisis_level)
+
+    if authorized_for_auto_alert and cu.partner_id and getattr(cu, "crisis_escalation_enabled", True):
         # Check 15-minute anti-spam cooldown
         cooldown_active = cu.last_crisis_alert_at and (datetime.utcnow() - cu.last_crisis_alert_at) < timedelta(minutes=15)
         if not cooldown_active:
             alert_title = runtime_state.safety.partner_alert_title or "Aura Care Alert 💜"
-            alert_body = runtime_state.safety.partner_alert_body or f"{cu.name} is feeling emotionally overwhelmed right now and needs your care and presence."
+            alert_body = runtime_state.safety.partner_alert_body or f"{cu.name} is in critical distress and may need emergency support."
             
-            # 1. Save in-app notification to DB for partner (ZERO chat logs shared)
+            # 1. Save in-app notification to DB for partner (ZERO private chat logs shared)
             db.add(Notification(
                 user_id=cu.partner_id,
                 type="safety_alert",
