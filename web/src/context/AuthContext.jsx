@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import api, { getMe, getSpace } from '../services/api';
 import { wsService } from '../services/websocket';
+import { clearUserBrowserStorage } from '../services/auraStorage';
 
 const AuthContext = createContext(null);
 
@@ -58,8 +59,7 @@ export const AuthProvider = ({ children }) => {
       })
       .catch((err) => {
         if (err.response && (err.response.status === 401 || err.response.status === 403)) {
-          localStorage.removeItem('ros_token');
-          localStorage.removeItem('ros_user');
+          clearUserBrowserStorage();
           setUser(null);
         }
       })
@@ -120,6 +120,11 @@ export const AuthProvider = ({ children }) => {
   }, [user?.id]);
 
   const loginUser = (token, userData) => {
+    // If switching users or stale guest data exists, ensure partitioned clean state
+    const currentUserId = user?.id;
+    if (currentUserId && userData?.id && currentUserId !== userData.id) {
+      clearUserBrowserStorage();
+    }
     localStorage.setItem('ros_token', token);
     localStorage.setItem('ros_user', JSON.stringify(userData));
     setUser(userData);
@@ -127,8 +132,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logoutUser = () => {
-    localStorage.removeItem('ros_token');
-    localStorage.removeItem('ros_user');
+    clearUserBrowserStorage();
     setUser(null);
     wsService.disconnect();
   };

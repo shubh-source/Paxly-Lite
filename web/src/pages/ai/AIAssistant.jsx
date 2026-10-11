@@ -1,17 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api, { askAI } from '../../services/api';
+import api, { askAI, getAuraSettings } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 import AuraSettingsModal from '../../components/ai/AuraSettingsModal';
+import {
+  DEFAULT_AURA_SETTINGS,
+  getAuraSettingsStorageKey,
+  getAuraPersonalityStorageKey,
+  getAuraThreadsStorageKey
+} from '../../services/auraStorage';
 import ReactMarkdown from 'react-markdown';
 
 export default function AIAssistant() {
   const { user } = useAuth();
   
-  // User-isolated cache key helper
-  const getThreadsStorageKey = (uid) => uid ? `paxly_aura_threads_${uid}` : 'paxly_aura_threads_guest';
+  // User-isolated cache key helpers
+  const threadsKey = getAuraThreadsStorageKey(user?.id);
+  const settingsKey = getAuraSettingsStorageKey(user?.id);
+  const personalityKey = getAuraPersonalityStorageKey(user?.id);
 
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
@@ -27,12 +35,14 @@ export default function AIAssistant() {
   const [importantDates, setImportantDates] = useState([]);
   
   // Custom AI Personality & Settings
-  const [customPersonality, setCustomPersonality] = useState(() => localStorage.getItem('paxly_aura_personality') || '');
+  const [customPersonality, setCustomPersonality] = useState(() => {
+    try { return localStorage.getItem(personalityKey) || ''; } catch { return ''; }
+  });
   const [auraSettings, setAuraSettings] = useState(() => {
     try {
-      const saved = localStorage.getItem('paxly_aura_comprehensive_settings');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
+      const saved = localStorage.getItem(settingsKey);
+      return saved ? JSON.parse(saved) : DEFAULT_AURA_SETTINGS;
+    } catch { return DEFAULT_AURA_SETTINGS; }
   });
   const [showPersonalityModal, setShowPersonalityModal] = useState(false);
 
@@ -82,13 +92,43 @@ export default function AIAssistant() {
   }, [user?.is_premium]);
 
 
+  // Load settings on mount and when user switches
+  useEffect(() => {
+    let isCancelled = false;
+
+    try {
+      const localCached = localStorage.getItem(settingsKey);
+      if (localCached) {
+        setAuraSettings({ ...DEFAULT_AURA_SETTINGS, ...JSON.parse(localCached) });
+      }
+      const localPers = localStorage.getItem(personalityKey);
+      if (localPers) {
+        setCustomPersonality(localPers);
+      }
+    } catch (_) {}
+
+    getAuraSettings()
+      .then(cloud => {
+        if (isCancelled || !cloud || typeof cloud !== 'object') return;
+        const merged = { ...DEFAULT_AURA_SETTINGS, ...cloud };
+        setAuraSettings(merged);
+        localStorage.setItem(settingsKey, JSON.stringify(merged));
+        if (merged.customInstructions) {
+          setCustomPersonality(merged.customInstructions);
+          localStorage.setItem(personalityKey, merged.customInstructions);
+        }
+      })
+      .catch(() => {});
+
+    return () => { isCancelled = true; };
+  }, [user?.id, settingsKey, personalityKey]);
+
   // Load threads on mount and when user switches
   useEffect(() => {
     // Purge deprecated un-namespaced cache to prevent data leaks across accounts
     localStorage.removeItem('paxly_aura_threads');
     localStorage.removeItem('paxly_aura_chat_history');
 
-    const threadsKey = getThreadsStorageKey(user?.id);
     let isCancelled = false;
 
     const initThreads = async () => {
@@ -98,8 +138,14 @@ export default function AIAssistant() {
 
         if (data && data.length > 0) {
           setThreads(data);
-          setActiveThreadId(prev => prev || data[0].id);
-          setMsgs(prev => (prev && prev.length > 0 ? prev : (data[0].messages || [])));
+          const startFresh = auraSettings?.startupBehavior === 'New session';
+          if (startFresh) {
+            setActiveThreadId(null);
+            setMsgs([]);
+          } else {
+            setActiveThreadId(prev => prev || data[0].id);
+            setMsgs(prev => (prev && prev.length > 0 ? prev : (data[0].messages || [])));
+          }
           localStorage.setItem(threadsKey, JSON.stringify(data));
         } else {
           // Server has no threads for this user - do NOT inherit previous user's cached threads!
@@ -109,8 +155,14 @@ export default function AIAssistant() {
               const parsed = JSON.parse(cachedThisUser);
               if (parsed && parsed.length > 0) {
                 setThreads(parsed);
-                setActiveThreadId(parsed[0].id);
-                setMsgs(parsed[0].messages || []);
+                const startFresh = auraSettings?.startupBehavior === 'New session';
+                if (startFresh) {
+                  setActiveThreadId(null);
+                  setMsgs([]);
+                } else {
+                  setActiveThreadId(parsed[0].id);
+                  setMsgs(parsed[0].messages || []);
+                }
                 return;
               }
             } catch (e) {}
@@ -130,8 +182,14 @@ export default function AIAssistant() {
             const parsed = JSON.parse(cachedThreads);
             setThreads(parsed);
             if (parsed.length > 0) {
-              setActiveThreadId(parsed[0].id);
-              setMsgs(parsed[0].messages || []);
+              const startFresh = auraSettings?.startupBehavior === 'New session';
+              if (startFresh) {
+                setActiveThreadId(null);
+                setMsgs([]);
+              } else {
+                setActiveThreadId(parsed[0].id);
+                setMsgs(parsed[0].messages || []);
+              }
             }
           } catch(e) {}
         }
@@ -140,7 +198,7 @@ export default function AIAssistant() {
 
     initThreads();
     return () => { isCancelled = true; };
-  }, [user?.id]);
+  }, [user?.id, threadsKey]);
 
   // Sync active thread messages
   useEffect(() => {
@@ -195,9 +253,17 @@ export default function AIAssistant() {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
-    if (file.size > 5 * 1024 * 1024) {
-      alert("File is too large! Please select a file under 5MB.");
+
+    if (auraSettings?.fileAccessEnabled === false) {
+      alert("File attachment analysis is disabled in your Aura Settings.");
+      e.target.value = '';
+      return;
+    }
+
+    const maxMb = auraSettings?.maxAttachmentSizeMb || 5;
+    if (file.size > maxMb * 1024 * 1024) {
+      alert(`File is too large! Please select a file under ${maxMb}MB.`);
+      e.target.value = '';
       return;
     }
 
@@ -244,7 +310,7 @@ export default function AIAssistant() {
       localStorage.setItem('paxly_ai_usage', JSON.stringify(usage));
     }
     
-    const userMsg = { role: 'user', content };
+    const userMsg = { role: 'user', content, timestamp: Date.now() };
     if (attachment) {
       userMsg.attachments = [{ mime_type: attachment.mime_type, data: attachment.data, preview_url: attachment.preview_url }];
     }
@@ -261,10 +327,13 @@ export default function AIAssistant() {
 
       // Global Context Injection
       let globalContext = '';
-      if (importantDates.length > 0) {
+      const isMemoryEnabled = auraSettings?.memoryEnabled ?? true;
+      const shouldRetrieveContext = auraSettings?.retrievePastContext ?? true;
+
+      if (isMemoryEnabled && importantDates.length > 0) {
         globalContext += "User's Important Dates (anniversaries, birthdays, etc): " + importantDates.map(d => `${d.title} on ${d.date}`).join(' | ') + ". ";
       }
-      if (threads.length > 0) {
+      if (isMemoryEnabled && shouldRetrieveContext && threads.length > 0) {
         const otherThreads = threads.filter(t => t.id !== activeThreadId).slice(0, 3);
         let pastMsgs = [];
         otherThreads.forEach(t => {
@@ -288,11 +357,17 @@ export default function AIAssistant() {
         if (auraSettings.formality) behaviorDirectives.push(`Formality: ${auraSettings.formality}`);
         if (auraSettings.humor) behaviorDirectives.push(`Humor: ${auraSettings.humor}`);
         if (auraSettings.directness) behaviorDirectives.push(`Directness: ${auraSettings.directness}`);
+        if (auraSettings.teachingStyle) behaviorDirectives.push(`Teaching Style: ${auraSettings.teachingStyle}`);
         if (auraSettings.correctionStyle) behaviorDirectives.push(`Correction Style: ${auraSettings.correctionStyle}`);
         if (auraSettings.supportStyle) behaviorDirectives.push(`Emotional Support Style: ${auraSettings.supportStyle}`);
+        if (auraSettings.proactivity) behaviorDirectives.push(`Proactivity: ${auraSettings.proactivity}`);
+        if (auraSettings.stepByStep) behaviorDirectives.push('Step-by-step reasoning: Provide numbered structured points');
+        if (auraSettings.explanationLevel) behaviorDirectives.push(`Explanation Level: ${auraSettings.explanationLevel}`);
         if (auraSettings.language) behaviorDirectives.push(`Language preference: ${auraSettings.language}`);
         if (auraSettings.responseLength) behaviorDirectives.push(`Response length: ${auraSettings.responseLength}`);
         if (auraSettings.formatStyle) behaviorDirectives.push(`Format preference: ${auraSettings.formatStyle}`);
+        if (auraSettings.webSearchEnabled === false) behaviorDirectives.push('Web search disabled: Rely strictly on internal model knowledge');
+        if (auraSettings.deepReasoning) behaviorDirectives.push('Deep reasoning: Perform in-depth psychological analysis before concluding');
         
         if (behaviorDirectives.length > 0) {
           globalContext += "\n\nAURA PERSONALITY & BEHAVIOR DIRECTIVES:\n" + behaviorDirectives.join(' | ');
@@ -317,11 +392,21 @@ export default function AIAssistant() {
         aiRequestPayload.unshift({ role: 'system', content: globalContext });
       }
 
+      if (auraSettings?.verboseLogging) {
+        console.log('[Aura AI Request Payload]', aiRequestPayload);
+      }
+
+      const startTime = Date.now();
       const { reply } = await askAI(
         aiRequestPayload, 
         auraSettings?.modelProvider || 'Automatic',
         auraSettings?.fastResponseMode ?? true
       );
+      const durationMs = Date.now() - startTime;
+
+      if (auraSettings?.verboseLogging) {
+        console.log(`[Aura AI Response received in ${durationMs}ms]`, reply);
+      }
       
       let finalReply = reply;
       if (needsCounseling && !msgs.some(m => m.isLabPrompt)) {
@@ -346,7 +431,13 @@ export default function AIAssistant() {
       setMsgs(prev => [...prev, { 
         role: 'assistant', 
         content: finalReply,
-        isLabPrompt: needsCounseling 
+        isLabPrompt: needsCounseling,
+        timestamp: Date.now(),
+        debugMeta: {
+          model: auraSettings?.modelProvider || 'Automatic',
+          fast: auraSettings?.fastResponseMode ?? true,
+          durationMs
+        }
       }]);
     } catch (err) {
       console.error("AI Error:", err);
@@ -436,6 +527,7 @@ export default function AIAssistant() {
           setMsgs([]);
           setActiveThreadId(null);
         }}
+        userId={user?.id}
       />
 
       {/* Responsive Header Style */}
@@ -650,63 +742,89 @@ export default function AIAssistant() {
         )}
 
         {msgs.map((m, i) => (
-          <div key={i} style={{ marginBottom: 12, display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', animation: 'fadeInUp 0.3s ease-out' }}>
-            {m.role === 'assistant' && (
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
-                <Icons.Aura size={16} color="#000" />
+          <div key={i} style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', width: '100%', animation: auraSettings?.reducedMotion ? 'none' : 'fadeInUp 0.3s ease-out' }}>
+              {m.role === 'assistant' && (
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
+                  <Icons.Aura size={16} color="#000" />
+                </div>
+              )}
+              <div style={{
+                maxWidth: auraSettings?.chatWidth === 'Compact' ? '65%' : '80%',
+                padding: auraSettings?.chatDensity === 'Compact' ? '8px 12px' : '12px 18px',
+                borderRadius: auraSettings?.bubbleStyle === 'Classic' ? 14 : auraSettings?.bubbleStyle === 'Minimal Compact' ? 8 : 22,
+                borderBottomRightRadius: m.role === 'user' ? 4 : (auraSettings?.bubbleStyle === 'Classic' ? 14 : 22),
+                borderBottomLeftRadius: m.role === 'user' ? (auraSettings?.bubbleStyle === 'Classic' ? 14 : 22) : 4,
+                background: m.role === 'user' ? 'var(--accent)' : auraSettings?.bubbleStyle === 'Minimal Compact' ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.06)',
+                color: m.role === 'user' ? '#000' : '#fff',
+                border: auraSettings?.highContrastMode ? '1px solid rgba(255,255,255,0.35)' : (m.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.08)'),
+                backdropFilter: auraSettings?.bubbleStyle === 'Modern Glass' ? 'blur(16px)' : 'none',
+                fontSize: auraSettings?.fontSize === 'Small' ? '0.85rem' : auraSettings?.fontSize === 'Large' ? '1.05rem' : '0.95rem',
+                lineHeight: 1.6,
+                boxShadow: m.role === 'user' ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)',
+                whiteSpace: 'pre-wrap',
+              }}>
+                {m.attachments && m.attachments.map((a, idx) => (
+                  <div key={idx} style={{ marginBottom: m.content ? 8 : 0 }}>
+                    {a.mime_type.startsWith('image/') ? (
+                      <img src={a.preview_url || `data:${a.mime_type};base64,${a.data}`} style={{ maxWidth: '100%', borderRadius: 12, display: 'block' }} alt="attachment" />
+                    ) : (
+                      <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.1)', borderRadius: 8, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Icons.Paperclip size={14} /> Attachment ({a.mime_type.split('/')[1]})
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {m.role === 'assistant' && (auraSettings?.markdownRendering ?? true) ? (
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                ) : (
+                  m.content
+                )}
+                {auraSettings?.showTimestamps && (
+                  <div style={{ fontSize: '0.65rem', opacity: 0.5, marginTop: 4, textAlign: 'right' }}>
+                    {m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
+                {auraSettings?.debugMode && m.debugMeta && (
+                  <div style={{ fontSize: '0.62rem', background: 'rgba(255,255,255,0.08)', borderRadius: 6, padding: '2px 6px', marginTop: 4, display: 'inline-block', color: 'var(--accent)' }}>
+                    ⚡ {m.debugMeta.model} • {m.debugMeta.fast ? 'Fast LPU' : 'Standard'} • {m.debugMeta.durationMs}ms
+                  </div>
+                )}
+                {m.isPremiumPrompt && (
+                  <button onClick={() => setShowPremiumModal(true)} style={{ marginTop: 12, padding: '10px 20px', borderRadius: 20, background: '#000', color: 'var(--accent)', border: 'none', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                    Upgrade to Premium
+                  </button>
+                )}
+                {m.isLabPrompt && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                    {[7, 30, 90].map(days => (
+                      <Link key={days} to={`/ai/lab?days=${days}`} style={{ background: 'rgba(201,169,110,0.2)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px 12px', borderRadius: 10, fontSize: '0.75rem', textDecoration: 'none', fontWeight: 600 }}>
+                        {days} Days
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Follow-up suggestions */}
+            {(auraSettings?.followUpSuggestions ?? true) && m.role === 'assistant' && i === msgs.length - 1 && !loading && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, marginLeft: 38, flexWrap: 'wrap' }}>
+                {[
+                  'Aur detail me batao',
+                  'Ek practical example do',
+                  'Iska solution kya hai?'
+                ].map(chip => (
+                  <button
+                    key={chip}
+                    onClick={() => send(chip)}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '4px 10px', color: 'var(--muted)', fontSize: '0.72rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                  >
+                    {chip}
+                  </button>
+                ))}
               </div>
             )}
-            <div style={{
-              maxWidth: auraSettings?.chatWidth === 'Compact' ? '65%' : '80%',
-              padding: auraSettings?.chatDensity === 'Compact' ? '8px 12px' : '12px 18px',
-              borderRadius: auraSettings?.bubbleStyle === 'Classic' ? 14 : auraSettings?.bubbleStyle === 'Minimal Compact' ? 8 : 22,
-              borderBottomRightRadius: m.role === 'user' ? 4 : (auraSettings?.bubbleStyle === 'Classic' ? 14 : 22),
-              borderBottomLeftRadius: m.role === 'user' ? (auraSettings?.bubbleStyle === 'Classic' ? 14 : 22) : 4,
-              background: m.role === 'user' ? 'var(--accent)' : auraSettings?.bubbleStyle === 'Minimal Compact' ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.06)',
-              color: m.role === 'user' ? '#000' : '#fff',
-              border: m.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.08)',
-              backdropFilter: auraSettings?.bubbleStyle === 'Modern Glass' ? 'blur(16px)' : 'none',
-              fontSize: auraSettings?.fontSize === 'Small' ? '0.85rem' : auraSettings?.fontSize === 'Large' ? '1.05rem' : '0.95rem',
-              lineHeight: 1.6,
-              boxShadow: m.role === 'user' ? '0 6px 20px rgba(201,169,110,0.2)' : '0 4px 15px rgba(0,0,0,0.2)',
-              whiteSpace: 'pre-wrap',
-            }}>
-              {m.attachments && m.attachments.map((a, idx) => (
-                <div key={idx} style={{ marginBottom: m.content ? 8 : 0 }}>
-                  {a.mime_type.startsWith('image/') ? (
-                    <img src={a.preview_url || `data:${a.mime_type};base64,${a.data}`} style={{ maxWidth: '100%', borderRadius: 12, display: 'block' }} alt="attachment" />
-                  ) : (
-                    <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.1)', borderRadius: 8, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Icons.Paperclip size={14} /> Attachment ({a.mime_type.split('/')[1]})
-                    </div>
-                  )}
-                </div>
-              ))}
-              {m.role === 'assistant' && (auraSettings?.markdownRendering ?? true) ? (
-                <ReactMarkdown>{m.content}</ReactMarkdown>
-              ) : (
-                m.content
-              )}
-              {auraSettings?.showTimestamps && (
-                <div style={{ fontSize: '0.65rem', opacity: 0.5, marginTop: 4, textAlign: 'right' }}>
-                  {m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              )}
-              {m.isPremiumPrompt && (
-                <button onClick={() => setShowPremiumModal(true)} style={{ marginTop: 12, padding: '10px 20px', borderRadius: 20, background: '#000', color: 'var(--accent)', border: 'none', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-                  Upgrade to Premium
-                </button>
-              )}
-              {m.isLabPrompt && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                  {[7, 30, 90].map(days => (
-                    <Link key={days} to={`/ai/lab?days=${days}`} style={{ background: 'rgba(201,169,110,0.2)', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '6px 12px', borderRadius: 10, fontSize: '0.75rem', textDecoration: 'none', fontWeight: 600 }}>
-                      {days} Days
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         ))}
 
@@ -777,6 +895,11 @@ export default function AIAssistant() {
             <Icons.Send size={20} color={(text.trim() || attachment) ? '#000' : 'var(--muted)'} />
           </button>
         </div>
+        {(auraSettings?.showKeyboardShortcuts ?? true) && (
+          <div style={{ fontSize: '0.68rem', color: 'var(--muted)', textAlign: 'right', marginTop: 4, opacity: 0.7 }}>
+            Enter ↵ to send • Shift+Enter for new line
+          </div>
+        )}
       </div>
       
       {showPremiumModal && (

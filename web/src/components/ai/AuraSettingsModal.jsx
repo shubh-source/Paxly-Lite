@@ -1,128 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../ui/Icons';
 import { getAuraSettings, saveAuraSettings, resetAuraSettings, deleteAllAIThreads } from '../../services/api';
+import {
+  DEFAULT_AURA_SETTINGS,
+  getAuraSettingsStorageKey,
+  getAuraPersonalityStorageKey,
+  getAuraThreadsStorageKey,
+  validateAuraSettings
+} from '../../services/auraStorage';
 
-export const DEFAULT_AURA_SETTINGS = {
-  // 01. General
-  defaultLanguage: 'Hinglish',
-  defaultResponseLength: 'Balanced',
-  defaultAiMode: 'Auto',
-  startupBehavior: 'Restore previous session',
-  defaultLandingPage: 'Chat',
-  autoSaveConversations: true,
-  sendWithEnter: true,
-  showKeyboardShortcuts: true,
+export { DEFAULT_AURA_SETTINGS };
 
-  // 02. Personality
-  preset: 'Balanced',
-  customInstructions: '',
-  warmth: 'High',
-  formality: 'Casual',
-  humor: 'Medium',
-  directness: 'Balanced',
-  teachingStyle: 'Concept first',
-  correctionStyle: 'Gentle',
-  supportStyle: 'Reassure',
-  proactivity: 'Suggestive',
-  initiative: 'Suggestive',
-
-  // 03. Chat & Responses
-  language: 'Hinglish',
-  responseLength: 'Balanced',
-  explanationLevel: 'Adaptive',
-  formatStyle: 'Paragraphs',
-  stepByStep: true,
-  useContext: true,
-  streaming: false,
-  markdownRendering: true,
-  codeSyntaxHighlighting: true,
-  autoCodeFormatting: true,
-  showTimestamps: false,
-  followUpSuggestions: true,
-  autoConversationTitles: true,
-
-  // 04. Memory & Context
-  memoryEnabled: true,
-  autoSavePreferences: true,
-  saveProjectProgress: true,
-  retrievePastContext: true,
-  retention: 'Until deleted',
-  showMemoryReason: true,
-  confirmSensitiveMemories: true,
-
-  // 05. Voice & Real-Time
-  voiceInput: true,
-  voiceResponses: false,
-  speechSpeed: '1.0x',
-  pushToTalk: true,
-  wakeWordEnabled: false,
-  interruptSpeech: true,
-  noiseSuppression: true,
-
-  // 06. Models & Intelligence
-  modelProvider: 'Automatic',
-  fastResponseMode: true,
-  deepReasoning: false,
-  structuredOutput: true,
-  autoModelRouting: true,
-  localModelEndpoint: 'http://localhost:11434',
-  maxOutputTokens: 1000,
-  temperature: 0.7,
-
-  // 07. Tools & Automation
-  webSearchEnabled: true,
-  fileAccessEnabled: true,
-  codeExecutionEnabled: false,
-  confirmExternalActions: true,
-  confirmFileModifications: true,
-
-  // 08. Safety & Trusted Contacts
-  emotionalSupportMode: true,
-  crisisDetection: true,
-  escalationMode: 'Suggest',
-  trustedContact: '',
-  locationSharingCrisis: false,
-
-  // 09. Notifications
-  inAppNotifications: true,
-  pushNotifications: true,
-  securityAlerts: true,
-  trustedContactAlerts: true,
-  quietHoursEnabled: false,
-
-  // 10. Privacy & Security
-  dataRetention: 'Standard',
-  analyticsConsent: true,
-  secretMasking: true,
-  anonymousDiagnostics: true,
-
-  // 11. Appearance & Accessibility
-  theme: 'Dark',
-  accentColor: 'Gold',
-  fontSize: 'Medium',
-  chatDensity: 'Comfortable',
-  bubbleStyle: 'Modern Glass',
-  chatWidth: 'Standard',
-  reducedMotion: false,
-  highContrastMode: false,
-
-  // 12. Performance & Limits
-  performanceMode: 'Balanced',
-  cacheRetention: true,
-  requestTimeoutSec: 30,
-  maxAttachmentSizeMb: 5,
-
-  // 13. Activity & Diagnostics
-  logLatency: true,
-  reportErrorsSilently: true,
-
-  // 14. Advanced & Developer
-  debugMode: false,
-  verboseLogging: false,
-  customApiEndpoint: '',
-};
-
-export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, onClearAllChats }) {
+export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, onClearAllChats, userId }) {
   const [activeTab, setActiveTab] = useState('general');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -132,11 +21,15 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
   const [showDestructiveModal, setShowDestructiveModal] = useState(false);
   const [destructiveActionType, setDestructiveActionType] = useState(null); // 'reset' | 'clear_chats'
 
+  const settingsKey = getAuraSettingsStorageKey(userId);
+  const personalityKey = getAuraPersonalityStorageKey(userId);
+  const threadsKey = getAuraThreadsStorageKey(userId);
+
   const [settings, setSettings] = useState(() => {
     try {
-      const saved = localStorage.getItem('paxly_aura_comprehensive_settings');
+      const saved = localStorage.getItem(settingsKey);
       if (saved) return { ...DEFAULT_AURA_SETTINGS, ...JSON.parse(saved) };
-      const legacyPersonality = localStorage.getItem('paxly_aura_personality') || '';
+      const legacyPersonality = localStorage.getItem(personalityKey) || '';
       return { ...DEFAULT_AURA_SETTINGS, customInstructions: legacyPersonality };
     } catch {
       return DEFAULT_AURA_SETTINGS;
@@ -150,27 +43,37 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
     setLoading(true);
     setErrorMsg('');
 
+    // Pre-populate from user-isolated local cache if available
+    try {
+      const cached = localStorage.getItem(settingsKey);
+      if (cached) {
+        setSettings({ ...DEFAULT_AURA_SETTINGS, ...JSON.parse(cached) });
+      }
+    } catch (_) {}
+
     getAuraSettings()
       .then(cloudSettings => {
         if (!isMounted) return;
         if (cloudSettings && typeof cloudSettings === 'object') {
           const merged = { ...DEFAULT_AURA_SETTINGS, ...cloudSettings };
           setSettings(merged);
-          localStorage.setItem('paxly_aura_comprehensive_settings', JSON.stringify(merged));
+          localStorage.setItem(settingsKey, JSON.stringify(merged));
           if (merged.customInstructions) {
-            localStorage.setItem('paxly_aura_personality', merged.customInstructions);
+            localStorage.setItem(personalityKey, merged.customInstructions);
           }
         }
       })
       .catch(err => {
+        if (!isMounted) return;
         console.warn('Could not fetch cloud settings, using local:', err.message);
+        setErrorMsg('Offline / Cached mode: Using local device settings.');
       })
       .finally(() => {
         if (isMounted) setLoading(false);
       });
 
     return () => { isMounted = false; };
-  }, [isOpen]);
+  }, [isOpen, settingsKey, personalityKey]);
 
   if (!isOpen) return null;
 
@@ -179,8 +82,9 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
   };
 
   const handleSave = async () => {
-    if (settings.customInstructions && settings.customInstructions.length > 2500) {
-      setErrorMsg('Custom instructions cannot exceed 2500 characters.');
+    const valErrors = validateAuraSettings(settings);
+    if (valErrors.length > 0) {
+      setErrorMsg(valErrors[0]);
       return;
     }
 
@@ -190,8 +94,8 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
 
     try {
       await saveAuraSettings(settings);
-      localStorage.setItem('paxly_aura_comprehensive_settings', JSON.stringify(settings));
-      localStorage.setItem('paxly_aura_personality', settings.customInstructions || '');
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
+      localStorage.setItem(personalityKey, settings.customInstructions || '');
 
       if (onSettingsChange) onSettingsChange(settings);
       setSuccessMsg('Settings saved securely! ✓');
@@ -201,8 +105,8 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
         onClose();
       }, 700);
     } catch (err) {
-      localStorage.setItem('paxly_aura_comprehensive_settings', JSON.stringify(settings));
-      localStorage.setItem('paxly_aura_personality', settings.customInstructions || '');
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
+      localStorage.setItem(personalityKey, settings.customInstructions || '');
       if (onSettingsChange) onSettingsChange(settings);
       setErrorMsg(err.response?.data?.detail || 'Failed to sync to cloud. Saved on this device.');
     } finally {
@@ -213,42 +117,36 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
   const executeDestructiveAction = async () => {
     if (destructiveActionType === 'reset') {
       setSaving(true);
+      setErrorMsg('');
       try {
         await resetAuraSettings();
         setSettings(DEFAULT_AURA_SETTINGS);
-        localStorage.setItem('paxly_aura_comprehensive_settings', JSON.stringify(DEFAULT_AURA_SETTINGS));
-        localStorage.setItem('paxly_aura_personality', '');
+        localStorage.setItem(settingsKey, JSON.stringify(DEFAULT_AURA_SETTINGS));
+        localStorage.setItem(personalityKey, '');
         if (onSettingsChange) onSettingsChange(DEFAULT_AURA_SETTINGS);
         setSuccessMsg('All settings restored to defaults! ✓');
         setTimeout(() => setSuccessMsg(''), 1200);
       } catch (err) {
-        setSettings(DEFAULT_AURA_SETTINGS);
-        localStorage.setItem('paxly_aura_comprehensive_settings', JSON.stringify(DEFAULT_AURA_SETTINGS));
+        setErrorMsg(err.response?.data?.detail || 'Failed to reset cloud settings.');
       } finally {
         setSaving(false);
         setShowDestructiveModal(false);
       }
     } else if (destructiveActionType === 'clear_chats') {
       setSaving(true);
+      setErrorMsg('');
       try {
         await deleteAllAIThreads();
-        // Purge all legacy and user-isolated thread cache entries
-        Object.keys(localStorage).forEach(k => {
-          if (k.startsWith('paxly_aura_threads') || k === 'paxly_aura_chat_history') {
-            localStorage.removeItem(k);
-          }
-        });
+        localStorage.removeItem(threadsKey);
+        localStorage.removeItem('paxly_aura_threads');
+        localStorage.removeItem('paxly_aura_chat_history');
         if (onClearAllChats) onClearAllChats();
         setSuccessMsg('All chat history permanently deleted! ✓');
         setTimeout(() => setSuccessMsg(''), 1500);
       } catch (err) {
-        Object.keys(localStorage).forEach(k => {
-          if (k.startsWith('paxly_aura_threads') || k === 'paxly_aura_chat_history') {
-            localStorage.removeItem(k);
-          }
-        });
+        localStorage.removeItem(threadsKey);
         if (onClearAllChats) onClearAllChats();
-        setErrorMsg('Cleared local chats. (Cloud sync error: ' + (err.message || 'offline') + ')');
+        setErrorMsg('Cleared local chats. (Cloud delete failed: ' + (err.response?.data?.detail || err.message || 'offline') + ')');
       } finally {
         setSaving(false);
         setShowDestructiveModal(false);
@@ -773,14 +671,60 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
                     <h4 style={{ margin: '0 0 4px', color: '#ff8585', fontSize: '1rem' }}>08. Safety & Trusted Contacts</h4>
                     <p style={{ margin: '0 0 16px', fontSize: '0.78rem', color: 'var(--muted, #8E8E96)' }}>Emotional distress support, crisis response and pre-authorized safety alerts.</p>
 
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: 6, fontWeight: 600 }}>Escalation Threshold</label>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: 6, fontWeight: 600 }}>Escalation Policy</label>
                       <select value={settings.escalationMode} onChange={e => updateSetting('escalationMode', e.target.value)} style={{ width: '100%', background: '#202024', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: 8, padding: '10px 12px', fontSize: '0.85rem' }}>
                         <option value="Suggest">Suggest (Aura recommends reaching out to partner/friend)</option>
-                        <option value="Ask first">Ask First (Aura explicitly asks before notifying partner)</option>
-                        <option value="Pre-authorized">Pre-authorized (Notify only in severe emergencies)</option>
+                        <option value="Ask first">Ask First (Aura explicitly prompts before alerting anyone)</option>
+                        <option value="Pre-authorized">Pre-authorized (Notify only in verified severe emergencies)</option>
                         <option value="Off">Off (Never auto-notify)</option>
                       </select>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,100,100,0.08)', border: '1px solid rgba(255,100,100,0.2)', padding: '10px 14px', borderRadius: 10, marginBottom: 16, fontSize: '0.78rem', lineHeight: 1.5, color: '#f3c0c0' }}>
+                      {settings.escalationMode === 'Pre-authorized' && (
+                        <span>⚠️ <strong>Emergency Policy Active:</strong> Aura will automatically notify your paired partner or trusted contact ONLY in verified severe emergencies (Risk 3/4). A 15-minute cooldown is strictly enforced, and private chat text is NEVER shared. Ordinary sadness or crying never triggers alerts.</span>
+                      )}
+                      {settings.escalationMode === 'Ask first' && (
+                        <span>🛡️ <strong>Consent Policy Active:</strong> Aura will never message anyone without your explicit confirmation. In moments of distress, Aura displays an interactive consent prompt asking if you'd like your partner/trusted contact notified.</span>
+                      )}
+                      {settings.escalationMode === 'Suggest' && (
+                        <span>💡 <strong>Recommendation Mode:</strong> Aura will suggest reaching out and provide immediate helpline numbers (Tele-MANAS: 14416) without initiating external alerts.</span>
+                      )}
+                      {settings.escalationMode === 'Off' && (
+                        <span>🔒 <strong>Escalation Disabled:</strong> Aura will never contact anyone or prompt for notifications under any circumstances.</span>
+                      )}
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: 14, borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)', marginBottom: 16 }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: 4 }}>Designated Trusted Contact</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted, #8E8E96)', marginBottom: 12 }}>If you are not paired with a partner, or want an emergency point-of-contact for safety alerts.</div>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: 4, color: 'var(--muted, #8E8E96)' }}>Contact Name</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Dr. Priya / Friend"
+                            value={settings.trustedContactName || ''}
+                            onChange={e => updateSetting('trustedContactName', e.target.value)}
+                            style={{ width: '100%', background: '#202024', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: 8, padding: '7px 10px', fontSize: '0.82rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: 4, color: 'var(--muted, #8E8E96)' }}>Phone or Email</label>
+                          <input
+                            type="text"
+                            placeholder="+91 98765 43210 or emergency@email.com"
+                            value={settings.trustedContactPhone || settings.trustedContact || ''}
+                            onChange={e => {
+                              updateSetting('trustedContactPhone', e.target.value);
+                              updateSetting('trustedContact', e.target.value);
+                            }}
+                            style={{ width: '100%', background: '#202024', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: 8, padding: '7px 10px', fontSize: '0.82rem' }}
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: 14, borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
