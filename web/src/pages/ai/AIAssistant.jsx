@@ -10,29 +10,12 @@ import ReactMarkdown from 'react-markdown';
 export default function AIAssistant() {
   const { user } = useAuth();
   
-  // Instant synchronous cache restoration on mount (0ms delay)
-  const [threads, setThreads] = useState(() => {
-    try {
-      const cached = localStorage.getItem('paxly_aura_threads');
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
-  });
-  
-  const [activeThreadId, setActiveThreadId] = useState(() => {
-    try {
-      const cached = localStorage.getItem('paxly_aura_threads');
-      const parsed = cached ? JSON.parse(cached) : [];
-      return parsed.length > 0 ? parsed[0].id : null;
-    } catch { return null; }
-  });
+  // User-isolated cache key helper
+  const getThreadsStorageKey = (uid) => uid ? `paxly_aura_threads_${uid}` : 'paxly_aura_threads_guest';
 
-  const [msgs, setMsgs] = useState(() => {
-    try {
-      const cached = localStorage.getItem('paxly_aura_threads');
-      const parsed = cached ? JSON.parse(cached) : [];
-      return (parsed.length > 0 && Array.isArray(parsed[0].messages)) ? parsed[0].messages : [];
-    } catch { return []; }
-  });
+  const [threads, setThreads] = useState([]);
+  const [activeThreadId, setActiveThreadId] = useState(null);
+  const [msgs, setMsgs] = useState([]);
 
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -98,8 +81,6 @@ export default function AIAssistant() {
     }).catch(() => {});
   }, [user?.is_premium]);
 
-  // User-isolated cache key helper
-  const getThreadsStorageKey = (uid) => uid ? `paxly_aura_threads_${uid}` : 'paxly_aura_threads_guest';
 
   // Load threads on mount and when user switches
   useEffect(() => {
@@ -408,7 +389,8 @@ export default function AIAssistant() {
       const idToDelete = activeThreadId;
       setThreads(prev => {
         const next = prev.filter(t => t.id !== idToDelete);
-        localStorage.setItem('paxly_aura_threads', JSON.stringify(next));
+        const threadsKey = getThreadsStorageKey(user?.id);
+        localStorage.setItem(threadsKey, JSON.stringify(next));
         return next;
       });
       setActiveThreadId(null);
