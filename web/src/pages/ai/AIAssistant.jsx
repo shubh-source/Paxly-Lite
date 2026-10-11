@@ -403,31 +403,100 @@ export default function AIAssistant() {
         </div>
       )}
 
+      {/* Responsive Header Style */}
+      <style>{`
+        .ai-assistant-header {
+          background: rgba(22,22,24,0.7);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          margin: 14px 16px 0;
+          border-radius: 20px;
+          padding: 12px 18px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+          flex-shrink: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+        }
+        .ai-header-btn {
+          transition: transform 0.15s ease, background 0.2s ease;
+        }
+        .ai-header-btn:active {
+          transform: scale(0.94);
+        }
+        @media (max-width: 640px) {
+          .ai-assistant-header {
+            margin: 8px 10px 0 !important;
+            padding: 8px 12px !important;
+            border-radius: 16px !important;
+            gap: 8px !important;
+          }
+          .ai-btn-text {
+            display: none !important;
+          }
+          .ai-header-btn.analytics-btn,
+          .ai-header-btn.lab-btn {
+            width: 34px !important;
+            height: 34px !important;
+            padding: 0 !important;
+            justify-content: center !important;
+            border-radius: 10px !important;
+          }
+        }
+      `}</style>
+
       {/* Header */}
-      <header className="header" style={{ background: 'rgba(22,22,24,0.6)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '16px 16px 0', borderRadius: '24px', padding: '14px 20px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <Link to="/dashboard" style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', textDecoration: 'none' }}><Icons.Back size={20} /></Link>
-          <button onClick={() => setIsDrawerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center', cursor: 'pointer' }}><Icons.Menu size={24} /></button>
+      <header className="ai-assistant-header">
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
+          <Link to="/dashboard" style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', textDecoration: 'none' }} title="Back to Dashboard">
+            <Icons.Back size={20} />
+          </Link>
+          <button onClick={() => setIsDrawerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center', cursor: 'pointer', padding: 0 }} title="Chat History">
+            <Icons.Menu size={22} />
+          </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Icons.Aura size={20} color="var(--accent)" /> Aura
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <Icons.Aura size={18} color="var(--accent)" /> Aura
           </span>
-          <span style={{ fontSize: '0.7rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }}></span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }}></span>
             Always here
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
           <button 
             onClick={() => setShowPersonalityModal(true)}
-            style={{ background: 'transparent', border: 'none', color: 'var(--muted)', padding: 5, cursor: 'pointer' }}
-            title="AI Personality Settings"
+            className="ai-header-btn personality-btn"
+            title="Aura Personality"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--muted)', width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <Icons.Settings size={17} />
           </button>
-          <button onClick={handleDeepAnalytics} style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600, background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer' }}>Analytics</button>
-          <Link to="/ai/lab" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', background: 'rgba(201,169,110,0.1)', padding: '6px 12px', borderRadius: 12, border: '1px solid rgba(201,169,110,0.2)' }}>Deep Lab</Link>
+          
+          <button 
+            onClick={handleDeepAnalytics} 
+            className="ai-header-btn analytics-btn"
+            title="Relationship Analytics"
+            style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600, background: 'rgba(255,255,255,0.08)', padding: '7px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            <span className="ai-btn-text">Analytics</span>
+          </button>
+
+          <Link 
+            to="/ai/lab" 
+            className="ai-header-btn lab-btn"
+            title="Aura Deep Lab"
+            style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, textDecoration: 'none', background: 'rgba(201,169,110,0.12)', padding: '7px 12px', borderRadius: 12, border: '1px solid rgba(201,169,110,0.25)', display: 'flex', alignItems: 'center', gap: 5 }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v7.31L4.62 19.4A2 2 0 0 0 6.38 22h11.24a2 2 0 0 0 1.76-2.6L14 9.31V2"></path><line x1="8.5" y1="2" x2="15.5" y2="2"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
+            <span className="ai-btn-text">Deep Lab</span>
+          </Link>
         </div>
       </header>
 
