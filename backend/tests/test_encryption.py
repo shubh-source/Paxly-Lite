@@ -241,11 +241,19 @@ def test_ciphertext_detection_structural_checks():
     # Pad to reach string length check if necessary
     assert not is_fernet_ciphertext(base64.urlsafe_b64encode(short_raw).decode())
 
-    # 5. Non-canonical Base64 encoding (rejected)
+    # 5. Non-canonical Base64 encoding and padding tests
     valid_key = Fernet.generate_key()
     valid_token = Fernet(valid_key).encrypt(b"Hello Paxly Fortress").decode()
-    # Add whitespace or invalid canonical representation
+    assert is_fernet_ciphertext(valid_token)
+    # Extra padding added
+    assert not is_fernet_ciphertext(valid_token + "=")
     assert not is_fernet_ciphertext(valid_token + "==")
+    # If valid token has trailing padding, strip it to test missing padding rejection
+    if valid_token.endswith("="):
+        unpadded_token = valid_token.rstrip("=")
+        assert not is_fernet_ciphertext(unpadded_token)
+    # Whitespace or corrupted non-base64 characters
+    assert not is_fernet_ciphertext(valid_token[:-2] + "\n\n")
 
     # 6. Length >= 73 bytes (exactly 73 bytes: 25 header + 16 AES block + 32 HMAC), but version byte is 0x81 (not 0x80)
     invalid_version_raw = bytes([0x81]) + bytes(72) # 73 bytes total, raw[0] = 0x81

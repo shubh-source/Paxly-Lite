@@ -116,9 +116,10 @@ def is_fernet_ciphertext(data: str) -> bool:
     if len(raw) < 73:
         return False
 
-    # Canonical Base64 re-encoding verification
+    # Canonical Base64 re-encoding verification:
+    # Fernet specification requires canonical URL-safe Base64 with exact padding.
     canonical_b64 = base64.urlsafe_b64encode(raw).decode("utf-8")
-    if canonical_b64.rstrip("=") != stripped.rstrip("="):
+    if canonical_b64 != stripped:
         return False
 
     # Fernet specification: Version byte MUST be 0x80
