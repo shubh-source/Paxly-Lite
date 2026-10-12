@@ -136,6 +136,8 @@ export function getAuraThreadsStorageKey(userId) {
   return userId ? `paxly_aura_threads_${userId}` : 'paxly_aura_threads_guest';
 }
 
+export const getThreadsStorageKey = getAuraThreadsStorageKey;
+
 export function clearUserBrowserStorage() {
   if (typeof localStorage === 'undefined') return;
   const fixedKeys = [

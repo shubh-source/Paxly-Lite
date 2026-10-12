@@ -9,7 +9,8 @@ import {
   DEFAULT_AURA_SETTINGS,
   getAuraSettingsStorageKey,
   getAuraPersonalityStorageKey,
-  getAuraThreadsStorageKey
+  getAuraThreadsStorageKey,
+  getThreadsStorageKey
 } from '../../services/auraStorage';
 import ReactMarkdown from 'react-markdown';
 
@@ -204,7 +205,6 @@ export default function AIAssistant() {
   // Sync active thread messages
   useEffect(() => {
     if (msgs.length === 0) return;
-    const threadsKey = getThreadsStorageKey(user?.id);
 
     if (!activeThreadId) {
       const id = 'thread_' + Date.now();
@@ -234,7 +234,7 @@ export default function AIAssistant() {
       
       api.post('/ai/threads/sync', {id: activeThreadId, title, messages: msgs}).catch(()=>{});
     }
-  }, [msgs, activeThreadId, user?.id]);
+  }, [msgs, activeThreadId, threadsKey, user?.id]);
 
   const startNewChat = () => {
     setActiveThreadId(null);
@@ -536,7 +536,6 @@ export default function AIAssistant() {
       const idToDelete = activeThreadId;
       setThreads(prev => {
         const next = prev.filter(t => t.id !== idToDelete);
-        const threadsKey = getThreadsStorageKey(user?.id);
         localStorage.setItem(threadsKey, JSON.stringify(next));
         return next;
       });

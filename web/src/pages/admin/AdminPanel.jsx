@@ -4,6 +4,14 @@ import { Icons } from '../../components/ui/Icons';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
+export function formatLogTimestamp(timestamp) {
+  if (!timestamp) return '';
+  const str = String(timestamp).trim();
+  const utcNormalized = (str.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(str)) ? str : `${str}Z`;
+  const d = new Date(utcNormalized);
+  return isNaN(d.getTime()) ? str : d.toLocaleString();
+}
+
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -332,7 +340,7 @@ export default function AdminPanel() {
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                           <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)' }}>
-                            {log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}
+                            {formatLogTimestamp(log.timestamp)}
                           </span>
                           <button
                             onClick={(e) => handleDeleteLog(log.id, e)}

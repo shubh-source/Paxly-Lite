@@ -272,7 +272,9 @@ function IntruderLogsSub({ onBack }) {
           {logs.map(log => (
             <div key={log.id} className="card" style={{ padding: 12, borderRadius: 20, background: 'rgba(255,255,255,0.03)' }}>
               <img src={log.photo_url} style={{ width: '100%', borderRadius: 12, aspectRatio: '3/4', objectFit: 'cover', marginBottom: 12, border: '1px solid rgba(255,255,255,0.1)' }} />
-              <p style={{ margin: 0, textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)' }}>{new Date(log.timestamp).toLocaleString()}</p>
+              <p style={{ margin: 0, textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)' }}>
+                {log.timestamp ? new Date(String(log.timestamp).endsWith('Z') ? log.timestamp : `${log.timestamp}Z`).toLocaleString() : ''}
+              </p>
             </div>
           ))}
           {logs.length === 0 && (

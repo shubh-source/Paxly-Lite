@@ -154,7 +154,7 @@ async def get_system_logs(
                 "url": log.url,
                 "user_id": log.user_id,
                 "ip_address": log.ip_address,
-                "timestamp": log.timestamp.isoformat() if log.timestamp else None
+                "timestamp": (log.timestamp.isoformat() + "Z") if log.timestamp else None
             }
             for log in logs
         ]
