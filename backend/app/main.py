@@ -42,7 +42,7 @@ def _sqlite_column_migrations():
         },
         "notes": {"unlock_at": "TIMESTAMP"},
         "aura_escalation_events": {
-            "user_id": "VARCHAR", "risk_level": "VARCHAR", "status": "VARCHAR DEFAULT 'pending'",
+            "user_id": "VARCHAR", "target_partner_id": "VARCHAR", "risk_level": "VARCHAR", "status": "VARCHAR DEFAULT 'pending'",
             "created_at": "TIMESTAMP", "expires_at": "TIMESTAMP", "consumed_at": "TIMESTAMP",
         },
     }
@@ -104,7 +104,7 @@ async def _migrate_postgresql(conn):
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS crisis_escalation_enabled BOOLEAN DEFAULT TRUE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_crisis_alert_at TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS aura_settings JSONB DEFAULT '{}'::jsonb",
-        "CREATE TABLE IF NOT EXISTS aura_escalation_events (id VARCHAR PRIMARY KEY, user_id VARCHAR NOT NULL REFERENCES users(id), risk_level VARCHAR NOT NULL, status VARCHAR DEFAULT 'pending', created_at TIMESTAMP NOT NULL, expires_at TIMESTAMP NOT NULL, consumed_at TIMESTAMP)",
+        "CREATE TABLE IF NOT EXISTS aura_escalation_events (id VARCHAR PRIMARY KEY, user_id VARCHAR NOT NULL REFERENCES users(id), target_partner_id VARCHAR REFERENCES users(id), risk_level VARCHAR NOT NULL, status VARCHAR DEFAULT 'pending', created_at TIMESTAMP NOT NULL, expires_at TIMESTAMP NOT NULL, consumed_at TIMESTAMP)",
         "CREATE INDEX IF NOT EXISTS ix_aura_escalation_events_user_id ON aura_escalation_events (user_id)",
         "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS user_id VARCHAR",
         "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS risk_level VARCHAR",
@@ -112,6 +112,7 @@ async def _migrate_postgresql(conn):
         "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
         "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
         "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP",
+        "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS target_partner_id VARCHAR REFERENCES users(id)",
     ]
     await conn.run_sync(Base.metadata.create_all)
     for statement in statements:

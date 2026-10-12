@@ -429,10 +429,11 @@ async def test_safety_escalation_levels_and_authorization(test_env):
         notifs_sug = (await session.execute(select(Notification).filter(Notification.user_id == "partner_sug"))).scalars().all()
         assert len(notifs_sug) == 0
 
-    # 4. RISK_3: Mode 'Ask first' -> Offers consent prompt to check in with contact
+    # 4. RISK_3: Mode 'Ask first' -> Offers consent prompt to check in with linked partner (never trusted contact)
+    await seed_user(session_factory, "partner_ask", "Priya", "priya@test.com", partner_id="u_ask")
     token_ask = await seed_user(
         session_factory, "u_ask", "AskUser", "ask@test.com", partner_id="partner_ask",
-        aura_settings={"escalationMode": "Ask first", "trustedContactName": "Priya"}
+        aura_settings={"escalationMode": "Ask first", "trustedContactName": "External Doctor"}
     )
     res_ask = await client.post(
         "/api/ai/chat",
@@ -443,6 +444,7 @@ async def test_safety_escalation_levels_and_authorization(test_env):
     reply_ask = res_ask.json()["reply"]
     assert "Tele-MANAS" in reply_ask
     assert "Priya" in reply_ask
+    assert "External Doctor" not in reply_ask
     assert "gentle care check-in message" in reply_ask
 
     async with session_factory() as session:

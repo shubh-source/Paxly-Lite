@@ -1352,14 +1352,13 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
     # Default safety policy: ordinary sadness/crying (RISK_0/1/2) DOES NOT auto-notify.
     user_settings = cu.aura_settings or {}
     escalation_mode = user_settings.get("escalationMode", "Suggest")
-    raw_trusted_contact = (user_settings.get("trustedContact") or "").strip()
-    trusted_contact_name = (user_settings.get("trustedContactName") or "").strip()
-    trusted_contact_phone = (user_settings.get("trustedContactPhone") or raw_trusted_contact).strip()
     
-    # Pre-authorized escalation ONLY triggers on verified severe crisis (RISK_3 / RISK_4) with a verified recipient
+    # Pre-authorized escalation ONLY triggers on verified severe crisis (RISK_3 / RISK_4) with a verified linked partner
+    # Product Rule: Safety alert notifications must go exclusively to the user's linked partner.
+    # Trusted contacts in settings are reference-only and must never be treated as an alert destination.
     is_crisis_level = runtime_state.safety.risk_level in ["RISK_3", "RISK_4"]
-    has_verified_recipient = bool(cu.partner_id or (trusted_contact_phone and len(trusted_contact_phone) >= 7))
-    authorized_for_auto_alert = (escalation_mode == "Pre-authorized" and is_crisis_level and has_verified_recipient)
+    has_verified_partner = bool(cu.partner_id)
+    authorized_for_auto_alert = (escalation_mode == "Pre-authorized" and is_crisis_level and has_verified_partner)
 
     if authorized_for_auto_alert and getattr(cu, "crisis_escalation_enabled", True):
         # Atomic 15-minute anti-spam cooldown acquisition (prevents concurrent race duplicates)
@@ -1420,8 +1419,10 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         contact_label = None
 
         # Implement explicit "Ask first" confirmation consent flow
-        if escalation_mode == "Ask first" and is_crisis_level and has_verified_recipient:
-            contact_label = trusted_contact_name or (trusted_contact_phone if trusted_contact_phone else partner_name)
+        # In accordance with Paxly Lite architecture: safety check-in alerts go exclusively to the user's linked partner.
+        # Trusted contacts in settings are reference-only and never receive notifications.
+        if escalation_mode == "Ask first" and is_crisis_level and has_verified_partner:
+            contact_label = partner_name or "your partner"
             intervention_text += f"\n\n Agar aap chahein, toh kya main {contact_label} ko ek gentle care check-in message bhejkar bata doon?"
 
             # Persist an unconsumed server-side escalation event valid for 10 minutes
@@ -1429,6 +1430,7 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
             new_event = AuraEscalationEvent(
                 id=event_id,
                 user_id=cu.id,
+                target_partner_id=cu.partner_id,
                 risk_level=runtime_state.safety.risk_level,
                 status="pending",
                 created_at=datetime.utcnow(),
@@ -2132,7 +2134,6 @@ async def confirm_safety_escalation(
             "alert_sent": False
         }
 
-    # 3. Partner verification
     if not cu.partner_id:
         return {
             "status": "no_partner",
@@ -2140,12 +2141,47 @@ async def confirm_safety_escalation(
             "alert_sent": False
         }
 
-    # 4. Atomic conditional event consumption (prevents concurrent race duplicates)
+    if not event_record.target_partner_id:
+        return {
+            "status": "invalid_target",
+            "message": "This safety check-in prompt lacks a valid linked partner target. Please speak with Aura again if you need immediate support.",
+            "alert_sent": False
+        }
+
+    if cu.partner_id != event_record.target_partner_id:
+        return {
+            "status": "partner_changed",
+            "message": "Your linked partner has changed since this care check-in was requested. Aura requires a fresh conversation and consent to notify your current partner.",
+            "alert_sent": False
+        }
+
+    partner_res = await db.execute(select(User).filter(User.id == event_record.target_partner_id))
+    partner_user = partner_res.scalars().first()
+    if not partner_user:
+        return {
+            "status": "no_partner",
+            "message": "The linked partner account could not be found. If you need support right now, please reach out to emergency helplines directly: Tele-MANAS (14416 / 1800-891-4416) or National Emergency (112).",
+            "alert_sent": False
+        }
+
+    # 4. Check user cooldown before event consumption (preserves pending state if cooldown active)
+    cooldown_cutoff = now_utc - timedelta(minutes=15)
+    if cu.last_crisis_alert_at and cu.last_crisis_alert_at >= cooldown_cutoff:
+        elapsed_sec = (now_utc - cu.last_crisis_alert_at).total_seconds()
+        remaining_mins = max(1, 15 - int(elapsed_sec // 60))
+        return {
+            "status": "cooldown_active",
+            "message": f"A care check-in alert was already sent recently. Cooldown is active for another {remaining_mins} minute(s) to prevent duplicate alerts.",
+            "alert_sent": False
+        }
+
+    # 5. Atomic conditional event consumption (prevents concurrent race duplicates on same event)
     consume_stmt = (
         update(AuraEscalationEvent)
         .where(
             AuraEscalationEvent.id == event_id,
             AuraEscalationEvent.user_id == cu.id,
+            AuraEscalationEvent.target_partner_id == cu.partner_id,
             AuraEscalationEvent.status == "pending",
             AuraEscalationEvent.expires_at > now_utc
         )
@@ -2163,12 +2199,18 @@ async def confirm_safety_escalation(
             "alert_sent": False
         }
 
-    # 5. Atomic conditional 15-minute anti-spam cooldown update
-    cooldown_cutoff = now_utc - timedelta(minutes=15)
+    cu_id = cu.id
+    target_partner_id = event_record.target_partner_id
+
+    # 6. Atomic conditional 15-minute anti-spam cooldown update & partner verification
+    # Enforces at DB level:
+    # 1) User still matches target_partner_id (prevents race with concurrent unlink/relink)
+    # 2) Cooldown is either null or past the 15-minute window (prevents cross-event race)
     cooldown_stmt = (
         update(User)
         .where(
-            User.id == cu.id,
+            User.id == cu_id,
+            User.partner_id == target_partner_id,
             or_(
                 User.last_crisis_alert_at.is_(None),
                 User.last_crisis_alert_at < cooldown_cutoff
@@ -2178,24 +2220,31 @@ async def confirm_safety_escalation(
     )
     cooldown_res = await db.execute(cooldown_stmt)
     if cooldown_res.rowcount == 0:
-        # Cooldown active! (Or concurrent request dispatched first)
-        await db.commit()
-        remaining_mins = 15
-        if cu.last_crisis_alert_at:
-            elapsed_sec = (now_utc - cu.last_crisis_alert_at).total_seconds()
-            remaining_mins = max(1, 15 - int(elapsed_sec // 60))
+        # Acquisition failed! Either cooldown is active OR partner relationship changed concurrently.
+        # Roll back event consumption immediately so the event remains pending.
+        await db.rollback()
+
+        # Check latest persisted state of user to provide accurate status
+        check_user = (await db.execute(select(User).filter(User.id == cu_id))).scalars().first()
+        if not check_user or check_user.partner_id != target_partner_id:
+            return {
+                "status": "partner_changed",
+                "message": "Your linked partner has changed since this care check-in was requested. Aura requires a fresh conversation and consent to notify your current partner.",
+                "alert_sent": False
+            }
+
         return {
             "status": "cooldown_active",
-            "message": f"A care check-in alert was already sent recently. Cooldown is active for another {remaining_mins} minute(s) to prevent duplicate alerts.",
+            "message": "A care check-in alert was already sent recently. Cooldown is active for another 15 minute(s) to prevent duplicate alerts.",
             "alert_sent": False
         }
 
-    # 6. Create minimal privacy-safe notification (ZERO private chat text or transcripts)
+    # 7. Create minimal privacy-safe notification (ZERO private chat text or transcripts)
     alert_title = "Aura Safety Alert 🚨"
     alert_body = f"{cu.name or 'Your partner'} is experiencing severe emotional distress right now and needs your care and presence. Please check in on them."
 
     db.add(Notification(
-        user_id=cu.partner_id,
+        user_id=event_record.target_partner_id,
         type="safety_alert",
         title=alert_title,
         body=alert_body,
@@ -2204,14 +2253,15 @@ async def confirm_safety_escalation(
             "escalated_at": now_utc.isoformat(),
             "recipient": "partner",
             "event_id": event_id,
+            "target_partner_id": event_record.target_partner_id,
             "delivery_status": "in_app"
         }
     ))
 
-    # 7. Push via WebSocket to partner if online
+    # 8. Push via WebSocket to partner if online
     ws_delivered = False
     try:
-        await manager.send_to_user(cu.partner_id, {
+        await manager.send_to_user(event_record.target_partner_id, {
             "type": "safety_alert",
             "title": alert_title,
             "body": alert_body,
@@ -2228,8 +2278,8 @@ async def confirm_safety_escalation(
         "status": "alert_sent",
         "alert_sent": True,
         "recipient": "partner",
-        "partner_id": cu.partner_id,
+        "partner_id": event_record.target_partner_id,
         "delivery_method": "in_app_and_websocket" if ws_delivered else "in_app",
         "timestamp": now_utc.isoformat(),
-        "trusted_contact_note": "Trusted emergency contacts (phone/email) are reference-only. Direct SMS/email gateway is not configured."
+        "trusted_contact_note": "Aura safety alerts are delivered exclusively to your linked partner. Trusted contact details are personal reference only."
     }

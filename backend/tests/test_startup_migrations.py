@@ -35,7 +35,7 @@ async def test_sqlite_startup_migrations_add_legacy_columns_and_are_idempotent(t
             assert "sender_name" in schema["messages"]
             assert {"aura_settings", "last_crisis_alert_at", "crisis_escalation_enabled"} <= schema["users"]
             assert {
-                "user_id", "risk_level", "status", "created_at", "expires_at", "consumed_at"
+                "user_id", "target_partner_id", "risk_level", "status", "created_at", "expires_at", "consumed_at"
             } <= schema["aura_escalation_events"]
 
             await conn.execute(text("INSERT INTO users (id) VALUES ('migration_default_check')"))
