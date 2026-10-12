@@ -11,6 +11,24 @@ import {
 
 export { DEFAULT_AURA_SETTINGS };
 
+const CATEGORIES = [
+  { id: 'general', num: '01', label: 'General', icon: '⚙️', desc: 'Startup, defaults & behavior' },
+  { id: 'personality', num: '02', label: 'Personality', icon: '🧠', desc: 'Tone, warmth & teaching style' },
+  { id: 'chat', num: '03', label: 'Chat & Responses', icon: '💬', desc: 'Formatting & response length' },
+  { id: 'memory', num: '04', label: 'Memory & Context', icon: '💾', desc: 'Saved memory & continuity' },
+  { id: 'voice', num: '05', label: 'Voice & Real-Time', icon: '🎙️', desc: 'Speech, TTS & voice input' },
+  { id: 'models', num: '06', label: 'Models & Intelligence', icon: '⚡', desc: 'AI engines & reasoning modes' },
+  { id: 'tools', num: '07', label: 'Tools & Automation', icon: '🛠️', desc: 'Search, file & task execution' },
+  { id: 'safety', num: '08', label: 'Safety & Trusted Contacts', icon: '🛡️', desc: 'Crisis support & alert policies' },
+  { id: 'notifications', num: '09', label: 'Notifications', icon: '🔔', desc: 'Alerts, push & quiet hours' },
+  { id: 'privacy', num: '10', label: 'Privacy & Security', icon: '🔒', desc: 'Isolation & data controls' },
+  { id: 'appearance', num: '11', label: 'Appearance & Accessibility', icon: '🎨', desc: 'Themes, density & fonts' },
+  { id: 'performance', num: '12', label: 'Performance & Limits', icon: '🚀', desc: 'Speed modes, timeouts & limits' },
+  { id: 'activity', num: '13', label: 'Activity & Diagnostics', icon: '📊', desc: 'Logs, latency & system health' },
+  { id: 'advanced', num: '14', label: 'Advanced & Developer', icon: '💻', desc: 'Endpoints, debug & flags' },
+  { id: 'about', num: '15', label: 'About Aura', icon: '✨', desc: 'Version, engine details & licenses' },
+];
+
 export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, onClearAllChats, userId }) {
   const [activeTab, setActiveTab] = useState('general');
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,6 +92,12 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
 
     return () => { isMounted = false; };
   }, [isOpen, settingsKey, personalityKey]);
+
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) return CATEGORIES;
+    const q = searchQuery.toLowerCase();
+    return CATEGORIES.filter(c => c.label.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q));
+  }, [searchQuery]);
 
   if (!isOpen) return null;
 
@@ -153,30 +177,6 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
       }
     }
   };
-
-  const categories = [
-    { id: 'general', num: '01', label: 'General', icon: '⚙️', desc: 'Startup, defaults & behavior' },
-    { id: 'personality', num: '02', label: 'Personality', icon: '🧠', desc: 'Tone, warmth & teaching style' },
-    { id: 'chat', num: '03', label: 'Chat & Responses', icon: '💬', desc: 'Formatting & response length' },
-    { id: 'memory', num: '04', label: 'Memory & Context', icon: '💾', desc: 'Saved memory & continuity' },
-    { id: 'voice', num: '05', label: 'Voice & Real-Time', icon: '🎙️', desc: 'Speech, TTS & voice input' },
-    { id: 'models', num: '06', label: 'Models & Intelligence', icon: '⚡', desc: 'AI engines & reasoning modes' },
-    { id: 'tools', num: '07', label: 'Tools & Automation', icon: '🛠️', desc: 'Search, file & task execution' },
-    { id: 'safety', num: '08', label: 'Safety & Trusted Contacts', icon: '🛡️', desc: 'Crisis support & alert policies' },
-    { id: 'notifications', num: '09', label: 'Notifications', icon: '🔔', desc: 'Alerts, push & quiet hours' },
-    { id: 'privacy', num: '10', label: 'Privacy & Security', icon: '🔒', desc: 'Isolation & data controls' },
-    { id: 'appearance', num: '11', label: 'Appearance & Accessibility', icon: '🎨', desc: 'Themes, density & fonts' },
-    { id: 'performance', num: '12', label: 'Performance & Limits', icon: '🚀', desc: 'Speed modes, timeouts & limits' },
-    { id: 'activity', num: '13', label: 'Activity & Diagnostics', icon: '📊', desc: 'Logs, latency & system health' },
-    { id: 'advanced', num: '14', label: 'Advanced & Developer', icon: '💻', desc: 'Endpoints, debug & flags' },
-    { id: 'about', num: '15', label: 'About Aura', icon: '✨', desc: 'Version, engine details & licenses' },
-  ];
-
-  const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return categories;
-    const q = searchQuery.toLowerCase();
-    return categories.filter(c => c.label.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q));
-  }, [searchQuery]);
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px', backdropFilter: 'blur(12px)' }}>
