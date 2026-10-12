@@ -1328,4 +1328,49 @@ async def test_partner_relationship_race_conditional_update_rollback(test_env, m
         assert len(notifs_charlie) == 0
 
 
+@pytest.mark.asyncio
+async def test_auto_escalation_risk4_unlink_relink_race_protection(test_env, monkeypatch):
+    """
+    Verifies that for automatic RISK_4 escalation:
+    If a user's partner relationship changes concurrently right before auto-cooldown acquisition:
+    1. The atomic cooldown UPDATE affects zero rows because User.partner_id != cu_partner_id.
+    2. Zero notifications are inserted or sent.
+    3. Old partner and new partner receive ZERO notifications.
+    """
+    client = test_env["client"]
+    token_alice, _, _ = await seed_users(test_env["session_factory"])
 
+    from sqlalchemy import update
+    orig_execute = AsyncSession.execute
+
+    # Hook db.execute during ai_chat to simulate Alice unlinking or relinking right before auto-cooldown runs
+    async def hooked_execute(self, statement, *args, **kwargs):
+        stmt_str = str(statement)
+        if "users" in stmt_str and "last_crisis_alert_at" in stmt_str and "UPDATE" in stmt_str:
+            # Change Alice's partner_id in DB before the update runs
+            await orig_execute(
+                self,
+                update(User).where(User.id == "user_alice").values(partner_id="user_charlie")
+            )
+        return await orig_execute(self, statement, *args, **kwargs)
+
+    monkeypatch.setattr(AsyncSession, "execute", hooked_execute)
+
+    res = await client.post(
+        "/api/ai/chat",
+        headers={"Authorization": f"Bearer {token_alice}"},
+        json={"messages": [{"role": "user", "content": "I am going to kill myself tonight"}]}
+    )
+    assert res.status_code == 200
+
+    # Verify ZERO notifications inserted for Bob or Charlie
+    async with test_env["session_factory"]() as session:
+        notifs_bob = (await session.execute(
+            select(Notification).filter(Notification.user_id == "user_bob")
+        )).scalars().all()
+        assert len(notifs_bob) == 0
+
+        notifs_charlie = (await session.execute(
+            select(Notification).filter(Notification.user_id == "user_charlie")
+        )).scalars().all()
+        assert len(notifs_charlie) == 0

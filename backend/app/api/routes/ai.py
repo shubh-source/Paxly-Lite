@@ -1348,26 +1348,45 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         context_data={"couple_space_id": cu.couple_space_id, "is_premium": cu.is_premium}
     )
 
-    # Part 57 Crisis & Distress Escalation: Trigger safety notification ONLY if explicitly authorized
-    # Default safety policy: ordinary sadness/crying (RISK_0/1/2) DOES NOT auto-notify.
+    # Part 57 Crisis & Distress Escalation:
+    # 1. RISK_4 (Imminent suicide / active harm): Automatically attempt a generic safety alert to the currently
+    #    linked partner without waiting for consent, ONLY when crisis escalation is enabled and mode != 'Off'.
+    # 2. RISK_3 (Self-harm / suicide ideation without imminent plan): Preserves the 'Ask first' consent flow
+    #    unless user explicitly configured 'Pre-authorized'.
+    # 3. Off: Suppresses all outbound safety alerts (both RISK_3 and RISK_4). Continues empathetic support and emergency helplines.
+    # 4. Never alert a trusted contact or arbitrary recipient (exclusively server-resolved linked partner).
+    # 5. Zero private chat content, transcripts, or quotes in notification.
+    # 6. Active 15-minute anti-spam cooldown and partner link atomically verified at DB level.
     user_settings = cu.aura_settings or {}
     escalation_mode = user_settings.get("escalationMode", "Suggest")
+    is_crisis_escalation_enabled = getattr(cu, "crisis_escalation_enabled", True) and (escalation_mode != "Off")
     
-    # Pre-authorized escalation ONLY triggers on verified severe crisis (RISK_3 / RISK_4) with a verified linked partner
-    # Product Rule: Safety alert notifications must go exclusively to the user's linked partner.
-    # Trusted contacts in settings are reference-only and must never be treated as an alert destination.
-    is_crisis_level = runtime_state.safety.risk_level in ["RISK_3", "RISK_4"]
+    is_imminent_risk = runtime_state.safety.risk_level == "RISK_4"
+    is_moderate_risk = runtime_state.safety.risk_level == "RISK_3"
     has_verified_partner = bool(cu.partner_id)
-    authorized_for_auto_alert = (escalation_mode == "Pre-authorized" and is_crisis_level and has_verified_partner)
 
-    if authorized_for_auto_alert and getattr(cu, "crisis_escalation_enabled", True):
-        # Atomic 15-minute anti-spam cooldown acquisition (prevents concurrent race duplicates)
+    # Determine whether an automatic alert should be attempted immediately
+    should_attempt_auto_alert = (
+        is_crisis_escalation_enabled
+        and has_verified_partner
+        and (
+            is_imminent_risk
+            or (is_moderate_risk and escalation_mode == "Pre-authorized")
+        )
+    )
+
+    auto_alert_dispatched = False
+    if should_attempt_auto_alert:
         now_auto = datetime.utcnow()
         auto_cooldown_cutoff = now_auto - timedelta(minutes=15)
+        cu_partner_id = cu.partner_id
+
+        # Atomic 15-minute anti-spam cooldown acquisition with DB-level partner verification
         auto_cooldown_stmt = (
             update(User)
             .where(
                 User.id == cu.id,
+                User.partner_id == cu_partner_id,
                 or_(
                     User.last_crisis_alert_at.is_(None),
                     User.last_crisis_alert_at < auto_cooldown_cutoff
@@ -1377,40 +1396,38 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         )
         auto_cooldown_res = await db.execute(auto_cooldown_stmt)
         if auto_cooldown_res.rowcount > 0:
-            alert_title = runtime_state.safety.partner_alert_title or "Aura Care Alert 💜"
-            alert_body = runtime_state.safety.partner_alert_body or f"{cu.name} is in critical distress and may need emergency support."
-            delivery_status = "persisted_in_app"
+            alert_title = runtime_state.safety.partner_alert_title or "Aura Safety Alert 🚨"
+            alert_body = runtime_state.safety.partner_alert_body or f"{cu.name or 'Your partner'} is in critical distress and may need emergency support. Please check in on them."
             
-            # 1. Save in-app notification to DB for partner (ZERO private chat logs shared)
-            if cu.partner_id:
-                db.add(Notification(
-                    user_id=cu.partner_id,
-                    type="safety_alert",
-                    title=alert_title,
-                    body=alert_body,
-                    data={
-                        "risk_level": runtime_state.safety.risk_level, 
-                        "escalated_at": now_auto.isoformat(),
-                        "recipient": "partner",
-                        "delivery_status": "queued"
-                    }
-                ))
+            # 1. Save generic in-app notification to DB for linked partner (ZERO private chat logs shared)
+            db.add(Notification(
+                user_id=cu_partner_id,
+                type="safety_alert",
+                title=alert_title,
+                body=alert_body,
+                data={
+                    "risk_level": runtime_state.safety.risk_level,
+                    "escalated_at": now_auto.isoformat(),
+                    "recipient": "partner",
+                    "delivery_status": "queued"
+                }
+            ))
             
+            # Commit notification before any WebSocket transmission
             await db.commit()
+            auto_alert_dispatched = True
 
             # 2. Push real-time alert via WebSocket to partner if online
-            if cu.partner_id:
-                try:
-                    await manager.send_to_user(cu.partner_id, {
-                        "type": "safety_alert",
-                        "title": alert_title,
-                        "body": alert_body,
-                        "risk_level": runtime_state.safety.risk_level,
-                        "timestamp": now_auto.isoformat()
-                    })
-                    delivery_status = "delivered_via_websocket"
-                except Exception as ws_err:
-                    print(f"Crisis WS push error: {sanitize_ai_error(str(ws_err))}")
+            try:
+                await manager.send_to_user(cu_partner_id, {
+                    "type": "safety_alert",
+                    "title": alert_title,
+                    "body": alert_body,
+                    "risk_level": runtime_state.safety.risk_level,
+                    "timestamp": now_auto.isoformat()
+                })
+            except Exception as ws_err:
+                print(f"Crisis WS push error: {sanitize_ai_error(str(ws_err))}")
 
     if runtime_state.safety.requires_intervention and runtime_state.safety.safety_message:
         intervention_text = runtime_state.safety.safety_message
@@ -1418,10 +1435,9 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         requires_consent = False
         contact_label = None
 
-        # Implement explicit "Ask first" confirmation consent flow
-        # In accordance with Paxly Lite architecture: safety check-in alerts go exclusively to the user's linked partner.
-        # Trusted contacts in settings are reference-only and never receive notifications.
-        if escalation_mode == "Ask first" and is_crisis_level and has_verified_partner:
+        # Offer Ask-first consent flow ONLY for RISK_3 when not already auto-alerted and user is linked
+        # If RISK_4 occurred, partner was either auto-alerted or cooldown/Off applied; no redundant consent event is created.
+        if is_moderate_risk and escalation_mode == "Ask first" and has_verified_partner:
             contact_label = partner_name or "your partner"
             intervention_text += f"\n\n Agar aap chahein, toh kya main {contact_label} ko ek gentle care check-in message bhejkar bata doon?"
 

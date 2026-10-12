@@ -12,7 +12,7 @@ from sqlalchemy.future import select
 
 from app.core.database import Base, get_db
 import app.main as main_module
-from app.models.orm import User, Notification
+from app.models.orm import User, Notification, AuraEscalationEvent
 from app.core.security import create_access_token
 from app.api.routes.ai import (
     generate_ai_text,
@@ -479,6 +479,8 @@ async def test_safety_escalation_levels_and_authorization(test_env):
     )
     assert res_pre.status_code == 200
     assert "112" in res_pre.json()["reply"]
+    assert res_pre.json()["requires_consent"] is False
+    assert res_pre.json()["escalation_event_id"] is None
 
     # Verify notification in database
     async with session_factory() as session:
@@ -502,3 +504,69 @@ async def test_safety_escalation_levels_and_authorization(test_env):
     async with session_factory() as session:
         notifs_cooldown = (await session.execute(select(Notification).filter(Notification.user_id == "partner_arjun"))).scalars().all()
         assert len(notifs_cooldown) == 1  # Still 1, cooldown prevented duplicate notification
+
+    # 7. RISK_4 + 'Ask first' + linked partner -> AUTOMATIC generic alert without consent prompt
+    token_ask_risk4 = await seed_user(
+        session_factory, "u_ask4", "Kavya", "kavya@test.com", partner_id="partner_kavya",
+        aura_settings={"escalationMode": "Ask first"}
+    )
+    res_ask4 = await client.post(
+        "/api/ai/chat",
+        json={"messages": [{"role": "user", "content": "I am going to kill myself tonight"}]},
+        headers={"Authorization": f"Bearer {token_ask_risk4}"}
+    )
+    assert res_ask4.status_code == 200
+    assert "112" in res_ask4.json()["reply"]
+    assert res_ask4.json()["requires_consent"] is False
+    assert res_ask4.json()["escalation_event_id"] is None
+    assert "gentle care check-in message" not in res_ask4.json()["reply"]
+
+    async with session_factory() as session:
+        notifs_kavya = (await session.execute(select(Notification).filter(Notification.user_id == "partner_kavya"))).scalars().all()
+        assert len(notifs_kavya) == 1
+        assert notifs_kavya[0].type == "safety_alert"
+        assert "Kavya" in notifs_kavya[0].body
+        assert "kill myself" not in notifs_kavya[0].body
+        # Verify 0 pending escalation events were created
+        events_kavya = (await session.execute(select(AuraEscalationEvent).filter(AuraEscalationEvent.user_id == "u_ask4"))).scalars().all()
+        assert len(events_kavya) == 0
+
+    # 8. RISK_4 + 'Off' + linked partner -> SUPPRESSES all outbound alerts & no consent event
+    token_off_risk4 = await seed_user(
+        session_factory, "u_off4", "Rohan", "rohan@test.com", partner_id="partner_rohan",
+        aura_settings={"escalationMode": "Off"}
+    )
+    res_off4 = await client.post(
+        "/api/ai/chat",
+        json={"messages": [{"role": "user", "content": "I am going to kill myself tonight"}]},
+        headers={"Authorization": f"Bearer {token_off_risk4}"}
+    )
+    assert res_off4.status_code == 200
+    assert "112" in res_off4.json()["reply"]
+    assert res_off4.json()["requires_consent"] is False
+    assert res_off4.json()["escalation_event_id"] is None
+
+    async with session_factory() as session:
+        notifs_rohan = (await session.execute(select(Notification).filter(Notification.user_id == "partner_rohan"))).scalars().all()
+        assert len(notifs_rohan) == 0
+        events_rohan = (await session.execute(select(AuraEscalationEvent).filter(AuraEscalationEvent.user_id == "u_off4"))).scalars().all()
+        assert len(events_rohan) == 0
+
+    # 9. RISK_4 + Unlinked user (partner_id=None) -> ZERO alerts sent, no fallback recipient
+    token_solo_risk4 = await seed_user(
+        session_factory, "u_solo4", "Solo4", "solo4@test.com", partner_id=None,
+        aura_settings={"escalationMode": "Ask first", "trustedContact": "9876543210"}
+    )
+    res_solo4 = await client.post(
+        "/api/ai/chat",
+        json={"messages": [{"role": "user", "content": "marne ja raha hu"}]},
+        headers={"Authorization": f"Bearer {token_solo_risk4}"}
+    )
+    assert res_solo4.status_code == 200
+    assert "112" in res_solo4.json()["reply"]
+    assert res_solo4.json()["requires_consent"] is False
+    assert res_solo4.json()["escalation_event_id"] is None
+
+    async with session_factory() as session:
+        all_notifs_after = (await session.execute(select(Notification).filter(Notification.user_id == "9876543210"))).scalars().all()
+        assert len(all_notifs_after) == 0
