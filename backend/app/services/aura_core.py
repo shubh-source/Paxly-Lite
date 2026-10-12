@@ -78,12 +78,174 @@ class InputParser:
 
 class EmotionEngine:
     def detect(self, input_obj: InputObject, context: Dict[str, Any]) -> EmotionState:
-        return EmotionState()
+        text = input_obj.raw_content.lower().strip()
+        if not text:
+            return EmotionState()
+
+        signals = []
+        sarcasm_detected = False
+        hesitation = False
+
+        # Sarcasm / ambiguity cues (e.g. inverted emojis, contradictory praise)
+        sarcasm_patterns = [
+            "🙃", "ironic", "/s", "waah kya", "bohot khoob", "wah kya baat",
+            "great job, not", "thanks for nothing", "kya baat hai bhai", "just great..."
+        ]
+        if any(pat in text for pat in sarcasm_patterns):
+            sarcasm_detected = True
+            signals.append("ambiguous_or_sarcastic_tone")
+
+        # Hesitation cues (e.g. ellipses, filler words)
+        if "..." in text or " um " in f" {text} " or " uh " in f" {text} " or "shayad" in text:
+            hesitation = True
+            signals.append("hesitation_detected")
+
+        # Sadness / Grief / Loneliness
+        sadness_keywords = [
+            "sad", "upset", "crying", "depressed", "udaas", "dard", "hurt",
+            "lonely", "broken", "toot gaya", "toot gayi", "akela", "akele",
+            "hopeless", "feeling down", "dil toot", "rone ka mann"
+        ]
+        # Frustration / Anger
+        frustration_keywords = [
+            "angry", "annoyed", "frustrated", "gussa", "irritated", "pissed",
+            "bakwaas", "dimag kharab", "fed up"
+        ]
+        # Anxiety / Fear
+        anxiety_keywords = [
+            "anxious", "nervous", "scared", "fear", "tension", "dar lag raha",
+            "panic", "worried", "anxiety", "ghabrahat", "bechain"
+        ]
+        # Affection / Gratitude / Joy
+        affection_keywords = [
+            "love you", "thank you", "thanks", "grateful", "happy", "khush",
+            "excited", "sukoon", "loved", "pyar", "acha laga", "proud of you"
+        ]
+
+        if any(k in text for k in sadness_keywords):
+            intensity = 0.7 if any(w in text for w in ["bohot", "very", "extremely", "too"]) else 0.5
+            vulnerability = "high" if intensity >= 0.7 else "medium"
+            signals.append("sadness_cue")
+            return EmotionState(
+                primary_emotion="sadness",
+                intensity=intensity,
+                hesitation=hesitation,
+                sarcasm_detected=sarcasm_detected,
+                vulnerability_level=vulnerability,
+                observed_signals=signals
+            )
+
+        if any(k in text for k in frustration_keywords):
+            intensity = 0.7 if any(w in text for w in ["bohot", "very", "extremely"]) else 0.5
+            signals.append("frustration_cue")
+            return EmotionState(
+                primary_emotion="anger_or_frustration",
+                intensity=intensity,
+                hesitation=hesitation,
+                sarcasm_detected=sarcasm_detected,
+                vulnerability_level="medium",
+                observed_signals=signals
+            )
+
+        if any(k in text for k in anxiety_keywords):
+            signals.append("anxiety_cue")
+            return EmotionState(
+                primary_emotion="anxiety",
+                intensity=0.6,
+                hesitation=hesitation,
+                sarcasm_detected=sarcasm_detected,
+                vulnerability_level="medium",
+                observed_signals=signals
+            )
+
+        if any(k in text for k in affection_keywords):
+            signals.append("affection_or_joy_cue")
+            return EmotionState(
+                primary_emotion="joy_or_affection",
+                intensity=0.6,
+                hesitation=hesitation,
+                sarcasm_detected=sarcasm_detected,
+                vulnerability_level="low",
+                observed_signals=signals
+            )
+
+        # Ambiguous / Sarcastic fallback
+        if sarcasm_detected:
+            return EmotionState(
+                primary_emotion="ambiguous",
+                intensity=0.3,
+                hesitation=hesitation,
+                sarcasm_detected=True,
+                vulnerability_level="low",
+                observed_signals=signals
+            )
+
+        # Neutral fallback
+        return EmotionState(
+            primary_emotion="neutral",
+            intensity=0.1,
+            hesitation=hesitation,
+            sarcasm_detected=False,
+            vulnerability_level="low",
+            observed_signals=signals or ["neutral_conversational_baseline"]
+        )
 
 
 class IntentEngine:
     def detect(self, input_obj: InputObject, context: Dict[str, Any]) -> IntentState:
-        return IntentState()
+        text = input_obj.raw_content.lower().strip()
+        if not text:
+            return IntentState()
+
+        # Date planning
+        date_keywords = ["date", "anniversary", "birthday", "gift", "dinner", "plan something", "surprise", "outfit", "restaurant"]
+        if any(k in text for k in date_keywords):
+            return IntentState(
+                primary_intent="date_planning",
+                secondary_intents=["relationship_enrichment"],
+                urgency="normal"
+            )
+
+        # Relationship advice / conflict
+        relationship_keywords = [
+            "partner", "boyfriend", "girlfriend", "husband", "wife", "fight",
+            "ladai", "jhagda", "argument", "misunderstanding", "talk to him",
+            "talk to her", "usne bola", "usne kaha", "relation", "breakup"
+        ]
+        if any(k in text for k in relationship_keywords):
+            return IntentState(
+                primary_intent="relationship_advice",
+                secondary_intents=["conflict_resolution", "emotional_support"],
+                urgency="normal"
+            )
+
+        # Venting
+        venting_keywords = [
+            "vent", "sun lo", "feel ho raha", "kaafi thak gaya", "kaafi thak gayi",
+            "exhausted", "mann halka", "just need to talk", "listen to me"
+        ]
+        if any(k in text for k in venting_keywords):
+            return IntentState(
+                primary_intent="venting",
+                secondary_intents=["emotional_support"],
+                urgency="normal"
+            )
+
+        # Casual chat
+        casual_greetings = ["hi", "hello", "hey", "kya chal raha", "how are you", "kya kar rahi ho", "kya kar rahe ho", "good morning", "good night"]
+        if any(text == g or text.startswith(g + " ") for g in casual_greetings):
+            return IntentState(
+                primary_intent="casual_chat",
+                secondary_intents=[],
+                urgency="low"
+            )
+
+        # Conservative general fallback
+        return IntentState(
+            primary_intent="general_conversation",
+            secondary_intents=[],
+            urgency="normal"
+        )
 
 
 class SafetyEngine:
@@ -93,7 +255,8 @@ class SafetyEngine:
         flags = []
         user_name = context.get("user_name", "Your partner")
 
-        # ─── RISK_4: IMMINENT EMERGENCY / ACTIVE HARM / STATED PLAN (57.8) ───
+        # ─── 1. RISK_4: IMMINENT EMERGENCY / ACTIVE HARM / STATED PLAN (57.8) ───
+        # Takes absolute precedence over any figurative idioms or conversational humor
         imminent_signals = [
             "kill myself tonight", "end my life tonight", "going to kill myself", "aaj raat sab khatam",
             "already hurt myself", "cut my wrist", "took pills", "sleeping pills kha", "poison",
@@ -120,7 +283,8 @@ class SafetyEngine:
                 flags=["imminent_suicide_risk", "crisis_mode"]
             )
 
-        # ─── RISK_3: SELF-HARM / SUICIDE CONCERN (57.8) ───
+        # ─── 2. RISK_3: SELF-HARM / SUICIDE CONCERN (57.8) ───
+        # Takes absolute precedence over figurative expressions
         suicide_signals = [
             "kill myself", "suicide", "end my life", "marna chahta hu", "marna chahti hu",
             "jeena nahi chahta", "jeena nahi chahti", "marne ka man kar raha", "khudkushi",
@@ -147,6 +311,18 @@ class SafetyEngine:
                 ),
                 flags=["suicide_concern", "crisis_mode"]
             )
+
+        # ─── 3. FIGURATIVE HYPERBOLE / IDIOM GUARD (FALSE POSITIVE PREVENTION) ───
+        # Evaluated strictly AFTER genuine crisis signals to avoid suppressing real harm disclosures
+        figurative_hyperboles = [
+            "dying of laughter", "mar gaya has has", "has has ke", "dying laughing",
+            "this movie is killing me", "this joke is killing me", "killing it",
+            "killing time", "traffic is killing me", "dying to see", "dying to know",
+            "dead laughing", "i'm dead lol", "i am dead lol", "lmao dead"
+        ]
+        if any(fig in text for fig in figurative_hyperboles):
+            flags.append("figurative_hyperbole_not_risk")
+            return SafetyState(is_safe=True, risk_level="RISK_0", flags=flags)
 
         # ─── RISK_2: SEVERE EMOTIONAL DISTRESS / OVERWHELMED / CRYING (57.8) ───
         severe_distress_signals = [

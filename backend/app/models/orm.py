@@ -251,6 +251,16 @@ class AIChatThread(Base):
     encrypted_messages = Column(Text) 
     updated_at = Column(DateTime, default=datetime.utcnow)
 
+class AuraEscalationEvent(Base):
+    __tablename__ = "aura_escalation_events"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), index=True, nullable=False)
+    risk_level = Column(String, nullable=False)  # RISK_3, RISK_4
+    status = Column(String, default="pending", index=True)  # pending | consumed | declined | expired
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+
 class LovePage(Base):
     __tablename__ = "love_pages"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

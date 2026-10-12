@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api, { askAI, getAuraSettings } from '../../services/api';
+import api, { askAI, getAuraSettings, confirmSafetyEscalation } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
@@ -27,6 +27,7 @@ export default function AIAssistant() {
 
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [escalationLoadingId, setEscalationLoadingId] = useState(null);
   const [attachment, setAttachment] = useState(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const endRef = useRef(null);
@@ -397,11 +398,15 @@ export default function AIAssistant() {
       }
 
       const startTime = Date.now();
-      const { reply } = await askAI(
+      const resData = await askAI(
         aiRequestPayload, 
         auraSettings?.modelProvider || 'Automatic',
         auraSettings?.fastResponseMode ?? true
       );
+      const reply = resData?.reply || '';
+      const escalationEventId = resData?.escalation_event_id || null;
+      const requiresConsent = Boolean(resData?.requires_consent && escalationEventId);
+      const recipientLabel = resData?.recipient_label || 'your partner';
       const durationMs = Date.now() - startTime;
 
       if (auraSettings?.verboseLogging) {
@@ -432,6 +437,10 @@ export default function AIAssistant() {
         role: 'assistant', 
         content: finalReply,
         isLabPrompt: needsCounseling,
+        escalationEventId,
+        requiresConsent,
+        recipientLabel,
+        consentStatus: requiresConsent ? 'pending' : null,
         timestamp: Date.now(),
         debugMeta: {
           model: auraSettings?.modelProvider || 'Automatic',
@@ -472,6 +481,53 @@ export default function AIAssistant() {
         inputRef.current.style.height = 'auto';
         inputRef.current.focus();
       }
+    }
+  };
+
+  const handleConsentAction = async (msgIndex, eventId, action) => {
+    if (!eventId || escalationLoadingId) return;
+    setEscalationLoadingId(eventId);
+
+    try {
+      if (action === 'decline') {
+        await confirmSafetyEscalation(eventId, 'decline').catch(() => {});
+        setMsgs(prev => prev.map((m, idx) => idx === msgIndex ? {
+          ...m,
+          consentStatus: 'declined',
+          consentNote: 'Aapne alert bhejne se mana kar diya. Aura hamesha aapke saath hai jab bhi aap baat karna chahein.'
+        } : m));
+      } else {
+        const res = await confirmSafetyEscalation(eventId, 'confirm');
+        let note = '';
+        if (res.status === 'alert_sent') {
+          note = '✓ Partner care check-in alert safalta-purvak bhej diya gaya hai.';
+        } else if (res.status === 'cooldown_active') {
+          note = res.message || 'Ek care alert abhi haal hi mein bheja gaya tha (cooldown active).';
+        } else if (res.status === 'no_partner') {
+          note = 'Koi linked partner nahi mila. Turant madad ke liye please helplines par call karein: Tele-MANAS (14416 / 1800-891-4416) ya 112.';
+        } else if (res.status === 'expired') {
+          note = 'Ye care check-in request expire ho chuki hai.';
+        } else if (res.status === 'already_consumed') {
+          note = 'Ye care check-in pehle hi process ho chuka hai.';
+        } else {
+          note = res.message || `Status: ${res.status}`;
+        }
+
+        setMsgs(prev => prev.map((m, idx) => idx === msgIndex ? {
+          ...m,
+          consentStatus: res.status,
+          consentNote: note
+        } : m));
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.detail || err.message || 'Alert bhejne mein samasya aayi';
+      setMsgs(prev => prev.map((m, idx) => idx === msgIndex ? {
+        ...m,
+        consentStatus: 'error',
+        consentNote: `Error: ${errMsg}`
+      } : m));
+    } finally {
+      setEscalationLoadingId(null);
     }
   };
 
@@ -802,6 +858,78 @@ export default function AIAssistant() {
                         {days} Days
                       </Link>
                     ))}
+                  </div>
+                )}
+                {/* Ask-First Partner Escalation Consent UI */}
+                {m.requiresConsent && m.escalationEventId && (
+                  <div style={{
+                    marginTop: 14,
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.12)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: '#e0a96d', fontSize: '0.82rem', fontWeight: 600 }}>
+                      <Icons.Shield size={15} /> Safety Care Check-In
+                    </div>
+                    {m.consentStatus === 'pending' ? (
+                      <>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>
+                          Aura can send a gentle, private care check-in to <strong>{m.recipientLabel}</strong>. No private messages or conversation history will be shared.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleConsentAction(i, m.escalationEventId, 'confirm')}
+                            disabled={escalationLoadingId === m.escalationEventId}
+                            style={{
+                              background: 'linear-gradient(135deg, #e0a96d, #c58f55)',
+                              color: '#000',
+                              border: 'none',
+                              borderRadius: 10,
+                              padding: '8px 14px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              cursor: escalationLoadingId === m.escalationEventId ? 'wait' : 'pointer',
+                              opacity: escalationLoadingId === m.escalationEventId ? 0.7 : 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6
+                            }}
+                          >
+                            {escalationLoadingId === m.escalationEventId ? 'Sending...' : 'Notify my partner'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConsentAction(i, m.escalationEventId, 'decline')}
+                            disabled={escalationLoadingId === m.escalationEventId}
+                            style={{
+                              background: 'rgba(255,255,255,0.08)',
+                              color: '#ddd',
+                              border: '1px solid rgba(255,255,255,0.14)',
+                              borderRadius: 10,
+                              padding: '8px 14px',
+                              fontSize: '0.8rem',
+                              cursor: escalationLoadingId === m.escalationEventId ? 'wait' : 'pointer'
+                            }}
+                          >
+                            No thanks
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        fontSize: '0.78rem',
+                        lineHeight: 1.4,
+                        background: m.consentStatus === 'alert_sent' ? 'rgba(76, 175, 80, 0.15)' : 'rgba(255,255,255,0.06)',
+                        border: m.consentStatus === 'alert_sent' ? '1px solid rgba(76, 175, 80, 0.3)' : '1px solid rgba(255,255,255,0.1)',
+                        color: m.consentStatus === 'alert_sent' ? '#81c784' : '#ccc'
+                      }}>
+                        {m.consentNote || (m.consentStatus === 'declined' ? 'Alert cancelled.' : 'Status: ' + m.consentStatus)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -1,10 +1,11 @@
 import axios from 'axios';
 
-const defaultBackend = import.meta.env.PROD 
-  ? 'https://paxly-lite.onrender.com' 
+const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
+const defaultBackend = env.PROD
+  ? 'https://paxly-lite.onrender.com'
   : 'http://localhost:8000';
 
-const apiBase = (import.meta.env.VITE_API_URL || defaultBackend).replace(/\/+$/, '');
+const apiBase = (env.VITE_API_URL || defaultBackend).replace(/\/+$/, '');
 const baseURL = apiBase.endsWith('/api') ? apiBase : `${apiBase}/api`;
 
 const api = axios.create({ baseURL });
@@ -157,6 +158,9 @@ export const getCategories = () =>
 // AI
 export const askAI = (messages, model_provider = null, fast_mode = null) =>
   api.post('/ai/chat', { messages, model_provider, fast_mode }).then(r => r.data);
+
+export const confirmSafetyEscalation = (eventId, action = 'confirm') =>
+  api.post('/ai/safety/confirm-escalation', { event_id: eventId, action }).then(r => r.data);
 
 export const getAuraSettings = () => 
   api.get('/ai/settings').then(r => r.data);

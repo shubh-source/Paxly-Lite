@@ -136,6 +136,9 @@ class AIRequest(BaseModel):
 
 class AIResponse(BaseModel):
     reply: str
+    escalation_event_id: Optional[str] = None
+    requires_consent: Optional[bool] = False
+    recipient_label: Optional[str] = None
 
 class AuraSettingsSchema(BaseModel):
     # 01. General

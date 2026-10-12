@@ -18,6 +18,116 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import get_cipher, EncryptionConfigurationError
 
+def _sqlite_column_migrations():
+    """Columns added to existing databases, using SQLite-compatible types/defaults."""
+    return {
+        "messages": {
+            "sender_name": "VARCHAR", "reactions": "JSON DEFAULT '{}'",
+            "is_once_view": "BOOLEAN DEFAULT 0", "view_limit": "INTEGER DEFAULT 1",
+            "views_used": "INTEGER DEFAULT 0", "is_compromised": "BOOLEAN DEFAULT 0",
+        },
+        "users": {
+            "blur_sensitive": "BOOLEAN DEFAULT 0", "hide_activity": "BOOLEAN DEFAULT 0",
+            "stealth_mode": "BOOLEAN DEFAULT 0", "avatar_url": "VARCHAR",
+            "ai_personality": "VARCHAR DEFAULT 'compassionate'", "milestone_alerts": "BOOLEAN DEFAULT 1",
+            "app_pin": "VARCHAR", "pin_set_at": "TIMESTAMP", "security_question": "VARCHAR",
+            "security_answer": "VARCHAR", "pin_failed_attempts": "INTEGER DEFAULT 0",
+            "intruder_trigger": "BOOLEAN DEFAULT 0", "stealth_mode_app": "VARCHAR DEFAULT 'calculator'",
+            "public_key": "VARCHAR", "crisis_escalation_enabled": "BOOLEAN DEFAULT 1",
+            "last_crisis_alert_at": "TIMESTAMP", "aura_settings": "JSON DEFAULT '{}'",
+        },
+        "couple_spaces": {
+            "theme_id": "VARCHAR DEFAULT 'classic'", "chat_wallpaper": "VARCHAR",
+            "allow_media_save": "BOOLEAN DEFAULT 1",
+        },
+        "notes": {"unlock_at": "TIMESTAMP"},
+        "aura_escalation_events": {
+            "user_id": "VARCHAR", "risk_level": "VARCHAR", "status": "VARCHAR DEFAULT 'pending'",
+            "created_at": "TIMESTAMP", "expires_at": "TIMESTAMP", "consumed_at": "TIMESTAMP",
+        },
+    }
+
+
+async def _migrate_sqlite(conn):
+    from sqlalchemy import inspect, text
+
+    # Fill an older partial Aura table before create_all tries to add indexes on it.
+    tables = await conn.run_sync(lambda sync_conn: set(inspect(sync_conn).get_table_names()))
+    if "aura_escalation_events" in tables:
+        existing = await conn.run_sync(
+            lambda sync_conn: {column["name"] for column in inspect(sync_conn).get_columns("aura_escalation_events")}
+        )
+        for name, definition in _sqlite_column_migrations()["aura_escalation_events"].items():
+            if name not in existing:
+                await conn.execute(text(f"ALTER TABLE aura_escalation_events ADD COLUMN {name} {definition}"))
+
+    await conn.run_sync(Base.metadata.create_all)
+    migrations = _sqlite_column_migrations()
+    for table, definitions in migrations.items():
+        existing = await conn.run_sync(
+            lambda sync_conn, table=table: {column["name"] for column in inspect(sync_conn).get_columns(table)}
+        )
+        for name, definition in definitions.items():
+            if name not in existing:
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {definition}"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_aura_escalation_events_user_id ON aura_escalation_events (user_id)"))
+
+
+async def _migrate_postgresql(conn):
+    from sqlalchemy import text
+
+    statements = [
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_once_view BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_limit INTEGER DEFAULT 1",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS views_used INTEGER DEFAULT 0",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_compromised BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS blur_sensitive BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS hide_activity BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_personality VARCHAR DEFAULT 'compassionate'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS milestone_alerts BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS theme_id VARCHAR DEFAULT 'classic'",
+        "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS chat_wallpaper VARCHAR",
+        "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS allow_media_save BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS app_pin VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_set_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_failed_attempts INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS intruder_trigger BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode_app VARCHAR DEFAULT 'calculator'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key VARCHAR",
+        "ALTER TABLE notes ADD COLUMN IF NOT EXISTS unlock_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS crisis_escalation_enabled BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_crisis_alert_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS aura_settings JSONB DEFAULT '{}'::jsonb",
+        "CREATE TABLE IF NOT EXISTS aura_escalation_events (id VARCHAR PRIMARY KEY, user_id VARCHAR NOT NULL REFERENCES users(id), risk_level VARCHAR NOT NULL, status VARCHAR DEFAULT 'pending', created_at TIMESTAMP NOT NULL, expires_at TIMESTAMP NOT NULL, consumed_at TIMESTAMP)",
+        "CREATE INDEX IF NOT EXISTS ix_aura_escalation_events_user_id ON aura_escalation_events (user_id)",
+        "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS user_id VARCHAR",
+        "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS risk_level VARCHAR",
+        "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'pending'",
+        "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMP",
+        "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
+        "ALTER TABLE aura_escalation_events ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP",
+    ]
+    await conn.run_sync(Base.metadata.create_all)
+    for statement in statements:
+        await conn.execute(text(statement))
+
+
+async def _initialize_database_schema(conn):
+    dialect = conn.dialect.name.lower()
+    if dialect == "sqlite":
+        await _migrate_sqlite(conn)
+    elif dialect == "postgresql":
+        await _migrate_postgresql(conn)
+    else:
+        raise RuntimeError(f"Unsupported database dialect for startup migrations: {dialect}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 0. Startup Security & Configuration Validation
@@ -30,59 +140,21 @@ async def lifespan(app: FastAPI):
         print(f"❌ FATAL STARTUP ENCRYPTION ERROR: {e}")
         raise RuntimeError(f"Application startup rejected due to encryption initialization error: {e}") from e
 
-    # Try to create tables, but don't block startup forever
+    is_prod = getattr(settings, "ENVIRONMENT", "").lower() == "production"
     try:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            from sqlalchemy import text
-            
-            # Force add missing columns to existing tables
-            alter_queries = [
-                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR",
-                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb",
-                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_once_view BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_limit INTEGER DEFAULT 1",
-                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS views_used INTEGER DEFAULT 0",
-                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_compromised BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS blur_sensitive BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS hide_activity BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_personality VARCHAR DEFAULT 'compassionate'",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS milestone_alerts BOOLEAN DEFAULT TRUE",
-                "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS theme_id VARCHAR DEFAULT 'classic'",
-                "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS chat_wallpaper VARCHAR",
-                "ALTER TABLE couple_spaces ADD COLUMN IF NOT EXISTS allow_media_save BOOLEAN DEFAULT TRUE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS app_pin VARCHAR",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_set_at TIMESTAMP",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_failed_attempts INTEGER DEFAULT 0",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS intruder_trigger BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode_app VARCHAR DEFAULT 'calculator'",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key VARCHAR",
-                "ALTER TABLE notes ADD COLUMN IF NOT EXISTS unlock_at TIMESTAMP",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS crisis_escalation_enabled BOOLEAN DEFAULT TRUE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_crisis_alert_at TIMESTAMP",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS aura_settings JSONB DEFAULT '{}'::jsonb",
-            ]
-            migration_errors = []
-            for q in alter_queries:
-                try:
-                    await conn.execute(text(q))
-                except Exception as e:
-                    err_msg = str(e).lower()
-                    if "already exists" in err_msg or "duplicate column" in err_msg:
-                        continue
-                    migration_errors.append(f"Migration statement failed: {e}")
-                    print(f"⚠️ Migration statement failed: {e}")
-            
-            if migration_errors:
-                print(f"⚠️ Database startup migrations finished with {len(migration_errors)} warning(s).")
-            else:
-                print("✅ Database tables verified and migrated successfully.")
+            await _initialize_database_schema(conn)
+        print("✅ Database tables verified and migrated successfully.")
+    except (ConnectionRefusedError, OSError) as e:
+        print(f"⚠️ DB connection unavailable during startup ({e}). Continuing in offline mode.")
     except Exception as e:
-        print(f"⚠️ DB auto-init failure: {e}")
+        message = str(e).lower()
+        unavailable_markers = ("connection refused", "could not connect", "connection timed out", "network is unreachable", "name or service not known")
+        if not is_prod and any(marker in message for marker in unavailable_markers):
+            print(f"⚠️ DB connection unavailable during non-production startup ({e}). Continuing in offline mode.")
+        else:
+            print(f"❌ FATAL STARTUP MIGRATION ERROR: {e}")
+            raise RuntimeError(f"Application startup rejected due to database schema initialization failure: {e}") from e
     
     await connect_db()
     os.makedirs("./media", exist_ok=True)
