@@ -1723,58 +1723,109 @@ async def finalize_session(session: AICounselingSession, db: AsyncSession):
 
 @router.get("/analytics")
 async def deep_analytics(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not cu.is_premium:
-        raise HTTPException(403, "Premium feature only")
-    if not cu.couple_space_id:
-        raise HTTPException(400, "Partner connection required.")
+    partner_name = "your partner"
+    user_msg_count = 0
+    partner_msg_count = 0
+    total_images = 0
+    total_videos = 0
 
-    # 1. Fetch last 30 days chat metadata
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    messages_res = await db.execute(select(Message).filter(
-        Message.couple_space_id == cu.couple_space_id,
-        Message.timestamp >= thirty_days_ago
-    ))
-    messages = messages_res.scalars().all()
-    
-    user_msg_count = sum(1 for m in messages if m.sender_id == cu.id)
-    partner_msg_count = len(messages) - user_msg_count
-    total_images = sum(1 for m in messages if m.message_type == 'image')
-    total_videos = sum(1 for m in messages if m.message_type == 'video')
+    if cu.partner_id:
+        p_res = await db.execute(select(User).filter(User.id == cu.partner_id))
+        partner = p_res.scalars().first()
+        if partner:
+            partner_name = partner.name or "your partner"
 
-    # 2. Fetch Dates
-    dates_res = await db.execute(select(Anniversary).filter(Anniversary.couple_space_id == cu.couple_space_id))
-    dates = dates_res.scalars().all()
-    dates_info = "Important Dates:\n" + "\n".join([f"- {d.title} ({d.type}): {d.date}" for d in dates]) if dates else "No important dates saved."
+    if cu.couple_space_id:
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        messages_res = await db.execute(select(Message).filter(
+            Message.couple_space_id == cu.couple_space_id,
+            Message.timestamp >= thirty_days_ago
+        ))
+        messages = messages_res.scalars().all()
+
+        user_msg_count = sum(1 for m in messages if m.sender_id == cu.id)
+        partner_msg_count = len(messages) - user_msg_count
+        total_images = sum(1 for m in messages if m.message_type == 'image')
+        total_videos = sum(1 for m in messages if m.message_type == 'video')
+
+        dates_res = await db.execute(select(Anniversary).filter(Anniversary.couple_space_id == cu.couple_space_id))
+        dates = dates_res.scalars().all()
+        dates_info = "Important Dates:\n" + "\n".join([f"- {d.title} ({d.type}): {d.date}" for d in dates]) if dates else "No upcoming dates saved."
+
+        data_context = f"""Couple Engagement (Last 30 Days):
+- Messages sent by user: {user_msg_count}
+- Messages sent by partner ({partner_name}): {partner_msg_count}
+- Photos shared: {total_images}
+- Videos shared: {total_videos}
+- {dates_info}"""
+    else:
+        # Solo / Unconnected user: Analyze personal Aura reflections and communication readiness
+        threads_res = await db.execute(select(AIChatThread).filter(AIChatThread.user_id == cu.id))
+        user_threads = threads_res.scalars().all()
+        thread_count = len(user_threads)
+
+        data_context = f"""Personal Relationship Readiness & Growth (Solo Explorer):
+- Active reflection threads with Aura: {thread_count}
+- Focus: Self-discovery, emotional communication habits, and relationship readiness."""
 
     prompt = f"""Generate a Deep Relationship Analytics report.
-    
-    DATA (Last 30 Days):
-    - User messages sent: {user_msg_count}
-    - Partner messages sent: {partner_msg_count}
-    - Photos shared: {total_images}
-    - Videos shared: {total_videos}
-    - {dates_info}
-    
-    As Aura, the relationship counselor, analyze this engagement data and any upcoming dates.
-    Output in JSON format ONLY with these keys:
-    - engagement_score: a number out of 100
-    - analysis: a paragraph analyzing their digital communication balance
-    - proactive_suggestion: a highly actionable, creative suggestion for a date or surprise based on this data.
-    """
 
-    system = "You are Aura, a world-class relationship AI. Provide a structured JSON analysis based ONLY on the provided metadata. Your tone should be extremely friendly, warm, and insightful. Output ONLY raw JSON."
+DATA:
+{data_context}
 
-    reply = await generate_ai_text([{"role": "user", "content": prompt}], system_prompt=system, json_mode=True)
-    
-    cleaned = reply.strip()
-    if cleaned.startswith("```json"): cleaned = cleaned[7:]
-    if cleaned.startswith("```"): cleaned = cleaned[3:]
-    if cleaned.endswith("```"): cleaned = cleaned[:-3]
-    
+As Aura, the relationship counselor, analyze this engagement and communication dynamic.
+Output in JSON format ONLY with these exact keys:
+- engagement_score: a number between 60 and 98 based on engagement and communication balance
+- analysis: a concise, insightful paragraph analyzing communication balance and emotional connection
+- proactive_suggestion: a highly actionable, creative suggestion for quality time, bonding, or communication improvement.
+"""
+
+    system = "You are Aura, a world-class relationship AI. Provide a structured JSON analysis based on the provided metadata. Your tone should be warm, encouraging, and insightful. Output ONLY raw JSON."
+
+    report_data = None
     try:
-        report_data = json.loads(cleaned.strip())
+        reply = await generate_ai_text([{"role": "user", "content": prompt}], system_prompt=system, json_mode=True, timeout=15.0)
+        json_match = re.search(r'\{[\s\S]*\}', reply)
+        if json_match:
+            parsed = json.loads(json_match.group(0))
+            if "engagement_score" in parsed and "analysis" in parsed and "proactive_suggestion" in parsed:
+                try:
+                    score = int(parsed["engagement_score"])
+                except Exception:
+                    score = 80
+                parsed["engagement_score"] = max(50, min(100, score))
+                report_data = parsed
     except Exception as e:
-        raise HTTPException(500, f"Could not parse analytics report: {e}")
+        print(f"Analytics AI generation fallback: {sanitize_ai_error(str(e))}")
+
+    # Fallback to intelligent deterministic report if AI provider is unavailable or output malformed
+    if not report_data:
+        if cu.couple_space_id:
+            total_msgs = user_msg_count + partner_msg_count
+            if total_msgs > 0:
+                balance = min(user_msg_count, partner_msg_count) / max(1, max(user_msg_count, partner_msg_count))
+                calc_score = int(72 + (balance * 20) + min(6, (total_images + total_videos) * 2))
+                calc_score = max(65, min(96, calc_score))
+                analysis_text = (
+                    f"Aap dono ke beech pichle 30 dino me achha digital exchange raha hai "
+                    f"({user_msg_count} messages aapne aur {partner_msg_count} {partner_name} ne bheje hain). "
+                    f"Communication balance healthy hai, lekin meaningful quality time schedule karna bond ko aur strong banayega."
+                )
+                suggestion_text = f"{partner_name} ke saath ek unplanned evening coffee ya quiet walk plan karein jahan phone se door sirf personal conversations hon."
+            else:
+                calc_score = 75
+                analysis_text = f"Pichle 30 dino me chat activity quiet rahi hai. {partner_name} ke saath fresh conversations shuru karke bond refresh karein."
+                suggestion_text = f"{partner_name} ko ek thoughtful check-in message bhejein ya koi favorite memory recall karein."
+        else:
+            calc_score = 82
+            analysis_text = "Aap Aura ke saath active reflections me hain. Apne personal communication goals aur emotional clarity par work karna ek strong foundation create kar raha hai."
+            suggestion_text = "Apne emotional boundary aur communication strengths ko journal karein aur Aura se relationship guidance explore karein."
+
+        report_data = {
+            "engagement_score": calc_score,
+            "analysis": analysis_text,
+            "proactive_suggestion": suggestion_text
+        }
 
     return report_data
 

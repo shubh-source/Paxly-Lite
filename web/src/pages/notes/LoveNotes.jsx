@@ -3,11 +3,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
 import GiftReveal from '../../components/ui/GiftReveal';
 import { Icons } from '../../components/ui/Icons';
+import { useAuth } from '../../context/AuthContext';
 
 const MOODS = ['💌', '❤️', '🥰', '✨', '🌹', '💫', '🎵', '🌙'];
 
 export default function LoveNotes() {
   const nav = useNavigate();
+  const { user } = useAuth();
   const [notes, setNotes] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [content, setContent] = useState('');
@@ -39,6 +41,28 @@ export default function LoveNotes() {
     }
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const s = String(dateStr);
+      const iso = s.endsWith('Z') ? s : s + 'Z';
+      return new Date(iso).toLocaleDateString();
+    } catch {
+      return '';
+    }
+  };
+
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const s = String(dateStr);
+      const iso = s.endsWith('Z') ? s : s + 'Z';
+      return new Date(iso).toLocaleString();
+    } catch {
+      return '';
+    }
+  };
+
   const send = async () => {
     if (!content.trim()) return;
     setLoading(true);
@@ -46,7 +70,8 @@ export default function LoveNotes() {
       await api.post('/notes/', { 
         title: mood, 
         content,
-        unlock_at: unlockDate ? new Date(unlockDate).toISOString() : null
+        unlock_at: unlockDate ? new Date(unlockDate).toISOString() : null,
+        share_with_partner: true
       });
       setContent(''); 
       setMood('💌'); 
@@ -55,6 +80,7 @@ export default function LoveNotes() {
       await fetchNotes();
     } catch (err) {
       console.error("Failed to send note", err);
+      alert(err.response?.data?.detail || "Failed to send love note. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -230,12 +256,12 @@ export default function LoveNotes() {
                     <span style={{ fontSize: '1.8rem' }}>{note.title || '💌'}</span>
                     <div>
                       <span style={{ fontSize: '0.88rem', color: 'var(--accent)', fontWeight: 600, display: 'block' }}>{note.created_by === user?.id ? 'You' : (note.sender_name || 'Partner')}</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{new Date(note.created_at + (note.created_at.endsWith("Z") ? "" : "Z")).toLocaleDateString()}</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{formatDate(note.created_at)}</span>
                     </div>
                   </div>
                   <button onClick={() => deleteNote(note.id)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--muted)', cursor: 'pointer', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Trash size={16} /></button>
                 </div>
-                {note.unlock_at && new Date(note.unlock_at + (note.unlock_at.endsWith("Z") ? "" : "Z")) > new Date() ? (
+                {note.unlock_at && new Date(note.unlock_at.endsWith("Z") ? note.unlock_at : note.unlock_at + "Z") > new Date() ? (
                   <div style={{ 
                     padding: 20, 
                     background: 'rgba(0,0,0,0.2)', 
@@ -248,7 +274,7 @@ export default function LoveNotes() {
                     <Icons.Lock size={32} color="var(--muted)" />
                     <div>
                       <h4 style={{ margin: '0 0 4px', color: 'var(--accent)' }}>Time Capsule Locked</h4>
-                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>Unlocks on {new Date(note.unlock_at + (note.unlock_at.endsWith("Z") ? "" : "Z")).toLocaleString()}</p>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>Unlocks on {formatDateTime(note.unlock_at)}</p>
                     </div>
                   </div>
                 ) : (

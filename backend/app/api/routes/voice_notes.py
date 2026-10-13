@@ -19,8 +19,7 @@ class VoiceRename(BaseModel):
 
 @router.post("/upload")
 async def upload_voice(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not cu.couple_space_id:
-        raise HTTPException(403, "Not connected to a couple space.")
+    space_id = cu.couple_space_id or f"solo_{cu.id}"
     
     ext = file.filename.split(".")[-1].lower() if "." in file.filename else "webm"
     filename = f"{uuid.uuid4()}.{ext}"
@@ -29,7 +28,7 @@ async def upload_voice(file: UploadFile = File(...), cu: User = Depends(get_curr
     url = await storage.upload_file(content, filename, "voice")
     
     new_note = VoiceNote(
-        couple_space_id=cu.couple_space_id,
+        couple_space_id=space_id,
         sender_id=cu.id,
         url=url,
         filename=filename,
@@ -48,28 +47,29 @@ async def get_voice_notes(
     cu: User = Depends(get_current_user), 
     db: AsyncSession = Depends(get_db)
 ):
-    if not cu.couple_space_id:
-        raise HTTPException(403, "Not connected.")
+    space_id = cu.couple_space_id or f"solo_{cu.id}"
+    stmt = select(VoiceNote).filter(VoiceNote.couple_space_id == space_id)
     
-    stmt = select(VoiceNote).filter(VoiceNote.couple_space_id == cu.couple_space_id)
-    
-    if query:
+    if query and query.strip():
+        q_clean = query.strip()
         stmt = stmt.filter(or_(
-            VoiceNote.custom_name.ilike(f"%{query}%"),
-            VoiceNote.filename.ilike(f"%{query}%")
+            VoiceNote.custom_name.ilike(f"%{q_clean}%"),
+            VoiceNote.filename.ilike(f"%{q_clean}%")
         ))
     
     if from_date:
         try:
             start = datetime.strptime(from_date, "%Y-%m-%d")
             stmt = stmt.filter(VoiceNote.created_at >= start)
-        except: pass
+        except Exception:
+            pass
         
     if to_date:
         try:
-            end = datetime.strptime(to_date, "%Y-%m-%d")
+            end = datetime.strptime(to_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
             stmt = stmt.filter(VoiceNote.created_at <= end)
-        except: pass
+        except Exception:
+            pass
         
     result = await db.execute(stmt.order_by(VoiceNote.created_at.desc()))
     return result.scalars().all()

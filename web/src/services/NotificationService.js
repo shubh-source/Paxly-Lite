@@ -3,6 +3,11 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 class NotificationService {
   async requestPermissions() {
     try {
+      if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission !== 'granted') {
+        try {
+          await window.Notification.requestPermission();
+        } catch {}
+      }
       const { display } = await LocalNotifications.checkPermissions();
       if (display !== 'granted') {
         await LocalNotifications.requestPermissions();
@@ -25,62 +30,70 @@ class NotificationService {
       }
 
       const notificationsToSchedule = [];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const now = new Date();
 
       dates.forEach(d => {
         if (!d.date) return;
-        const dDate = new Date(d.date);
-        dDate.setFullYear(today.getFullYear());
-        
-        // If the date has already passed this year, schedule for next year
-        if (dDate < today) {
-          dDate.setFullYear(today.getFullYear() + 1);
+        const dDate = new Date(d.date + 'T00:00:00');
+        let target = new Date(now.getFullYear(), dDate.getMonth(), dDate.getDate(), 0, 0, 0);
+
+        // If target passed earlier this year, target next year
+        if (target < now && (now.getMonth() !== dDate.getMonth() || now.getDate() !== dDate.getDate())) {
+          target.setFullYear(now.getFullYear() + 1);
         }
 
-        const idBase = d.id || Math.floor(Math.random() * 1000000);
+        const idBase = ((d.id || Math.floor(Math.random() * 10000)) % 100000) * 100;
+        const rawTitle = d.title || 'Special Occasion';
+        const cleanTitle = rawTitle.replace(/^[\p{Extended_Pictographic}\u200d\uFE0F]+\s*/u, '').split(' — ')[0].trim();
 
-        // Schedule 7 days before
-        const sevenDaysBefore = new Date(dDate);
-        sevenDaysBefore.setDate(sevenDaysBefore.getDate() - 7);
-        sevenDaysBefore.setHours(10, 0, 0, 0); // 10 AM
+        // 1. One-month window: Weekly notifications (30 days, 21 days, 14 days)
+        const weeklyMilestones = [
+          { days: 30, hour: 10, title: `Aura: 1 Month until ${cleanTitle} ✨`, body: `Just 30 days left until ${cleanTitle}! Start planning something memorable.` },
+          { days: 21, hour: 10, title: `Aura: 3 Weeks until ${cleanTitle} 📅`, body: `3 weeks left until ${cleanTitle}. Need help planning a romantic surprise?` },
+          { days: 14, hour: 10, title: `Aura: 2 Weeks until ${cleanTitle} 🎁`, body: `Only 14 days left until ${cleanTitle}! Don't forget to prepare in advance.` },
+        ];
 
-        if (sevenDaysBefore > today) {
-          notificationsToSchedule.push({
-            id: parseInt(`${idBase}07`),
-            title: `Aura AI: Upcoming ${d.title} ✨`,
-            body: `Hey! Just 7 days left until your ${d.title}. Want me to help you plan a surprise?`,
-            schedule: { at: sevenDaysBefore },
-            smallIcon: 'ic_stat_aura', // Custom icon if available
-          });
-        }
+        weeklyMilestones.forEach(({ days, hour, title, body }) => {
+          const scheduleTime = new Date(target);
+          scheduleTime.setDate(scheduleTime.getDate() - days);
+          scheduleTime.setHours(hour, 0, 0, 0);
+          if (scheduleTime > now) {
+            notificationsToSchedule.push({
+              id: idBase + days,
+              title,
+              body,
+              schedule: { at: scheduleTime },
+              smallIcon: 'ic_stat_aura',
+            });
+          }
+        });
 
-        // Schedule 3 days before
-        const threeDaysBefore = new Date(dDate);
-        threeDaysBefore.setDate(threeDaysBefore.getDate() - 3);
-        threeDaysBefore.setHours(12, 0, 0, 0); // 12 PM
+        // 2. Final week: Every single day (Day 7, 6, 5, 4, 3, 2, 1, 0)
+        const dailyMilestones = [
+          { days: 7, hour: 10, title: `Aura: 1 Week left until ${cleanTitle}! ⏰`, body: `Final 7 days countdown started for ${cleanTitle}!` },
+          { days: 6, hour: 10, title: `Aura: 6 Days until ${cleanTitle} 💖`, body: `6 days left until ${cleanTitle}. Countdown is ticking!` },
+          { days: 5, hour: 10, title: `Aura: 5 Days until ${cleanTitle} 🌹`, body: `5 days left until ${cleanTitle}! Time to finalize dinner or gift plans.` },
+          { days: 4, hour: 10, title: `Aura: 4 Days until ${cleanTitle} 💫`, body: `Just 4 days left until ${cleanTitle}. Getting closer!` },
+          { days: 3, hour: 11, title: `Aura: Only 3 Days until ${cleanTitle}! 🔥`, body: `3 days to go for ${cleanTitle}! Last-minute reservations or surprise?` },
+          { days: 2, hour: 11, title: `Aura: 2 Days to go! ⏳ ${cleanTitle}`, body: `Only 48 hours left until ${cleanTitle}! Get excited!` },
+          { days: 1, hour: 12, title: `Aura: TOMORROW is ${cleanTitle}! 🔔`, body: `Tomorrow is the big day: ${cleanTitle}! Everything ready?` },
+          { days: 0, hour: 9,  title: `Aura: Happy ${cleanTitle}! 🎉🥂`, body: `Wishing you both the happiest ${cleanTitle}! Make today unforgettable!` },
+        ];
 
-        if (threeDaysBefore > today) {
-          notificationsToSchedule.push({
-            id: parseInt(`${idBase}03`),
-            title: `Aura AI: Only 3 days left! ⏰`,
-            body: `Your ${d.title} is almost here! Need last-minute gift ideas or a Vibe Site?`,
-            schedule: { at: threeDaysBefore },
-          });
-        }
-
-        // Schedule day of
-        const dayOf = new Date(dDate);
-        dayOf.setHours(9, 0, 0, 0); // 9 AM
-        
-        if (dayOf >= today) {
-          notificationsToSchedule.push({
-            id: parseInt(`${idBase}00`),
-            title: `Aura AI: Happy ${d.title}! 🎉`,
-            body: `Wishing you a wonderful ${d.title}! I'm always here if you need anything.`,
-            schedule: { at: dayOf },
-          });
-        }
+        dailyMilestones.forEach(({ days, hour, title, body }) => {
+          const scheduleTime = new Date(target);
+          scheduleTime.setDate(scheduleTime.getDate() - days);
+          scheduleTime.setHours(hour, 0, 0, 0);
+          if (scheduleTime > now) {
+            notificationsToSchedule.push({
+              id: idBase + days,
+              title,
+              body,
+              schedule: { at: scheduleTime },
+              smallIcon: 'ic_stat_aura',
+            });
+          }
+        });
       });
 
       if (notificationsToSchedule.length > 0) {

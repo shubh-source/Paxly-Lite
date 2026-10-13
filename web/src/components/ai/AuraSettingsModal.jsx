@@ -781,6 +781,7 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
                         🛡️ <strong>Tenant Scoping Guarantee:</strong> All Aura settings are bound to your authenticated JWT identity. Conversations are never accessible to other users or external models.
                       </p>
                       {[
+                        { key: 'analyticsConsent', label: 'Relationship Analytics consent', desc: 'Allow Aura to analyze communication patterns to generate engagement reports' },
                         { key: 'secretMasking', label: 'Secret and token masking', desc: 'Automatically redact API tokens and passwords from conversation logs' },
                         { key: 'anonymousDiagnostics', label: 'Anonymous telemetry', desc: 'Send error codes to Sentra health system without chat logs' }
                       ].map(item => (

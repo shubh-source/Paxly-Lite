@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -112,8 +112,32 @@ export default function VoiceNotes() {
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
 
+  // Instant 0ms client-side search filtering
+  const filteredNotes = useMemo(() => {
+    let list = notes;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(n => {
+        const name = (n.custom_name || '').toLowerCase();
+        const file = (n.filename || '').toLowerCase();
+        const sender = (n.sender_id === myId ? 'me you' : 'partner').toLowerCase();
+        return name.includes(q) || file.includes(q) || sender.includes(q);
+      });
+    }
+    if (fromDate) {
+      const from = new Date(fromDate);
+      list = list.filter(n => new Date(n.created_at) >= from);
+    }
+    if (toDate) {
+      const to = new Date(toDate);
+      to.setHours(23, 59, 59, 999);
+      list = list.filter(n => new Date(n.created_at) <= to);
+    }
+    return list;
+  }, [notes, searchQuery, fromDate, toDate, myId]);
+
+  // Initial load: instant cache render + initial server sync
   useEffect(() => { 
-    // Load from cache first for instant UX
     const cached = localStorage.getItem('cached_voicenotes');
     if (cached) {
       try {
@@ -122,14 +146,27 @@ export default function VoiceNotes() {
       } catch {}
     }
     fetchNotes(); 
+  }, []);
+
+  // Debounced server sync (350ms) to prevent network lag on rapid typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchNotes(searchQuery, fromDate, toDate);
+    }, 350);
+    return () => clearTimeout(timer);
   }, [searchQuery, fromDate, toDate]);
 
-  const fetchNotes = async () => {
+  const fetchNotes = async (q = '', from = '', to = '') => {
     try {
-      const { data } = await api.get('/voice-notes/', {
-        params: { query: searchQuery, from_date: fromDate, to_date: toDate }
-      });
-      localStorage.setItem('cached_voicenotes', JSON.stringify(data));
+      const params = {};
+      if (q && q.trim()) params.query = q.trim();
+      if (from) params.from_date = from;
+      if (to) params.to_date = to;
+
+      const { data } = await api.get('/voice-notes/', { params });
+      if (!q && !from && !to) {
+        localStorage.setItem('cached_voicenotes', JSON.stringify(data));
+      }
       setNotes(data);
     } catch (err) {
       console.error("Failed to fetch voice notes", err);
@@ -244,18 +281,29 @@ export default function VoiceNotes() {
 
       {/* Search & Filter Area */}
       <div style={{ padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <input 
-          type="text" 
-          placeholder="Search by name..." 
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          style={{ width: '100%', padding: '14px 20px', borderRadius: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}
-        />
+        <div style={{ position: 'relative', width: '100%' }}>
+          <input
+            type="text"
+            placeholder="Search by name or partner..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ width: '100%', padding: '14px 44px 14px 20px', borderRadius: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '1rem', outline: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', boxSizing: 'border-box' }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}
+              title="Clear search"
+            >
+              <Icons.Plus size={18} style={{ transform: 'rotate(45deg)' }} />
+            </button>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
             <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 4, marginLeft: 4 }}>From Date</label>
-            <input 
-              type="date" 
+            <input
+              type="date"
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
               style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--muted)', fontSize: '0.9rem', outline: 'none', colorScheme: 'dark' }}
@@ -317,7 +365,26 @@ export default function VoiceNotes() {
             <h3 style={{ marginBottom: 8 }}>Silent space</h3>
             <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Record a whisper that lasts forever.</p>
           </div>
-        ) : notes.map(note => (
+        ) : filteredNotes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '50px 20px', background: 'var(--card-bg, rgba(255,255,255,0.03))', borderRadius: 16, border: '1px dashed var(--border, rgba(255,255,255,0.1))', margin: '20px 0' }}>
+            <p style={{ fontSize: '1.2rem', marginBottom: 8 }}>🔍 No voice notes found</p>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginBottom: 16 }}>No recordings match &ldquo;{searchQuery}&rdquo;</p>
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                background: 'var(--accent)',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: 8,
+                fontSize: '0.82rem',
+                cursor: 'pointer'
+              }}
+            >
+              Clear search
+            </button>
+          </div>
+        ) : filteredNotes.map(note => (
           <VoicePlayer
             key={note.id}
             id={note.id}

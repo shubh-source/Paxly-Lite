@@ -548,20 +548,21 @@ export default function AIAssistant() {
   };
 
   const handleDeepAnalytics = async () => {
-    if (!user?.is_premium) {
-      setShowPremiumModal(true);
-      return;
-    }
     setLoading(true);
     try {
       const { getDeepAnalytics } = await import('../../services/api');
       const data = await getDeepAnalytics();
       setMsgs(prev => [...prev, {
         role: 'assistant',
-        content: `**Deep Relationship Analytics Report** 🧠\n\n**Engagement Score:** ${data.engagement_score}/100\n\n**Analysis:**\n${data.analysis}\n\n**Proactive Suggestion:**\n${data.proactive_suggestion}`
+        content: `### 🧠 Deep Relationship Analytics Report\n\n**Engagement Score:** **${data.engagement_score}/100**\n\n**Communication Analysis:**\n${data.analysis}\n\n**Proactive Suggestion:**\n💡 ${data.proactive_suggestion}`,
+        timestamp: Date.now()
       }]);
     } catch (err) {
-      setMsgs(prev => [...prev, { role: 'assistant', content: "Failed to generate Deep Analytics. " + (err.response?.data?.detail || err.message) }]);
+      setMsgs(prev => [...prev, {
+        role: 'assistant',
+        content: "Aura Analytics report generate karne me dikkat aayi. Kripya thodi der baad dubara koshish karein.",
+        timestamp: Date.now()
+      }]);
     }
     setLoading(false);
   };
