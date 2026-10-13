@@ -6,18 +6,19 @@ import { Icons } from '../../components/ui/Icons';
 
 // --- LEGAL CONTENT ---
 const TERMS = [
-  { heading: '1. Acceptance of Terms', body: 'By using Vlynxly, you agree to these Terms and Conditions. If you do not agree, please do not use the app.' },
-  { heading: '2. Account Responsibility', body: 'You are responsible for maintaining the security of your account. You must not share your credentials with anyone other than your connected partner.' },
-  { heading: '3. Acceptable Use', body: 'Vlynxly is intended for use by consenting adults in a romantic relationship. You agree not to use the app for any illegal, harmful, or abusive purposes.' },
-  { heading: '4. Memory Preservation (Eternity Clause)', body: 'Vlynxly is built to preserve memories. We do not automatically delete data. Even if an account is closed, shared history remains eternally stored to protect your joint history in case of reconciliation.' },
-  { heading: '5. Non-Purge Policy', body: 'Unlike ephemeral apps, Vlynxly records are permanent. We do not support the deletion of memories, as we believe today\'s conflict should not erase yesterday\'s joy.' }
+  { heading: '1. Acceptance of Terms & Eligibility', body: 'By accessing or using Paxly, you agree to these Terms and Conditions. Paxly is built exclusively for consenting adults aged 18 and older in a personal or romantic partnership.' },
+  { heading: '2. Private Couple Space & Credential Security', body: 'Paxly creates a private sanctuary strictly between two paired partners. You are responsible for safeguarding your login credentials, master password, and app PIN. You must not share access with unauthorized third parties.' },
+  { heading: '3. Dual-Consent & Intimate Content Protection', body: 'Intimate media and memory preservation require mutual respect. Actions involving the permanent export of shared photos or videos to external device storage adhere to mutual consent rules. Circumventing technical safeguards is strictly prohibited.' },
+  { heading: '4. Aura AI Relationship Guidance & Crisis Protocol', body: 'Aura AI is an artificial intelligence companion designed for relationship reflection and emotional wellness. Aura is NOT a licensed therapist, psychologist, medical doctor, or emergency hotline. In situations of imminent self-harm, automated generic alerts may notify your linked partner without disclosing private chat contents.' },
+  { heading: '5. Prohibited Conduct (Zero-Tolerance)', body: 'Paxly strictly prohibits non-consensual sharing of intimate imagery (NCII / revenge porn), domestic abuse, threats, harassment, extortion, stalking, or unlawful exploitation. Violations result in immediate permanent termination and referral to law enforcement where required.' },
+  { heading: '6. Memory Preservation & Account Closure', body: 'Unlike ephemeral messaging apps, Paxly values shared relationship milestones. Upon account closure, partners can choose to keep joint scrapbook memories securely vaulted or request complete statutory erasure within 30 days.' }
 ];
 
 const PRIVACY = [
-  { heading: 'Our Commitment', body: 'Vlynxly is built privacy-first. We collect the minimum data necessary to provide our service and never sell your data.' },
-  { heading: 'Memory Archiving', body: 'Unlike other apps, we never purge your chat or media history. We believe relationship memories are precious and should be preserved forever, even after breakups, in case you reconcile later.' },
-  { heading: 'Data Security', body: 'All data is encrypted in transit using TLS/HTTPS. Sensitive media is stored with encryption at rest.' },
-  { heading: 'Your Rights', body: 'You can export your data at any time. You can request account closure, which frees your email for a new account while safeguarding your old memories in our vault.' },
+  { heading: '1. Privacy-First Architecture & Zero Data Sales', body: 'Paxly is built privacy-first. We collect only the minimum data required to deliver your private sanctuary. We never sell, rent, monetize, or trade your personal data, chat logs, or emotional check-ins to advertisers or data brokers.' },
+  { heading: '2. End-to-End Cryptography & Local Security', body: 'All intimate messages, voice whispers, and vault media are protected by client-side cryptographic keys derived on your device. We implement native screen-recording shields, app PIN protection, and stealth mode to guard against physical snooping.' },
+  { heading: '3. Aura AI Safety Engine & Zero-Leak Guarantee', body: 'Aura AI only analyzes conversations during explicit user-directed sessions. If an imminent safety crisis is detected, a generic support alert may be sent strictly to your verified partner. Safety alerts NEVER include private chat transcripts, message quotes, or user prompts.' },
+  { heading: '4. Data Principal Rights (DPDP 2023, GDPR & CCPA)', body: 'You retain full ownership of your memories. You can export your joint history in machine-readable JSON at any time, correct details, unlink partners, or invoke your Right to Erasure for complete permanent deletion within 30 days.' }
 ];
 
 export default function Settings() {
@@ -102,7 +103,7 @@ export default function Settings() {
           <Divider />
           <SettingRow icon={<Icons.Shield size={20} />} title="Privacy Policy" onClick={() => setSub('privacy-policy')} />
           <Divider />
-          <SettingRow icon={<Icons.Info size={20} />} title="About Vlynxly" onClick={() => setSub('about')} />
+          <SettingRow icon={<Icons.Info size={20} />} title="About Paxly" onClick={() => setSub('about')} />
         </Category>
 
         <Category title="App Closure">
@@ -112,7 +113,7 @@ export default function Settings() {
         </Category>
 
         <p style={{ textAlign: 'center', fontSize: '0.72rem', opacity: 0.3, marginTop: 40, letterSpacing: 0.5 }}>
-          Vlynxly v1.5.0 Premium · Memories Protected Forever
+          Paxly v2.4.0 Premium · Memories Protected Forever
         </p>
       </div>
     </div>
@@ -556,21 +557,76 @@ function ProfileSub({ user, setUser, onBack }) {
 }
 
 function LegalSub({ title, content, onBack }) {
+  const nav = useNavigate();
+  const isPrivacy = title.toLowerCase().includes('privacy');
+  const targetTab = isPrivacy ? 'privacy' : 'terms';
+
   return (
     <div className="page">
-      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
+      <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
         <span className="header-title" style={{ color: 'var(--text)' }}>{title}</span>
-        <div style={{ width: 60 }} />
+        <button
+          className="btn btn-p"
+          onClick={() => nav(`/legal?tab=${targetTab}`)}
+          style={{ padding: '6px 12px', fontSize: '0.78rem', borderRadius: 10 }}
+        >
+          Full Center ↗
+        </button>
       </header>
-      <div className="content" style={{ maxWidth: 600, padding: '0 24px' }}>
+      <div className="content" style={{ maxWidth: 640, padding: '0 24px', margin: '0 auto' }}>
+        <div style={{
+          background: 'rgba(201, 169, 110, 0.08)',
+          border: '1px solid rgba(201, 169, 110, 0.25)',
+          borderRadius: 16,
+          padding: '14px 18px',
+          marginBottom: 24,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <div>
+            <strong style={{ fontSize: '0.88rem', color: 'var(--text)' }}>Certified Policy Overview</strong>
+            <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--muted)' }}>
+              Compliant with DPDP Act 2023, GDPR, and CCPA standards.
+            </p>
+          </div>
+          <button
+            onClick={() => nav(`/legal?tab=${targetTab}`)}
+            style={{
+              background: 'var(--accent)',
+              color: '#000',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 8,
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Read Complete Doc
+          </button>
+        </div>
+
         {content.map((s, i) => (
-          <div key={i} style={{ marginBottom: 32, background: 'rgba(255,255,255,0.02)', padding: 20, borderRadius: 20, border: '1px solid rgba(255,255,255,0.05)' }}>
-            <h3 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent)', marginBottom: 12 }}>{s.heading}</h3>
-            <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--text)', opacity: 0.85 }}>{s.body}</p>
+          <div key={i} style={{ marginBottom: 24, background: 'rgba(255,255,255,0.02)', padding: 20, borderRadius: 20, border: '1px solid rgba(255,255,255,0.05)' }}>
+            <h3 style={{ fontWeight: 700, fontSize: '0.98rem', color: 'var(--accent)', marginBottom: 10 }}>{s.heading}</h3>
+            <p style={{ lineHeight: 1.7, fontSize: '0.9rem', color: 'var(--text)', opacity: 0.88, margin: 0 }}>{s.body}</p>
           </div>
         ))}
-        <p style={{ textAlign: 'center', fontSize: '0.75rem', opacity: 0.3, marginTop: 24 }}>Last updated: March 2026</p>
+
+        <div style={{ textAlign: 'center', marginTop: 32, marginBottom: 20 }}>
+          <button
+            className="btn btn-g"
+            onClick={() => nav(`/legal?tab=${targetTab}`)}
+            style={{ padding: '12px 24px', borderRadius: 14, fontSize: '0.85rem' }}
+          >
+            View Official {title} in Legal Center ↗
+          </button>
+          <p style={{ fontSize: '0.75rem', opacity: 0.35, marginTop: 14 }}>Last updated: October 2026 • Version 2.4.0</p>
+        </div>
       </div>
     </div>
   );
@@ -586,20 +642,20 @@ function AboutSub({ onBack }) {
       </header>
       <div className="content center" style={{ maxWidth: 480, padding: '0 24px', textAlign: 'center' }}>
         <div style={{ width: 88, height: 88, borderRadius: 28, background: 'linear-gradient(135deg, var(--accent), var(--purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 24px', boxShadow: '0 15px 35px rgba(0,0,0,0.4)' }}>🔒</div>
-        <h1 style={{ marginBottom: 8, fontSize: '2.2rem', fontWeight: 800 }}>Vlynxly</h1>
-        <p style={{ color: 'var(--accent)', marginBottom: 40, fontWeight: 700, letterSpacing: 2 }}>PREMIUM EDITION</p>
+        <h1 style={{ marginBottom: 8, fontSize: '2.2rem', fontWeight: 800 }}>Paxly</h1>
+        <p style={{ color: 'var(--accent)', marginBottom: 36, fontWeight: 700, letterSpacing: 2 }}>RELATIONSHIP OPERATING SYSTEM</p>
 
-        <div className="card" style={{ marginBottom: 16, textAlign: 'left', width: '100%', background: 'rgba(255,255,255,0.03)', padding: 24, borderRadius: 24 }}>
-          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 12 }}>What is Vlynxly?</h3>
-          <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--muted)' }}>A private, encrypted space designed exclusively for couples. No ads, no feeds, no distractions — just you and your person.</p>
+        <div className="card" style={{ marginBottom: 16, textAlign: 'left', width: '100%', background: 'rgba(255,255,255,0.03)', padding: 22, borderRadius: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
+          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 10 }}>What is Paxly?</h3>
+          <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--muted)', margin: 0 }}>A private, encrypted sanctuary designed exclusively for couples. No ads, no public feeds, no distractions—just you, your partner, and your shared world.</p>
         </div>
 
-        <div className="card" style={{ textAlign: 'left', width: '100%', background: 'rgba(255,255,255,0.03)', padding: 24, borderRadius: 24 }}>
-          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 12 }}>Built with ❤️</h3>
-          <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--muted)' }}>React · FastAPI · MongoDB<br />Securely hosted and encrypted.</p>
+        <div className="card" style={{ textAlign: 'left', width: '100%', background: 'rgba(255,255,255,0.03)', padding: 22, borderRadius: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
+          <h3 style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 10 }}>Built with ❤️</h3>
+          <p style={{ lineHeight: 1.8, fontSize: '0.92rem', color: 'var(--muted)', margin: 0 }}>React · FastAPI · PostgreSQL (Supabase)<br />Zero-knowledge client-side encryption and certified cloud architecture.</p>
         </div>
 
-        <p style={{ marginTop: 40, fontSize: '0.75rem', opacity: 0.3 }}>© 2026 Vlynxly · Memories Protected Forever</p>
+        <p style={{ marginTop: 40, fontSize: '0.75rem', opacity: 0.35 }}>© 2026 Paxly • Intimacy Protected Forever</p>
       </div>
     </div>
   );

@@ -48,9 +48,9 @@ class NotificationService {
 
         // 1. One-month window: Weekly notifications (30 days, 21 days, 14 days)
         const weeklyMilestones = [
-          { days: 30, hour: 10, title: `Aura: 1 Month until ${cleanTitle} ✨`, body: `Just 30 days left until ${cleanTitle}! Start planning something memorable.` },
-          { days: 21, hour: 10, title: `Aura: 3 Weeks until ${cleanTitle} 📅`, body: `3 weeks left until ${cleanTitle}. Need help planning a romantic surprise?` },
-          { days: 14, hour: 10, title: `Aura: 2 Weeks until ${cleanTitle} 🎁`, body: `Only 14 days left until ${cleanTitle}! Don't forget to prepare in advance.` },
+          { days: 30, hour: 10, title: `Aura: 1 Month until ${cleanTitle}`, body: `Just 30 days left until ${cleanTitle}! Start planning something memorable.` },
+          { days: 21, hour: 10, title: `Aura: 3 Weeks until ${cleanTitle}`, body: `3 weeks left until ${cleanTitle}. Need help planning a romantic surprise?` },
+          { days: 14, hour: 10, title: `Aura: 2 Weeks until ${cleanTitle}`, body: `Only 14 days left until ${cleanTitle}! Don't forget to prepare in advance.` },
         ];
 
         weeklyMilestones.forEach(({ days, hour, title, body }) => {
@@ -70,14 +70,14 @@ class NotificationService {
 
         // 2. Final week: Every single day (Day 7, 6, 5, 4, 3, 2, 1, 0)
         const dailyMilestones = [
-          { days: 7, hour: 10, title: `Aura: 1 Week left until ${cleanTitle}! ⏰`, body: `Final 7 days countdown started for ${cleanTitle}!` },
-          { days: 6, hour: 10, title: `Aura: 6 Days until ${cleanTitle} 💖`, body: `6 days left until ${cleanTitle}. Countdown is ticking!` },
-          { days: 5, hour: 10, title: `Aura: 5 Days until ${cleanTitle} 🌹`, body: `5 days left until ${cleanTitle}! Time to finalize dinner or gift plans.` },
-          { days: 4, hour: 10, title: `Aura: 4 Days until ${cleanTitle} 💫`, body: `Just 4 days left until ${cleanTitle}. Getting closer!` },
-          { days: 3, hour: 11, title: `Aura: Only 3 Days until ${cleanTitle}! 🔥`, body: `3 days to go for ${cleanTitle}! Last-minute reservations or surprise?` },
-          { days: 2, hour: 11, title: `Aura: 2 Days to go! ⏳ ${cleanTitle}`, body: `Only 48 hours left until ${cleanTitle}! Get excited!` },
-          { days: 1, hour: 12, title: `Aura: TOMORROW is ${cleanTitle}! 🔔`, body: `Tomorrow is the big day: ${cleanTitle}! Everything ready?` },
-          { days: 0, hour: 9,  title: `Aura: Happy ${cleanTitle}! 🎉🥂`, body: `Wishing you both the happiest ${cleanTitle}! Make today unforgettable!` },
+          { days: 7, hour: 10, title: `Aura: 1 Week left until ${cleanTitle}!`, body: `Final 7 days countdown started for ${cleanTitle}!` },
+          { days: 6, hour: 10, title: `Aura: 6 Days until ${cleanTitle}`, body: `6 days left until ${cleanTitle}. Countdown is ticking!` },
+          { days: 5, hour: 10, title: `Aura: 5 Days until ${cleanTitle}`, body: `5 days left until ${cleanTitle}! Time to finalize dinner or gift plans.` },
+          { days: 4, hour: 10, title: `Aura: 4 Days until ${cleanTitle}`, body: `Just 4 days left until ${cleanTitle}. Getting closer!` },
+          { days: 3, hour: 11, title: `Aura: Only 3 Days until ${cleanTitle}!`, body: `3 days to go for ${cleanTitle}! Last-minute reservations or surprise?` },
+          { days: 2, hour: 11, title: `Aura: 2 Days to go until ${cleanTitle}`, body: `Only 48 hours left until ${cleanTitle}! Get excited!` },
+          { days: 1, hour: 12, title: `Aura: Tomorrow is ${cleanTitle}!`, body: `Tomorrow is the big day: ${cleanTitle}! Everything ready?` },
+          { days: 0, hour: 9,  title: `Aura: Happy ${cleanTitle}!`, body: `Wishing you both the happiest ${cleanTitle}! Make today unforgettable!` },
         ];
 
         dailyMilestones.forEach(({ days, hour, title, body }) => {

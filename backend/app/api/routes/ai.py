@@ -1380,54 +1380,60 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         now_auto = datetime.utcnow()
         auto_cooldown_cutoff = now_auto - timedelta(minutes=15)
         cu_partner_id = cu.partner_id
+        alert_title = runtime_state.safety.partner_alert_title or "Aura Safety Alert 🚨"
+        alert_body = runtime_state.safety.partner_alert_body or f"{cu.name or 'Your partner'} is in critical distress and may need emergency support. Please check in on them."
 
-        # Atomic 15-minute anti-spam cooldown acquisition with DB-level partner verification
-        auto_cooldown_stmt = (
-            update(User)
-            .where(
-                User.id == cu.id,
-                User.partner_id == cu_partner_id,
-                or_(
-                    User.last_crisis_alert_at.is_(None),
-                    User.last_crisis_alert_at < auto_cooldown_cutoff
+        try:
+            # Atomic 15-minute anti-spam cooldown acquisition with DB-level partner verification
+            auto_cooldown_stmt = (
+                update(User)
+                .where(
+                    User.id == cu.id,
+                    User.partner_id == cu_partner_id,
+                    or_(
+                        User.last_crisis_alert_at.is_(None),
+                        User.last_crisis_alert_at < auto_cooldown_cutoff
+                    )
                 )
+                .values(last_crisis_alert_at=now_auto)
             )
-            .values(last_crisis_alert_at=now_auto)
-        )
-        auto_cooldown_res = await db.execute(auto_cooldown_stmt)
-        if auto_cooldown_res.rowcount > 0:
-            alert_title = runtime_state.safety.partner_alert_title or "Aura Safety Alert 🚨"
-            alert_body = runtime_state.safety.partner_alert_body or f"{cu.name or 'Your partner'} is in critical distress and may need emergency support. Please check in on them."
-            
-            # 1. Save generic in-app notification to DB for linked partner (ZERO private chat logs shared)
-            db.add(Notification(
-                user_id=cu_partner_id,
-                type="safety_alert",
-                title=alert_title,
-                body=alert_body,
-                data={
-                    "risk_level": runtime_state.safety.risk_level,
-                    "escalated_at": now_auto.isoformat(),
-                    "recipient": "partner",
-                    "delivery_status": "queued"
-                }
-            ))
-            
-            # Commit notification before any WebSocket transmission
-            await db.commit()
-            auto_alert_dispatched = True
+            auto_cooldown_res = await db.execute(auto_cooldown_stmt)
+            if auto_cooldown_res.rowcount > 0:
+                # 1. Save generic in-app notification to DB for linked partner (ZERO private chat logs shared)
+                db.add(Notification(
+                    user_id=cu_partner_id,
+                    type="safety_alert",
+                    title=alert_title,
+                    body=alert_body,
+                    data={
+                        "risk_level": runtime_state.safety.risk_level,
+                        "escalated_at": now_auto.isoformat(),
+                        "recipient": "partner",
+                        "delivery_status": "queued"
+                    }
+                ))
 
-            # 2. Push real-time alert via WebSocket to partner if online
+                # Commit notification before any WebSocket transmission
+                await db.commit()
+                auto_alert_dispatched = True
+
+                # 2. Push real-time alert via WebSocket exclusively to verified linked partner if online
+                try:
+                    await manager.send_to_user(cu_partner_id, {
+                        "type": "safety_alert",
+                        "title": alert_title,
+                        "body": alert_body,
+                        "risk_level": runtime_state.safety.risk_level,
+                        "timestamp": now_auto.isoformat()
+                    })
+                except Exception as ws_err:
+                    print(f"Crisis WS push error: {sanitize_ai_error(str(ws_err))}")
+        except Exception as auto_alert_err:
+            print(f"Crisis auto-alert DB commit error: {sanitize_ai_error(str(auto_alert_err))}")
             try:
-                await manager.send_to_user(cu_partner_id, {
-                    "type": "safety_alert",
-                    "title": alert_title,
-                    "body": alert_body,
-                    "risk_level": runtime_state.safety.risk_level,
-                    "timestamp": now_auto.isoformat()
-                })
-            except Exception as ws_err:
-                print(f"Crisis WS push error: {sanitize_ai_error(str(ws_err))}")
+                await db.rollback()
+            except Exception as rb_err:
+                print(f"Crisis auto-alert rollback error: {sanitize_ai_error(str(rb_err))}")
 
     if runtime_state.safety.requires_intervention and runtime_state.safety.safety_message:
         intervention_text = runtime_state.safety.safety_message
@@ -1438,24 +1444,37 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
         # Offer Ask-first consent flow ONLY for RISK_3 when not already auto-alerted and user is linked
         # If RISK_4 occurred, partner was either auto-alerted or cooldown/Off applied; no redundant consent event is created.
         if is_moderate_risk and escalation_mode == "Ask first" and has_verified_partner:
-            contact_label = partner_name or "your partner"
-            intervention_text += f"\n\n Agar aap chahein, toh kya main {contact_label} ko ek gentle care check-in message bhejkar bata doon?"
-
-            # Persist an unconsumed server-side escalation event valid for 10 minutes
+            contact_label_candidate = partner_name or "your partner"
             event_id = str(uuid.uuid4())
-            new_event = AuraEscalationEvent(
-                id=event_id,
-                user_id=cu.id,
-                target_partner_id=cu.partner_id,
-                risk_level=runtime_state.safety.risk_level,
-                status="pending",
-                created_at=datetime.utcnow(),
-                expires_at=datetime.utcnow() + timedelta(minutes=10)
-            )
-            db.add(new_event)
-            await db.commit()
-            escalation_event_id = event_id
-            requires_consent = True
+            try:
+                new_event = AuraEscalationEvent(
+                    id=event_id,
+                    user_id=cu.id,
+                    target_partner_id=cu.partner_id,
+                    risk_level=runtime_state.safety.risk_level,
+                    status="pending",
+                    created_at=datetime.utcnow(),
+                    expires_at=datetime.utcnow() + timedelta(minutes=10)
+                )
+                db.add(new_event)
+                await db.commit()
+                # ONLY append the consent check-in question and activate consent UI if event safely persisted
+                escalation_event_id = event_id
+                requires_consent = True
+                contact_label = contact_label_candidate
+                intervention_text += f"\n\n Agar aap chahein, toh kya main {contact_label} ko ek gentle care check-in message bhejkar bata doon?"
+            except Exception as ev_err:
+                print(f"Crisis escalation event DB commit error: {sanitize_ai_error(str(ev_err))}")
+                try:
+                    await db.rollback()
+                except Exception as rb_err:
+                    print(f"Crisis escalation event rollback error: {sanitize_ai_error(str(rb_err))}")
+                # Safe fallback: Backend could not safely create the consent event record.
+                # Do NOT offer broken consent action that cannot be safely processed.
+                # Zero unconsented alert is dispatched.
+                escalation_event_id = None
+                requires_consent = False
+                contact_label = None
 
         return AIResponse(
             reply=intervention_text,

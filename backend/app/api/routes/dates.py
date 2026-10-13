@@ -55,25 +55,27 @@ async def _sync_anniversary_reminders(user_id: str, anniversaries: list, db: Asy
         if (ann.id, days_left) in sent_keys:
             continue
 
-        clean_title = (ann.title or "Special Occasion").split(" — ")[0].strip()
+        import re
+        raw_clean = (ann.title or "Special Occasion").split(" — ")[0].strip()
+        clean_title = re.sub(r'^[\U00010000-\U0010ffff\u2600-\u27bf\u2b50\ufe0f\s]+', '', raw_clean).strip() or raw_clean
 
         if days_left == 0:
-            notif_title = f"Happy {clean_title}! 🎉🥂"
+            notif_title = f"Happy {clean_title}!"
             notif_body = f"Today is the big day: {clean_title}! Wishing you both a wonderful celebration."
         elif days_left == 1:
-            notif_title = f"Tomorrow is {clean_title}! 🔔"
+            notif_title = f"Tomorrow is {clean_title}!"
             notif_body = f"Just 1 day left until {clean_title}! Almost time to celebrate."
         elif 2 <= days_left <= 7:
-            notif_title = f"{days_left} Days until {clean_title}! ⏰"
+            notif_title = f"{days_left} Days until {clean_title}!"
             notif_body = f"Final week countdown: only {days_left} days left until {clean_title}."
         elif days_left == 14:
-            notif_title = f"2 Weeks until {clean_title} 🎁"
+            notif_title = f"2 Weeks until {clean_title}"
             notif_body = f"Only 14 days remaining until {clean_title}! Time to prepare."
         elif days_left == 21:
-            notif_title = f"3 Weeks until {clean_title} 📅"
+            notif_title = f"3 Weeks until {clean_title}"
             notif_body = f"3 weeks left until {clean_title}. Need ideas for a surprise?"
         elif days_left == 30:
-            notif_title = f"1 Month until {clean_title} ✨"
+            notif_title = f"1 Month until {clean_title}"
             notif_body = f"Just 30 days left until {clean_title}! Start brainstorming something special."
         else:
             continue

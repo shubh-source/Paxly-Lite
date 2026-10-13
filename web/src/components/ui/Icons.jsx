@@ -410,6 +410,70 @@ export const Icons = {
       <path d="M18 3l-4 6" />
     </IconWrapper>
   ),
+
+  Ring: (props) => (
+    <IconWrapper {...props}>
+      <circle cx="12" cy="14" r="6.5" />
+      <path d="M9 4.5h6l1.5 3H7.5L9 4.5z" />
+      <path d="M12 4.5v3" />
+    </IconWrapper>
+  ),
+
+  Cake: (props) => (
+    <IconWrapper {...props}>
+      <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
+      <path d="M4 21h16" />
+      <path d="M4 16h16" />
+      <line x1="12" y1="11" x2="12" y2="7" />
+      <line x1="8" y1="11" x2="8" y2="8" />
+      <line x1="16" y1="11" x2="16" y2="8" />
+      <circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="6" r="1" fill="currentColor" stroke="none" />
+    </IconWrapper>
+  ),
+
+  Gift: (props) => (
+    <IconWrapper {...props}>
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M12 8v13" />
+      <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+      <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.5 4.5 0 0 1 12 7.5a4.5 4.5 0 0 1 4.5-4.5 2.5 2.5 0 0 1 0 5" />
+    </IconWrapper>
+  ),
+
+  Calendar: (props) => (
+    <IconWrapper {...props}>
+      <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+      <line x1="16" x2="16" y1="2" y2="6" />
+      <line x1="8" x2="8" y1="2" y2="6" />
+      <line x1="3" x2="21" y1="10" y2="10" />
+    </IconWrapper>
+  ),
+
+  Clock: (props) => (
+    <IconWrapper {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </IconWrapper>
+  ),
+
+  Flame: (props) => (
+    <IconWrapper {...props}>
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.63-1.07-2.71-1.74-3.36a.5.5 0 0 0-.76 0C10.33 11.79 8.5 13 8.5 14.5Z" />
+      <path d="M12 2c1 3 4 4.5 4 9a6 6 0 1 1-12 0c0-4 3.5-6.5 4.5-9a.5.5 0 0 1 .94 0c.26.65.62 1.48 1.06 2.45" />
+    </IconWrapper>
+  ),
+
+  Sparkles: (props) => (
+    <IconWrapper {...props}>
+      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+      <path d="M5 3v4" />
+      <path d="M3 5h4" />
+      <path d="M19 17v4" />
+      <path d="M17 19h4" />
+    </IconWrapper>
+  ),
   Loader: ({ size = 24, className = '', style }) => (
     <svg 
       width={size} 

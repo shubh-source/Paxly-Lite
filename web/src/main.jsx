@@ -202,8 +202,9 @@ function AnimatedRoutes() {
         <Route path="/notifications" element={<Guard needsPartner><Layout><Notifications /></Layout></Guard>} />
         
         <Route path="/website/vibe" element={<Guard needsPartner><Layout><VibeEditor /></Layout></Guard>} />
-        <Route path="/website/:id"   element={<Guard needsPartner><Layout><VibeViewer /></Layout></Guard>} />
-        <Route path="/legal"         element={<Guard needsPartner><Layout><Legal /></Layout></Guard>} />
+        <Route path="/legal"         element={<Legal />} />
+        <Route path="/privacy"       element={<Legal initialTab="privacy" />} />
+        <Route path="/terms"         element={<Legal initialTab="terms" />} />
         <Route path="/admin"         element={<Guard><AdminPanel /></Guard>} />
         <Route path="/icons"         element={<IconShowcase />} />
 

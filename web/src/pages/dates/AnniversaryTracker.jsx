@@ -5,27 +5,78 @@ import NotificationService from '../../services/NotificationService';
 import { Icons } from '../../components/ui/Icons';
 
 export const PRESET_OCCASIONS = [
-  { id: 'anniversary', label: 'Anniversary', emoji: '💍', defaultTitle: 'Our Anniversary', category: 'anniversary' },
-  { id: 'partner_birthday', label: "Partner's Birthday", emoji: '🎂', defaultTitle: "Partner's Birthday", category: 'birthday' },
-  { id: 'my_birthday', label: 'My Birthday', emoji: '🥳', defaultTitle: 'My Birthday', category: 'birthday' },
-  { id: 'first_date', label: 'First Date', emoji: '💘', defaultTitle: 'Our First Date', category: 'milestone' },
-  { id: 'first_kiss', label: 'First Kiss', emoji: '💋', defaultTitle: 'First Kiss', category: 'milestone' },
-  { id: 'proposal', label: 'Proposal Day', emoji: '💎', defaultTitle: 'Proposal Day', category: 'anniversary' },
-  { id: 'moving_in', label: 'Moving In Together', emoji: '🏠', defaultTitle: 'Moving In Together', category: 'milestone' },
-  { id: 'first_trip', label: 'Special Trip / Vacation', emoji: '✈️', defaultTitle: 'Our Special Trip', category: 'milestone' },
-  { id: 'pet_gotcha', label: 'Pet Gotcha Day', emoji: '🐾', defaultTitle: 'Got Our Pet', category: 'milestone' },
-  { id: 'first_i_love_you', label: 'First "I Love You"', emoji: '💬', defaultTitle: 'First "I Love You"', category: 'milestone' },
-  { id: 'valentine', label: "Valentine's Day", emoji: '🌹', defaultTitle: "Valentine's Day", category: 'milestone' },
-  { id: 'new_year', label: "New Year's Eve", emoji: '🥂', defaultTitle: "New Year Celebration", category: 'milestone' },
-  { id: 'milestone', label: 'Big Achievement / Graduation', emoji: '🎓', defaultTitle: 'Big Milestone', category: 'milestone' },
-  { id: 'custom', label: '✨ Custom Occasion', emoji: '⭐', defaultTitle: '', category: 'custom' },
+  { id: 'anniversary', label: 'Anniversary', icon: 'Ring', defaultTitle: 'Our Anniversary', category: 'anniversary' },
+  { id: 'partner_birthday', label: "Partner's Birthday", icon: 'Cake', defaultTitle: "Partner's Birthday", category: 'birthday' },
+  { id: 'my_birthday', label: 'My Birthday', icon: 'Cake', defaultTitle: 'My Birthday', category: 'birthday' },
+  { id: 'first_date', label: 'First Date', icon: 'Heart', defaultTitle: 'Our First Date', category: 'milestone' },
+  { id: 'first_kiss', label: 'First Kiss', icon: 'Heart', defaultTitle: 'First Kiss', category: 'milestone' },
+  { id: 'proposal', label: 'Proposal Day', icon: 'Diamond', defaultTitle: 'Proposal Day', category: 'anniversary' },
+  { id: 'moving_in', label: 'Moving In Together', icon: 'Home', defaultTitle: 'Moving In Together', category: 'milestone' },
+  { id: 'first_trip', label: 'Special Trip / Vacation', icon: 'Compass', defaultTitle: 'Our Special Trip', category: 'milestone' },
+  { id: 'pet_gotcha', label: 'Pet Gotcha Day', icon: 'Heart', defaultTitle: 'Got Our Pet', category: 'milestone' },
+  { id: 'first_i_love_you', label: 'First "I Love You"', icon: 'LoveNote', defaultTitle: 'First "I Love You"', category: 'milestone' },
+  { id: 'valentine', label: "Valentine's Day", icon: 'Heart', defaultTitle: "Valentine's Day", category: 'milestone' },
+  { id: 'new_year', label: "New Year's Eve", icon: 'Sparkles', defaultTitle: "New Year Celebration", category: 'milestone' },
+  { id: 'milestone', label: 'Big Milestone', icon: 'Milestone', defaultTitle: 'Big Milestone', category: 'milestone' },
+  { id: 'custom', label: 'Custom Occasion', icon: 'Star', defaultTitle: '', category: 'custom' },
 ];
 
-export const EMOJI_CATEGORIES = {
-  'Romance': ['💍', '❤️', '💖', '💘', '💋', '🌹', '💌', '💐', '💑', '🕊️', '✨', '🔥'],
-  'Party': ['🎂', '🥳', '🎉', '🥂', '🍾', '🎈', '🎁', '⭐', '🍰', '🍻', '🎊', '🍩'],
-  'Life & Travel': ['✈️', '🏠', '🐾', '🚗', '🎓', '☕', '🍕', '🎬', '📸', '🏖️', '⛰️', '🎵'],
-};
+export const AVAILABLE_ICONS = [
+  'Ring', 'Heart', 'Diamond', 'Cake', 'Gift', 'Milestone', 'Star', 'Sparkles',
+  'LoveNote', 'Coffee', 'Utensils', 'Compass', 'Home', 'Camera', 'Smile', 'Target'
+];
+
+export function OccasionIcon({ iconName, size = 24, color = 'currentColor', stroke = 2, className = '' }) {
+  const IconComp = Icons[iconName] || Icons.Milestone;
+  return <IconComp size={size} color={color} stroke={stroke} className={className} />;
+}
+
+export function getIconForDate(item) {
+  if (item.icon && Icons[item.icon]) {
+    return item.icon;
+  }
+
+  const rawTitle = item.title || '';
+  const rawType = (item.type || '').toLowerCase();
+
+  // Legacy emoji mapper (for previously saved dates)
+  if (rawTitle.includes('💍')) return 'Ring';
+  if (rawTitle.includes('🎂') || rawTitle.includes('🥳')) return 'Cake';
+  if (rawTitle.includes('💘') || rawTitle.includes('❤️') || rawTitle.includes('💖') || rawTitle.includes('💋') || rawTitle.includes('🌹')) return 'Heart';
+  if (rawTitle.includes('💎')) return 'Diamond';
+  if (rawTitle.includes('🏠')) return 'Home';
+  if (rawTitle.includes('✈️')) return 'Compass';
+  if (rawTitle.includes('🐾')) return 'Heart';
+  if (rawTitle.includes('💬')) return 'LoveNote';
+  if (rawTitle.includes('🥂') || rawTitle.includes('🎉')) return 'Sparkles';
+  if (rawTitle.includes('🎓')) return 'Milestone';
+  if (rawTitle.includes('⭐') || rawTitle.includes('✨')) return 'Star';
+  if (rawTitle.includes('☕')) return 'Coffee';
+
+  // Map by type
+  if (rawType === 'anniversary') return 'Ring';
+  if (rawType === 'birthday' || rawType === 'partner_birthday' || rawType === 'my_birthday') return 'Cake';
+  if (rawType === 'first_date' || rawType === 'first_kiss' || rawType === 'valentine') return 'Heart';
+  if (rawType === 'proposal') return 'Diamond';
+  if (rawType === 'moving_in') return 'Home';
+  if (rawType === 'first_trip') return 'Compass';
+  if (rawType === 'first_i_love_you') return 'LoveNote';
+  if (rawType === 'milestone') return 'Milestone';
+  if (rawType === 'custom') return 'Star';
+
+  // Keyword check
+  const lower = rawTitle.toLowerCase();
+  if (/birthday|bday/i.test(lower)) return 'Cake';
+  if (/anniversary/i.test(lower)) return 'Ring';
+  if (/proposal|propose|ring/i.test(lower)) return 'Diamond';
+  if (/date|kiss|love|valentine/i.test(lower)) return 'Heart';
+  if (/trip|vacation|travel|flight/i.test(lower)) return 'Compass';
+  if (/home|house|move/i.test(lower)) return 'Home';
+  if (/chai|coffee|cafe/i.test(lower)) return 'Coffee';
+  if (/dinner|lunch|food/i.test(lower)) return 'Utensils';
+
+  return 'Milestone';
+}
 
 function getTimeRemaining(dateStr, now = new Date()) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -83,44 +134,28 @@ function getTimeRemaining(dateStr, now = new Date()) {
 }
 
 function parseDateItem(d) {
-  let emoji = d.emoji;
   let title = d.title || '';
   let note = d.note || '';
 
-  // 1. Try extracting leading emoji if stored in title
-  const emojiMatch = title.match(/^([\p{Extended_Pictographic}\u200d\uFE0F]+)\s*(.*)$/u);
-  if (emojiMatch) {
-    emoji = emojiMatch[1];
-    title = emojiMatch[2];
-  }
-
-  // 2. Try extracting note if formatted with " — "
+  // 1. Extract note if formatted with " — "
   if (!note && title.includes(' — ')) {
     const parts = title.split(' — ');
     title = parts[0].trim();
     note = parts.slice(1).join(' — ').trim();
   }
 
-  // 3. Fallback emoji based on type/keyword
-  if (!emoji) {
-    const preset = PRESET_OCCASIONS.find(p => p.id === d.type);
-    if (preset) {
-      emoji = preset.emoji;
-    } else if (d.type === 'birthday' || /birthday/i.test(title)) {
-      emoji = '🎂';
-    } else if (d.type === 'anniversary' || /anniversary/i.test(title)) {
-      emoji = '💍';
-    } else if (/date/i.test(title)) {
-      emoji = '💘';
-    } else {
-      emoji = '⭐';
-    }
-  }
+  // 2. Identify the icon first before stripping
+  const iconName = getIconForDate(d);
+
+  // 3. Strip ANY leading emojis or pictographs from the display title
+  const cleanTitle = title
+    .replace(/^[\p{Extended_Pictographic}\u200d\uFE0F\u2600-\u27BF\uE000-\uF8FF\s]+/u, '')
+    .trim();
 
   return {
     ...d,
-    emoji,
-    displayTitle: title || 'Special Occasion',
+    iconName,
+    displayTitle: cleanTitle || 'Special Occasion',
     displayNote: note,
   };
 }
@@ -131,14 +166,13 @@ export default function AnniversaryTracker() {
   const [showForm, setShowForm] = useState(false);
   const [selectedOccasion, setSelectedOccasion] = useState('anniversary');
   const [customTitle, setCustomTitle] = useState('');
-  const [activeEmojiCategory, setActiveEmojiCategory] = useState('Romance');
   const [activeFilter, setActiveFilter] = useState('all'); // all | upcoming | anniversary | birthday | custom
   const [now, setNow] = useState(new Date());
   const [notifScheduled, setNotifScheduled] = useState(false);
   const [form, setForm] = useState({
     title: 'Our Anniversary',
     date: '',
-    emoji: '💍',
+    icon: 'Ring',
     note: '',
     type: 'anniversary',
     recurring: true,
@@ -188,14 +222,14 @@ export default function AnniversaryTracker() {
       setForm(prev => ({
         ...prev,
         type: 'custom',
-        emoji: '⭐',
+        icon: 'Star',
         title: customTitle,
       }));
     } else {
       setForm(prev => ({
         ...prev,
         type: occ.id,
-        emoji: occ.emoji,
+        icon: occ.icon,
         title: occ.defaultTitle,
       }));
     }
@@ -207,14 +241,15 @@ export default function AnniversaryTracker() {
 
     setLoading(true);
     try {
-      const payloadTitle = `${form.emoji} ${finalTitle}${form.note ? ' — ' + form.note.trim() : ''}`;
+      // Clean title without any emojis
+      const payloadTitle = `${finalTitle}${form.note ? ' — ' + form.note.trim() : ''}`;
       const payload = {
         title: payloadTitle,
         date: form.date,
         type: form.type || (selectedOccasion === 'custom' ? 'custom' : 'anniversary'),
       };
       await api.post('/dates/', payload);
-      setForm({ title: 'Our Anniversary', date: '', emoji: '💍', note: '', type: 'anniversary', recurring: true });
+      setForm({ title: 'Our Anniversary', date: '', icon: 'Ring', note: '', type: 'anniversary', recurring: true });
       setSelectedOccasion('anniversary');
       setCustomTitle('');
       setShowForm(false);
@@ -300,7 +335,7 @@ export default function AnniversaryTracker() {
               if (dates.length > 0) {
                 NotificationService.scheduleAnniversaryNotifications(dates);
               }
-              alert('🔔 Countdown reminders synced! You will receive weekly alerts at 1 month, and daily alerts in the final week.');
+              alert('Countdown reminders synced! You will receive weekly alerts at 1 month, and daily alerts in the final week.');
             }}
             title="Notification Alerts Active"
             style={{
@@ -343,13 +378,35 @@ export default function AnniversaryTracker() {
                   Next Milestone
                 </span>
                 {heroCountdown.isLastWeek && (
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600, padding: '2px 8px', borderRadius: 20 }}>
-                    🔥 Final Week • Daily Alerts
+                  <span style={{
+                    fontSize: '0.7rem',
+                    background: 'rgba(239, 68, 68, 0.2)',
+                    color: '#f87171',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 20,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}>
+                    <Icons.Flame size={12} color="#f87171" /> Final Week • Daily Alerts
                   </span>
                 )}
                 {heroCountdown.isMonth && (
-                  <span style={{ fontSize: '0.7rem', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600, padding: '2px 8px', borderRadius: 20 }}>
-                    ✨ 1 Month Left • Weekly Alerts
+                  <span style={{
+                    fontSize: '0.7rem',
+                    background: 'rgba(59, 130, 246, 0.2)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 20,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}>
+                    <Icons.Sparkles size={12} color="#60a5fa" /> 1 Month Left • Weekly Alerts
                   </span>
                 )}
               </div>
@@ -359,7 +416,21 @@ export default function AnniversaryTracker() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-              <span style={{ fontSize: '2.5rem' }}>{nextMilestone.emoji}</span>
+              <div style={{
+                width: 52,
+                height: 52,
+                borderRadius: 16,
+                background: 'rgba(201,169,110,0.15)',
+                border: '1px solid rgba(201,169,110,0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent)',
+                flexShrink: 0,
+                boxShadow: '0 4px 14px rgba(201,169,110,0.15)',
+              }}>
+                <OccasionIcon iconName={nextMilestone.iconName} size={28} />
+              </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text)', fontWeight: 700 }}>
                   {nextMilestone.displayTitle}
@@ -388,7 +459,7 @@ export default function AnniversaryTracker() {
                 justifyContent: 'center',
                 gap: 8,
               }}>
-                <Icons.Aura size={24} color="var(--success)" /> TODAY IS THE CELEBRATION! 🎉
+                <Icons.Sparkles size={22} color="var(--success)" /> TODAY IS THE CELEBRATION!
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
@@ -428,31 +499,39 @@ export default function AnniversaryTracker() {
       {/* Filter Tabs */}
       <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
         {[
-          { id: 'all', label: 'All Dates' },
-          { id: 'upcoming', label: '⚡ Next 30 Days' },
-          { id: 'anniversary', label: '💍 Anniversaries' },
-          { id: 'birthday', label: '🎂 Birthdays' },
-          { id: 'custom', label: '⭐ Custom & Moments' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveFilter(tab.id)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 20,
-              fontSize: '0.8rem',
-              whiteSpace: 'nowrap',
-              border: activeFilter === tab.id ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
-              background: activeFilter === tab.id ? 'rgba(201,169,110,0.18)' : 'rgba(255,255,255,0.03)',
-              color: activeFilter === tab.id ? 'var(--accent)' : 'var(--muted)',
-              cursor: 'pointer',
-              fontWeight: activeFilter === tab.id ? 600 : 400,
-              transition: 'all 0.2s',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+          { id: 'all', label: 'All Dates', icon: 'Calendar' },
+          { id: 'upcoming', label: 'Next 30 Days', icon: 'Clock' },
+          { id: 'anniversary', label: 'Anniversaries', icon: 'Ring' },
+          { id: 'birthday', label: 'Birthdays', icon: 'Cake' },
+          { id: 'custom', label: 'Custom & Moments', icon: 'Star' },
+        ].map(tab => {
+          const TabIcon = Icons[tab.icon] || Icons.Milestone;
+          const isActive = activeFilter === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveFilter(tab.id)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 20,
+                fontSize: '0.8rem',
+                whiteSpace: 'nowrap',
+                border: isActive ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
+                background: isActive ? 'rgba(201,169,110,0.18)' : 'rgba(255,255,255,0.03)',
+                color: isActive ? 'var(--accent)' : 'var(--muted)',
+                cursor: 'pointer',
+                fontWeight: isActive ? 600 : 400,
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <TabIcon size={14} color={isActive ? 'var(--accent)' : 'var(--muted)'} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Add Date Modal */}
@@ -525,7 +604,7 @@ export default function AnniversaryTracker() {
                         fontWeight: isSelected ? 600 : 400,
                       }}
                     >
-                      <span style={{ fontSize: '1.2rem' }}>{occ.emoji}</span>
+                      <OccasionIcon iconName={occ.icon} size={18} color={isSelected ? 'var(--accent)' : 'var(--muted)'} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{occ.label}</span>
                     </button>
                   );
@@ -578,65 +657,59 @@ export default function AnniversaryTracker() {
               </div>
             )}
 
-            {/* Emoji Selection Picker */}
+            {/* SVG Icon Selection Picker */}
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: 0 }}>
-                  Choose Emoji: <span style={{ fontSize: '1.1rem', marginLeft: 4 }}>{form.emoji}</span>
+                <label style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>Choose Icon:</span>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(201,169,110,0.15)',
+                    padding: '2px 8px',
+                    borderRadius: 8,
+                    color: 'var(--accent)',
+                  }}>
+                    <OccasionIcon iconName={form.icon} size={16} />
+                  </span>
                 </label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {Object.keys(EMOJI_CATEGORIES).map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setActiveEmojiCategory(cat)}
-                      style={{
-                        background: activeEmojiCategory === cat ? 'rgba(255,255,255,0.1)' : 'transparent',
-                        border: 'none',
-                        color: activeEmojiCategory === cat ? 'var(--text)' : 'var(--muted)',
-                        fontSize: '0.75rem',
-                        padding: '3px 8px',
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div style={{
-                display: 'flex',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(8, 1fr)',
                 gap: 8,
-                flexWrap: 'wrap',
                 background: 'rgba(0,0,0,0.25)',
                 padding: 10,
                 borderRadius: 14,
                 border: '1px solid rgba(255,255,255,0.05)',
               }}>
-                {EMOJI_CATEGORIES[activeEmojiCategory].map(e => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, emoji: e }))}
-                    style={{
-                      fontSize: '1.3rem',
-                      background: form.emoji === e ? 'rgba(201,169,110,0.25)' : 'rgba(255,255,255,0.03)',
-                      border: form.emoji === e ? '2px solid var(--accent)' : '1px solid transparent',
-                      borderRadius: 10,
-                      width: 42,
-                      height: 42,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'transform 0.1s',
-                    }}
-                  >
-                    {e}
-                  </button>
-                ))}
+                {AVAILABLE_ICONS.map(iconKey => {
+                  const isSelected = form.icon === iconKey;
+                  return (
+                    <button
+                      key={iconKey}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, icon: iconKey }))}
+                      title={iconKey}
+                      style={{
+                        background: isSelected ? 'rgba(201,169,110,0.25)' : 'rgba(255,255,255,0.03)',
+                        border: isSelected ? '2px solid var(--accent)' : '1px solid transparent',
+                        borderRadius: 10,
+                        height: 42,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: isSelected ? 'var(--accent)' : 'var(--muted)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <OccasionIcon iconName={iconKey} size={20} />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -696,7 +769,7 @@ export default function AnniversaryTracker() {
             >
               {loading ? 'Saving...' : (
                 <>
-                  Keep it Remembered <Icons.Aura size={18} color="#000" />
+                  Keep it Remembered <Icons.Sparkles size={18} color="#000" />
                 </>
               )}
             </button>
@@ -760,7 +833,20 @@ export default function AnniversaryTracker() {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: '2.4rem', lineHeight: 1 }}>{d.emoji}</span>
+                      <div style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 14,
+                        background: 'rgba(201,169,110,0.12)',
+                        border: '1px solid rgba(201,169,110,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--accent)',
+                        flexShrink: 0,
+                      }}>
+                        <OccasionIcon iconName={d.iconName} size={24} />
+                      </div>
                       <div style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <p style={{ margin: 0, fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)', wordBreak: 'break-word' }}>
@@ -788,20 +874,20 @@ export default function AnniversaryTracker() {
                         {/* Live countdown timer text */}
                         <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           {isToday ? (
-                            <span style={{ fontSize: '0.78rem', color: 'var(--success)', fontWeight: 700 }}>
-                              🎉 Celebration Day!
+                            <span style={{ fontSize: '0.78rem', color: 'var(--success)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Icons.Sparkles size={13} color="var(--success)" /> Celebration Day!
                             </span>
                           ) : countdown.isTomorrow ? (
-                            <span style={{ fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 700 }}>
-                              ⏳ Tomorrow ({countdown.hours}h {countdown.minutes}m {countdown.seconds}s left)
+                            <span style={{ fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Icons.Clock size={13} color="var(--accent)" /> Tomorrow ({countdown.hours}h {countdown.minutes}m {countdown.seconds}s left)
                             </span>
                           ) : countdown.isLastWeek ? (
-                            <span style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 600 }}>
-                              🔥 Final Week: {countdown.days}d {countdown.hours}h {countdown.minutes}m {countdown.seconds}s
+                            <span style={{ fontSize: '0.78rem', color: '#f87171', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Icons.Flame size={13} color="#f87171" /> Final Week: {countdown.days}d {countdown.hours}h {countdown.minutes}m {countdown.seconds}s
                             </span>
                           ) : (
-                            <span style={{ fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 500 }}>
-                              ⏳ In {countdown.days} days ({countdown.hours}h {countdown.minutes}m)
+                            <span style={{ fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Icons.Clock size={13} color="var(--muted)" /> In {countdown.days} days ({countdown.hours}h {countdown.minutes}m)
                             </span>
                           )}
 

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 import httpx
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select, update
 
 from app.core.database import Base, get_db
 import app.main as main_module
@@ -61,6 +61,105 @@ def test_figurative_speech_not_suppressing_genuine_crisis():
     neutral_joke = safety.assess(InputObject(raw_content="Why did the chicken cross the road?"), emotion, {})
     assert neutral_joke.is_safe is True
     assert neutral_joke.risk_level in ["RISK_0", "RISK_1"]
+
+
+def test_safety_engine_negation_and_quotation_false_positive_prevention():
+    """
+    P1 Safety Alert False-Positive Prevention Test Suite:
+    Ensures normal reassurance ('not going to kill myself') and third-party quotes
+    ('My friend said...') do not trigger false-positive partner alerts (RISK_4),
+    while preserving genuine active harm indicators ('took pills') and imminent crisis.
+    """
+    safety = SafetyEngine()
+    emotion = EmotionEngine().detect(InputObject(raw_content="I'm feeling sad"), {})
+
+    # Case 1: Reassurance with negation -> No automatic RISK_4 alert
+    case1 = safety.assess(InputObject(raw_content="I'm not going to kill myself tonight."), emotion, {})
+    assert case1.risk_level != "RISK_4", f"Expected not RISK_4, got {case1.risk_level}"
+    assert case1.should_notify_partner is False
+    assert case1.requires_intervention is False
+    assert "negated_signal_filtered" in case1.flags
+
+    # Case 2: Quoted / reported speech from third party -> No automatic alert for user
+    case2 = safety.assess(InputObject(raw_content="My friend said, 'I'm going to kill myself tonight.'"), emotion, {})
+    assert case2.risk_level != "RISK_4", f"Expected not RISK_4, got {case2.risk_level}"
+    assert case2.should_notify_partner is False
+    assert case2.requires_intervention is False
+    assert "third_party_or_quoted_signal_filtered" in case2.flags
+
+    # Case 2b: Curly / typographic quotes
+    case2_curly = safety.assess(InputObject(raw_content="My friend said, “I'm going to kill myself tonight.”"), emotion, {})
+    assert case2_curly.risk_level != "RISK_4"
+    assert case2_curly.should_notify_partner is False
+
+    # Case 3: Direct imminent crisis disclosure -> RISK_4 detection preserved
+    case3 = safety.assess(InputObject(raw_content="I'm going to kill myself tonight."), emotion, {})
+    assert case3.is_safe is False
+    assert case3.risk_level == "RISK_4"
+    assert case3.requires_intervention is True
+    assert case3.should_notify_partner is True
+    assert "imminent_suicide_risk" in case3.flags
+
+    # Case 4: Negated reassurance combined with active harm -> Active-harm indicator must NOT be missed
+    case4 = safety.assess(InputObject(raw_content="I'm not going to hurt myself, but I took pills."), emotion, {})
+    assert case4.is_safe is False
+    assert case4.risk_level == "RISK_4"
+    assert case4.requires_intervention is True
+    assert case4.should_notify_partner is True
+    assert "imminent_suicide_risk" in case4.flags
+
+    # Case 4b: Reverse mixed statement -> Active-harm indicator first must NOT be suppressed by later negation
+    case4b = safety.assess(InputObject(raw_content="I took pills, but I'm not going to hurt myself."), emotion, {})
+    assert case4b.is_safe is False
+    assert case4b.risk_level == "RISK_4"
+    assert case4b.requires_intervention is True
+    assert case4b.should_notify_partner is True
+    assert "imminent_suicide_risk" in case4b.flags
+
+    # Case 5: Figurative hyperbole -> No safety alert
+    case5 = safety.assess(InputObject(raw_content="I'm dying of laughter."), emotion, {})
+    assert case5.is_safe is True
+    assert case5.risk_level == "RISK_0"
+    assert case5.should_notify_partner is False
+    assert "figurative_hyperbole_not_risk" in case5.flags
+
+    # Case 6: Intrinsic negative distress ('i don't want to live') -> RISK_3 preserved
+    case6 = safety.assess(InputObject(raw_content="I don't want to live anymore."), emotion, {})
+    assert case6.is_safe is False
+    assert case6.risk_level == "RISK_3"
+    assert case6.should_notify_partner is True
+
+    # Case 7: Hinglish negation (alternate spellings 'nahin', 'nahi') -> No false-positive alert
+    case7 = safety.assess(InputObject(raw_content="Main suicide nahi karunga, pakka promise"), emotion, {})
+    assert case7.risk_level not in ["RISK_3", "RISK_4"]
+    assert case7.should_notify_partner is False
+
+    case7_spelling2 = safety.assess(InputObject(raw_content="Main suicide nahin karunga, bilkul nahi"), emotion, {})
+    assert case7_spelling2.risk_level not in ["RISK_3", "RISK_4"]
+    assert case7_spelling2.should_notify_partner is False
+
+    # Case 7c: Third-party reported speech in Hinglish
+    case7c = safety.assess(InputObject(raw_content="Usne bola 'main marne ja raha hu'"), emotion, {})
+    assert case7c.risk_level != "RISK_4"
+    assert case7c.should_notify_partner is False
+
+    # Case 8: Cancellation prefix ('no reason not to') -> RISK_4 preserved
+    case8 = safety.assess(InputObject(raw_content="I have no reason not to kill myself tonight."), emotion, {})
+    assert case8.is_safe is False
+    assert case8.risk_level == "RISK_4"
+    assert case8.should_notify_partner is True
+
+    # Case 9: Run-on distress qualifier ('I'm not okay, I'm going to kill myself tonight') -> RISK_4 preserved
+    case9 = safety.assess(InputObject(raw_content="I'm not okay, I'm going to kill myself tonight."), emotion, {})
+    assert case9.is_safe is False
+    assert case9.risk_level == "RISK_4"
+    assert case9.should_notify_partner is True
+
+    # Case 10: Quotes without third-party attribution -> Genuine user risk preserved
+    case10 = safety.assess(InputObject(raw_content="'I'm going to kill myself tonight'"), emotion, {})
+    assert case10.is_safe is False
+    assert case10.risk_level == "RISK_4"
+    assert case10.should_notify_partner is True
 
 
 def test_emotion_engine_and_intent_engine():
@@ -711,6 +810,213 @@ async def test_preauthorized_concurrent_cooldown_race(test_env):
         )).scalars().all()
         assert len(notifs) == 1
         assert notifs[0].type == "safety_alert"
+
+
+@pytest.mark.asyncio
+async def test_crisis_auto_alert_notification_commit_failure_targeted(test_env, monkeypatch):
+    """
+    P1 Verification 1: Selectively fails ONLY the crisis Notification commit.
+    Verifies that emergency guidance and helplines are delivered without HTTP 500,
+    rollback cleanly prevents corrupted DB state, and no unverified WebSocket push leaks.
+    """
+    client = test_env["client"]
+    token_alice, token_bob, _ = await seed_users(test_env["session_factory"])
+
+    original_commit = AsyncSession.commit
+
+    async def selective_commit(self):
+        # Target ONLY commits that contain a crisis safety_alert Notification
+        has_crisis_notif = any(
+            isinstance(obj, Notification) and getattr(obj, "type", None) == "safety_alert"
+            for obj in self.new
+        )
+        if has_crisis_notif:
+            raise Exception("Targeted simulated DB error: crisis Notification commit failed")
+        return await original_commit(self)
+
+    ws_dispatches = []
+    from app.websocket.manager import manager as ws_manager
+    async def track_ws(user_id, data):
+        ws_dispatches.append({"user_id": user_id, "data": data})
+
+    monkeypatch.setattr(AsyncSession, "commit", selective_commit)
+    monkeypatch.setattr(ws_manager, "send_to_user", track_ws)
+
+    # Alice sends an imminent crisis message (RISK_4)
+    res = await client.post(
+        "/api/ai/chat",
+        headers={"Authorization": f"Bearer {token_alice}"},
+        json={
+            "messages": [{"role": "user", "content": "I'm going to kill myself tonight."}]
+        }
+    )
+
+    # Must return 200 OK and NOT 500 Internal Server Error
+    assert res.status_code == 200, f"Expected 200 OK, got {res.status_code} with body {res.text}"
+    data = res.json()
+    assert "reply" in data
+    reply = data["reply"]
+    # Verify crisis guidance and 24/7 helplines are returned to the user
+    assert "Tele-MANAS" in reply or "112" in reply or "Vandrevala Foundation" in reply
+
+    # Verify no corrupted notification remained in DB after rollback
+    async with test_env["session_factory"]() as session:
+        notifs = (await session.execute(
+            select(Notification).filter(Notification.user_id == "user_bob")
+        )).scalars().all()
+        assert len(notifs) == 0
+
+    # CRITICAL: Confirm zero uncommitted/unverified WebSocket dispatches leaked
+    assert len(ws_dispatches) == 0
+
+
+@pytest.mark.asyncio
+async def test_partner_verification_failure_prevents_websocket_and_notification_leak(test_env, monkeypatch):
+    """
+    P1 Verification 1B: Recipient Privacy Gap Closure.
+    Verifies that if partner verification fails (e.g. concurrent unlink where User.partner_id != cu_partner_id
+    or cooldown statement affects 0 rows), ZERO WebSocket alerts and ZERO notifications are dispatched.
+    """
+    client = test_env["client"]
+    token_alice, token_bob, _ = await seed_users(test_env["session_factory"])
+
+    # Simulate Alice having unlinked Bob in DB right before the chat request executes
+    async with test_env["session_factory"]() as session:
+        await session.execute(
+            update(User).where(User.id == "user_alice").values(partner_id=None)
+        )
+        await session.commit()
+
+    ws_dispatches = []
+    from app.websocket.manager import manager as ws_manager
+    async def track_ws(user_id, data):
+        ws_dispatches.append({"user_id": user_id, "data": data})
+
+    monkeypatch.setattr(ws_manager, "send_to_user", track_ws)
+
+    # Alice sends an imminent crisis message (RISK_4)
+    res = await client.post(
+        "/api/ai/chat",
+        headers={"Authorization": f"Bearer {token_alice}"},
+        json={
+            "messages": [{"role": "user", "content": "I'm going to kill myself tonight."}]
+        }
+    )
+
+    assert res.status_code == 200
+    data = res.json()
+    assert "reply" in data
+    # Direct crisis helpline numbers provided to the user
+    assert "Tele-MANAS" in data["reply"] or "112" in data["reply"]
+
+    # RECIPIENT PRIVACY AUDIT:
+    # 1. Zero WebSocket messages sent to Bob or anyone else
+    assert len(ws_dispatches) == 0
+
+    # 2. Zero database notifications created
+    async with test_env["session_factory"]() as session:
+        notifs = (await session.execute(
+            select(Notification).filter(Notification.user_id == "user_bob")
+        )).scalars().all()
+        assert len(notifs) == 0
+
+
+@pytest.mark.asyncio
+async def test_crisis_auto_alert_simultaneous_commit_rollback_websocket_failure(test_env, monkeypatch):
+    """
+    P1 Verification 2: Multi-point failure resilience.
+    Simultaneously fails Notification commit, DB rollback, AND WebSocket transmission.
+    Verifies that the user still receives 200 OK with emergency crisis guidance and helplines.
+    """
+    client = test_env["client"]
+    token_alice, token_bob, _ = await seed_users(test_env["session_factory"])
+
+    original_commit = AsyncSession.commit
+
+    async def failing_commit(self):
+        if any(isinstance(obj, Notification) and getattr(obj, "type", None) == "safety_alert" for obj in self.new):
+            raise Exception("Multi-point test: Notification commit failed")
+        return await original_commit(self)
+
+    async def failing_rollback(self):
+        raise Exception("Multi-point test: DB connection severed during rollback")
+
+    async def failing_ws_send(*args, **kwargs):
+        raise Exception("Multi-point test: WebSocket transport broken")
+
+    from app.websocket.manager import manager as ws_manager
+    monkeypatch.setattr(AsyncSession, "commit", failing_commit)
+    monkeypatch.setattr(AsyncSession, "rollback", failing_rollback)
+    monkeypatch.setattr(ws_manager, "send_to_user", failing_ws_send)
+
+    res = await client.post(
+        "/api/ai/chat",
+        headers={"Authorization": f"Bearer {token_alice}"},
+        json={
+            "messages": [{"role": "user", "content": "I'm going to kill myself tonight."}]
+        }
+    )
+
+    assert res.status_code == 200
+    data = res.json()
+    assert "reply" in data
+    assert "Tele-MANAS" in data["reply"] or "112" in data["reply"] or "Vandrevala Foundation" in data["reply"]
+
+
+@pytest.mark.asyncio
+async def test_ask_first_event_save_failure_prevents_broken_consent_and_unauthorized_alert(test_env, monkeypatch):
+    """
+    P1 Verification 3: Ask-first consent flow safety when AuraEscalationEvent persistence fails.
+    Verifies that:
+    1. Response returns 200 OK with empathetic safety guidance and helplines.
+    2. Consent is NOT bypassed: zero unconsented alerts or notifications are sent to partner.
+    3. The consent action is NOT offered when the backend cannot safely process it (requires_consent=False).
+    """
+    client = test_env["client"]
+    token_alice, token_bob, _ = await seed_users(test_env["session_factory"])
+
+    original_commit = AsyncSession.commit
+
+    async def failing_event_commit(self):
+        # Target ONLY commits that contain an AuraEscalationEvent
+        if any(isinstance(obj, AuraEscalationEvent) for obj in self.new):
+            raise Exception("Targeted simulated DB error: AuraEscalationEvent commit failed")
+        return await original_commit(self)
+
+    monkeypatch.setattr(AsyncSession, "commit", failing_event_commit)
+
+    # Alice is in Ask-first mode and sends moderate crisis message
+    res = await client.post(
+        "/api/ai/chat",
+        headers={"Authorization": f"Bearer {token_alice}"},
+        json={
+            "messages": [{"role": "user", "content": "I want to die, please help me"}]
+        }
+    )
+
+    assert res.status_code == 200
+    data = res.json()
+
+    # User still gets full empathetic crisis response and helplines
+    assert "reply" in data
+    assert "Tele-MANAS" in data["reply"] or "112" in data["reply"] or "Vandrevala Foundation" in data["reply"]
+
+    # Backend safely withheld broken consent action since event could not be persisted
+    assert data["requires_consent"] is False
+    assert data["escalation_event_id"] is None
+
+    # CRITICAL: Confirm zero unauthorized notifications exist for Bob
+    async with test_env["session_factory"]() as session:
+        notifs = (await session.execute(
+            select(Notification).filter(Notification.user_id == "user_bob")
+        )).scalars().all()
+        assert len(notifs) == 0
+
+        # Confirm no orphan event was created
+        events = (await session.execute(
+            select(AuraEscalationEvent).filter(AuraEscalationEvent.user_id == "user_alice")
+        )).scalars().all()
+        assert len(events) == 0
 
 
 @pytest.mark.asyncio

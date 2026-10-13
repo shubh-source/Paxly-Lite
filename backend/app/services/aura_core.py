@@ -248,10 +248,131 @@ class IntentEngine:
         )
 
 
+# ─── SAFETY ENGINE CONTEXTUAL FILTER REGEXES & LEXICONS (P1 MITIGATION) ───
+
+CLAUSE_DELIMITER_RE = re.compile(
+    r'[.,;!?\n\r—–]+|\b(?:but|however|although|though|yet|nevertheless|nonetheless|lekin|magar|par|kintu|parantu|varna|otherwise|nahi to|or else)\b',
+    re.IGNORECASE
+)
+
+THIRD_PARTY_ATTRIBUTION_RE = re.compile(
+    r'\b(?:'
+    r'(?:my\s+(?:friend|bro|brother|sister|mom|mother|dad|father|cousin|colleague|coworker|roommate|partner|ex|bf|gf|boy|girl|classmate|neighbor|boss))|'
+    r'(?:mera\s+dost|meri\s+dost|meri\s+saheli|mere\s+bhai|meri\s+behen|mere\s+dost)|'
+    r'(?:someone|somebody|anyone|anybody|a\s+guy|a\s+girl|a\s+person|koi|kisi\s+ne)|'
+    r'(?:he|she|they|usne|unhone|wo|woh)'
+    r')\s+'
+    r'(?:said|says|told\s+me|told|texted|messaged|wrote|mentioned|posted|tweeted|screamed|cried|stated|claimed|'
+    r'bol\s+raha\s+tha|bol\s+rahi\s+thi|bol\s+raha|bol\s+rahi|bola|boli|kaha|kehti\s+hai|kehta\s+hai|likha|likhi)\b',
+    re.IGNORECASE
+)
+
+DISTRESS_STATE_NEGATIVES = [
+    "not okay", "not ok", "not fine", "not good", "not well", "not happy", "not doing well", "not feeling well",
+    "theek nahi", "thik nahi", "sahi nahi", "accha nahi", "acha nahi", "khush nahi"
+]
+
+CANCELLATION_PREFIXES = [
+    "no reason not to", "cannot stop", "can't stop", "cant stop", "unable to stop", "won't stop", "wont stop"
+]
+
+INTRINSIC_NEGATIVE_SIGNALS = {
+    "i don't want to live",
+    "jeena nahi chahta",
+    "jeena nahi chahti",
+}
+
+NEGATION_PREFIX_WORDS = {
+    "not", "no", "never", "don't", "dont", "didn't", "didnt", "won't", "wont",
+    "wouldn't", "wouldnt", "cannot", "can't", "cant", "aren't", "arent", "ain't",
+    "aint", "hardly", "scarcely", "barely", "nahi", "nahin", "na", "mat"
+}
+
+NEGATION_SUFFIX_WORDS = {
+    "nahi", "nahin", "na", "mat"
+}
+
+
 class SafetyEngine:
     @staticmethod
+    def _is_third_party_or_quoted(text: str, start: int, end: int) -> bool:
+        """
+        Detects if a matched crisis substring is part of a third-party quote or reported speech.
+        Preserves genuine user disclosures even if wrapped in quotes (unless attributed to a third party).
+        """
+        # Protect contraction apostrophes (e.g. I'm, don't) so they don't break quote matching
+        clean_quotes = re.sub(r"(?<=[a-zA-Z])['’](?=[a-zA-Z])", "\x00", text)
+        double_quotes = list(re.finditer(r'["“]([^"”]+)["”]', clean_quotes))
+        single_quotes = list(re.finditer(r"['‘]([^'’]+)['’]", clean_quotes))
+        quote_matches = double_quotes + single_quotes
+
+        for qm in quote_matches:
+            if qm.start() <= start and end <= qm.end():
+                preceding = text[:qm.start()].strip()
+                if THIRD_PARTY_ATTRIBUTION_RE.search(preceding):
+                    return True
+                # If wrapped in quotes but NOT attributed to a third party, it could be the user's own statement
+                return False
+
+        # Check for unquoted reported speech in the governing clause
+        preceding_text = text[:start]
+        last_clause_split = max([0] + [m.end() for m in CLAUSE_DELIMITER_RE.finditer(preceding_text)])
+        clause_prefix = preceding_text[last_clause_split:].strip()
+        if THIRD_PARTY_ATTRIBUTION_RE.search(clause_prefix):
+            return True
+        if THIRD_PARTY_ATTRIBUTION_RE.search(preceding_text):
+            if not re.search(r'\b(i\s+am|i\'m|im|i\s+took|i\s+will|i|main|maine)\b', clause_prefix, re.IGNORECASE):
+                return True
+        return False
+
+    @staticmethod
+    def _is_signal_negated(text: str, start: int, end: int, signal: str) -> bool:
+        """
+        Evaluates whether a crisis signal is negated within its clause boundary.
+        Distinguishes reassurance ('not going to kill myself') from active harm ('took pills')
+        and distress state qualifiers ('I'm not okay, I took pills').
+        """
+        preceding_text = text[:start]
+        following_text = text[end:]
+
+        last_clause_split = max([0] + [m.end() for m in CLAUSE_DELIMITER_RE.finditer(preceding_text)])
+        clause_prefix = preceding_text[last_clause_split:]
+
+        next_clause_split_match = CLAUSE_DELIMITER_RE.search(following_text)
+        next_clause_split = next_clause_split_match.start() if next_clause_split_match else len(following_text)
+        clause_suffix = following_text[:next_clause_split]
+
+        norm_prefix = clause_prefix.lower()
+        # Neutralize emotional distress qualifiers so they don't negate subsequent crisis signals
+        for ds in DISTRESS_STATE_NEGATIVES:
+            norm_prefix = norm_prefix.replace(ds, " ")
+
+        # Double negation / inability to stop harm confirms crisis
+        for cancel in CANCELLATION_PREFIXES:
+            if cancel in norm_prefix:
+                return False
+
+        prefix_tokens = re.findall(r"[a-z']+", norm_prefix)
+        window_tokens = prefix_tokens[-5:] if len(prefix_tokens) >= 5 else prefix_tokens
+
+        # Intrinsic negative expressions ('i don't want to live') should not be negated by their internal grammar
+        if signal.lower() not in INTRINSIC_NEGATIVE_SIGNALS:
+            if any(tok in NEGATION_PREFIX_WORDS for tok in window_tokens):
+                return True
+
+        suffix_tokens = re.findall(r"[a-z']+", clause_suffix.lower())[:4]
+        if any(tok in NEGATION_SUFFIX_WORDS for tok in suffix_tokens):
+            return True
+
+        if re.search(r'\b(not\s+an\s+option|isn\'t\s+an\s+option|just\s+kidding|was\s+kidding|was\s+a\s+joke)\b', clause_suffix.lower()):
+            return True
+
+        return False
+
+    @staticmethod
     def assess(input_obj: InputObject, emotion: EmotionState, context: Dict[str, Any]) -> SafetyState:
-        text = input_obj.raw_content.lower()
+        raw_text = input_obj.raw_content
+        text = raw_text.lower()
         flags = []
         user_name = context.get("user_name", "Your partner")
 
@@ -262,7 +383,19 @@ class SafetyEngine:
             "already hurt myself", "cut my wrist", "took pills", "sleeping pills kha", "poison",
             "ending everything now", "marne ja raha hu", "marne ja rahi hu", "goodbye forever"
         ]
-        if any(sig in text for sig in imminent_signals):
+
+        active_imminent_signals = []
+        for sig in imminent_signals:
+            for m in re.finditer(re.escape(sig), text):
+                if SafetyEngine._is_third_party_or_quoted(raw_text, m.start(), m.end()):
+                    flags.append("third_party_or_quoted_signal_filtered")
+                    continue
+                if SafetyEngine._is_signal_negated(raw_text, m.start(), m.end(), sig):
+                    flags.append("negated_signal_filtered")
+                    continue
+                active_imminent_signals.append(sig)
+
+        if active_imminent_signals:
             return SafetyState(
                 is_safe=False,
                 risk_level="RISK_4",
@@ -291,7 +424,19 @@ class SafetyEngine:
             "want to die", "better off dead", "better off without me", "i don't want to live",
             "self harm", "apne aap ko chot"
         ]
-        if any(sig in text for sig in suicide_signals):
+
+        active_suicide_signals = []
+        for sig in suicide_signals:
+            for m in re.finditer(re.escape(sig), text):
+                if SafetyEngine._is_third_party_or_quoted(raw_text, m.start(), m.end()):
+                    flags.append("third_party_or_quoted_signal_filtered")
+                    continue
+                if SafetyEngine._is_signal_negated(raw_text, m.start(), m.end(), sig):
+                    flags.append("negated_signal_filtered")
+                    continue
+                active_suicide_signals.append(sig)
+
+        if active_suicide_signals:
             return SafetyState(
                 is_safe=False,
                 risk_level="RISK_3",

@@ -214,9 +214,19 @@ export default function Signup() {
           </motion.button>
         </form>
 
-        <motion.div 
+        <motion.div
           variants={itemVariants}
-          style={{ marginTop: '32px', textAlign: 'center', fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)' }}
+          style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}
+        >
+          By creating a space, you agree to our{' '}
+          <Link to="/terms" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Terms</Link>{' '}
+          and{' '}
+          <Link to="/privacy" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Privacy Policy</Link>.
+        </motion.div>
+
+        <motion.div
+          variants={itemVariants}
+          style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)' }}
         >
           Already have a space? <Link to="/login" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Log in</Link>
         </motion.div>
