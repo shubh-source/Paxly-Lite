@@ -40,7 +40,7 @@ def _sqlite_column_migrations():
             "theme_id": "VARCHAR DEFAULT 'classic'", "chat_wallpaper": "VARCHAR",
             "allow_media_save": "BOOLEAN DEFAULT 1",
         },
-        "notes": {"unlock_at": "TIMESTAMP"},
+        "notes": {"unlock_at": "TIMESTAMP", "unlock_notified": "BOOLEAN DEFAULT 0"},
         "aura_escalation_events": {
             "user_id": "VARCHAR", "target_partner_id": "VARCHAR", "risk_level": "VARCHAR", "status": "VARCHAR DEFAULT 'pending'",
             "created_at": "TIMESTAMP", "expires_at": "TIMESTAMP", "consumed_at": "TIMESTAMP",
@@ -101,6 +101,7 @@ async def _migrate_postgresql(conn):
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode_app VARCHAR DEFAULT 'calculator'",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key VARCHAR",
         "ALTER TABLE notes ADD COLUMN IF NOT EXISTS unlock_at TIMESTAMP",
+        "ALTER TABLE notes ADD COLUMN IF NOT EXISTS unlock_notified BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS crisis_escalation_enabled BOOLEAN DEFAULT TRUE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_crisis_alert_at TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS aura_settings JSONB DEFAULT '{}'::jsonb",

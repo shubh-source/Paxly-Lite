@@ -34,6 +34,10 @@ export default function Notifications() {
       nav('/ai/lab');
     } else if (n.type === 'call_missed') {
       nav('/dashboard');
+    } else if (n.type === 'love_note' || n.type === 'love_note_gift' || n.type === 'love_note_author_unlocked' || n.type === 'love_note_capsule') {
+      nav('/notes');
+    } else if (n.type === 'anniversary_reminder') {
+      nav('/dates');
     }
   };
 
@@ -87,6 +91,10 @@ export default function Notifications() {
                   }}>
                     {isSafety ? (
                       <Icons.Heart size={22} color="#ec4899" />
+                    ) : (n.type === 'love_note' || n.type === 'love_note_gift' || n.type === 'love_note_author_unlocked' || n.type === 'love_note_capsule') ? (
+                      <Icons.LoveNote size={20} color="var(--accent)" />
+                    ) : n.type === 'anniversary_reminder' ? (
+                      <Icons.Milestone size={20} color="var(--accent)" />
                     ) : n.type === 'ai_report' ? (
                       <Icons.Star size={20} color="var(--accent)" />
                     ) : (

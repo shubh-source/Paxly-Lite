@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
 import NotificationService from '../../services/NotificationService';
+import { wsService } from '../../services/websocket';
 import { Icons } from '../../components/ui/Icons';
 
 export const PRESET_OCCASIONS = [
@@ -198,6 +199,15 @@ export default function AnniversaryTracker() {
     }
     fetchDates();
     NotificationService.requestPermissions();
+    api.post('/dates/check-milestones').catch(() => {});
+
+    const offAnn = wsService.on('anniversary_reminder', () => {
+      fetchDates();
+    });
+
+    return () => {
+      offAnn();
+    };
   }, []);
 
   const fetchDates = async () => {

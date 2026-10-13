@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
 import GiftReveal from '../../components/ui/GiftReveal';
+import JiggleGiftBoxModal from '../../components/ui/JiggleGiftBoxModal';
 import { Icons } from '../../components/ui/Icons';
 import { useAuth } from '../../context/AuthContext';
+import { wsService } from '../../services/websocket';
 
 const MOODS = ['💌', '❤️', '🥰', '✨', '🌹', '💫', '🎵', '🌙'];
 
@@ -17,6 +19,7 @@ export default function LoveNotes() {
   const [unlockDate, setUnlockDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [initLoad, setInitLoad] = useState(true);
+  const [activeGiftNote, setActiveGiftNote] = useState(null);
 
   useEffect(() => { 
     const cached = localStorage.getItem('cached_lovenotes');
@@ -27,6 +30,17 @@ export default function LoveNotes() {
       } catch {}
     }
     fetchNotes(); 
+
+    // Listen for live unlock events
+    const offGift = wsService.on('love_note_gift', () => fetchNotes());
+    const offAuthor = wsService.on('love_note_author_unlocked', () => fetchNotes());
+    const offOpened = wsService.on('love_note_opened', () => fetchNotes());
+
+    return () => {
+      offGift();
+      offAuthor();
+      offOpened();
+    };
   }, []);
 
   const fetchNotes = async () => {
@@ -238,12 +252,32 @@ export default function LoveNotes() {
                 background: 'rgba(255,255,255,0.03)',
                 animation: 'fadeIn 0.5s ease-out'
               }}>
-                {(!note.is_opened && note.created_by !== user?.id) && (
-                  <GiftReveal 
-                    variant="inline" 
-                    title="You've got a note!" 
-                    onOpen={() => openNote(note.id)} 
-                  />
+                {(!note.is_opened && note.created_by !== user?.id && (!note.unlock_at || new Date(note.unlock_at.endsWith("Z") ? note.unlock_at : note.unlock_at + "Z") <= new Date())) && (
+                  <div 
+                    onClick={() => setActiveGiftNote(note)}
+                    style={{ 
+                      cursor: 'pointer',
+                      padding: '16px',
+                      borderRadius: 16,
+                      background: 'linear-gradient(135deg, rgba(201,169,110,0.15) 0%, rgba(164,132,194,0.15) 100%)',
+                      border: '1px solid rgba(201,169,110,0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 12
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: '1.8rem', animation: 'spinPulse 2s infinite' }}>🎁</span>
+                      <div style={{ textAlign: 'left' }}>
+                        <p style={{ margin: 0, fontWeight: 700, color: 'var(--accent)', fontSize: '0.95rem' }}>Surprise Gift Waiting!</p>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>Tap to unwrap this love note</p>
+                      </div>
+                    </div>
+                    <button className="btn btn-p" style={{ padding: '6px 14px', fontSize: '0.78rem', borderRadius: 12 }}>
+                      Unwrap
+                    </button>
+                  </div>
                 )}
                 <div style={{ 
                   display: 'flex', 
@@ -293,9 +327,22 @@ export default function LoveNotes() {
           </div>
         )}
       </div>
+
+      {/* Jiggling Gift Box Surprise Modal */}
+      {activeGiftNote && (
+        <JiggleGiftBoxModal
+          note={activeGiftNote}
+          onClose={() => setActiveGiftNote(null)}
+          onOpened={(id) => {
+            setActiveGiftNote(null);
+            setNotes(prev => prev.map(n => n.id === id ? { ...n, is_opened: true } : n));
+          }}
+        />
+      )}
       
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spinPulse { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.15) rotate(8deg); } }
       `}</style>
     </div>
   );

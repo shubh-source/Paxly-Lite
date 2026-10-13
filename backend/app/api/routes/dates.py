@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import delete
 from app.models.orm import User, Anniversary, Notification
+from app.websocket.manager import manager
 from app.core.security import get_current_user
 from app.core.database import get_db
 from pydantic import BaseModel
@@ -94,6 +95,19 @@ async def _sync_anniversary_reminders(user_id: str, anniversaries: list, db: Asy
         sent_keys.add((ann.id, days_left))
         added_any = True
 
+        # Send instant WebSocket alert to active user
+        try:
+            await manager.send_to_user(user_id, {
+                "type": "anniversary_reminder",
+                "title": notif_title,
+                "body": notif_body,
+                "anniversary_id": ann.id,
+                "days_left": days_left,
+                "date": today_str
+            })
+        except Exception:
+            pass
+
     if added_any:
         await db.commit()
 
@@ -135,6 +149,25 @@ async def get_anniversaries(cu: User = Depends(get_current_user), db: AsyncSessi
         print(f"Warning: could not sync anniversary reminders: {e}")
 
     return anniversaries
+
+@router.post("/check-milestones")
+async def check_milestones(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    space_id = cu.couple_space_id or f"solo_{cu.id}"
+    result = await db.execute(
+        select(Anniversary)
+        .filter(Anniversary.couple_space_id == space_id)
+        .order_by(Anniversary.date.asc())
+    )
+    anniversaries = result.scalars().all()
+
+    try:
+        await _sync_anniversary_reminders(cu.id, anniversaries, db)
+        if cu.partner_id:
+            await _sync_anniversary_reminders(cu.partner_id, anniversaries, db)
+    except Exception as e:
+        print(f"Warning: could not sync anniversary reminders: {e}")
+
+    return {"ok": True, "count": len(anniversaries)}
 
 @router.delete("/{id}")
 async def delete_anniversary(id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

@@ -308,6 +308,7 @@ class Note(Base):
     is_newly_shared = Column(Boolean, default=False)
     is_opened = Column(Boolean, default=False) # Track unboxing
     unlock_at = Column(DateTime, nullable=True) # Time-Capsule Love Notes
+    unlock_notified = Column(Boolean, default=False) # Whether unlock notifications have fired
     shared_display_until = Column(DateTime, nullable=True) # Banner disappears after this
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

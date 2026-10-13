@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Icons } from '../components/ui/Icons';
 import api, { getTodayMoods, getSpace, getNotifications } from '../services/api';
 import NotificationService from '../services/NotificationService';
+import { wsService } from '../services/websocket';
+import JiggleGiftBoxModal from '../components/ui/JiggleGiftBoxModal';
 
 const CORE_QUICK = [
   { to: '/chat',    icon: <Icons.Chat size={32} color="var(--accent)" />, label: 'Secret Chat',  sub: 'Encrypted & Private', full: true },
@@ -22,6 +24,7 @@ export default function Dashboard() {
   const [sharedNotes, setSharedNotes] = useState([]);
   const [suggestion, setSuggestion] = useState(null);
   const [hasUnread, setHasUnread] = useState(false);
+  const [pendingGiftNote, setPendingGiftNote] = useState(null);
 
 const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'}, low:{emoji:'😔'}, support:{emoji:'🤗'} };
 
@@ -29,6 +32,29 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
     getNotifications().then(data => {
       if (data.some(n => !n.read)) setHasUnread(true);
     }).catch(() => {});
+
+    // Check for unopened unlocked Love Note gifts immediately upon opening app
+    api.get('/notes/pending-gift')
+      .then(res => {
+        if (res.data?.has_gift && res.data?.note) {
+          setPendingGiftNote(res.data.note);
+        }
+      })
+      .catch(() => {});
+
+    // On-demand milestone check for important dates
+    api.post('/dates/check-milestones').catch(() => {});
+
+    // Real-time listener for partner love note gifts
+    const offGift = wsService.on('love_note_gift', () => {
+      api.get('/notes/pending-gift')
+        .then(res => {
+          if (res.data?.has_gift && res.data?.note) {
+            setPendingGiftNote(res.data.note);
+          }
+        })
+        .catch(() => {});
+    });
 
     getTodayMoods().then(data => {
       if (Array.isArray(data)) {
@@ -84,6 +110,10 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
     } else {
       api.get('/dates/').then(res => checkDates(res.data)).catch(() => {});
     }
+
+    return () => {
+      offGift();
+    };
   }, [partner?.name]);
 
   const dismissNote = async (id) => {
@@ -318,6 +348,18 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
           ))}
         </div>
       </div>
+
+      {/* Jiggling Gift Box Surprise Modal when partner's love note has unlocked */}
+      {pendingGiftNote && (
+        <JiggleGiftBoxModal
+          note={pendingGiftNote}
+          onClose={() => setPendingGiftNote(null)}
+          onOpened={(id) => {
+            setPendingGiftNote(null);
+            setSharedNotes(prev => prev.filter(n => n.id !== id));
+          }}
+        />
+      )}
 
       <style>{`
         @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
