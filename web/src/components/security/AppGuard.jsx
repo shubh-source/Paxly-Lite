@@ -15,10 +15,14 @@ export default function AppGuard({ children }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
+  const publicPaths = ['/welcome', '/login', '/signup', '/forgot-password', '/reset-password', '/forgot-pin', '/terms', '/privacy', '/legal'];
+  const isPublicRoute = publicPaths.some(p => pathname.startsWith(p));
+  const showLock = !loading && !!user?.has_pin && isLocked && !isPublicRoute;
+
   // Auto-lock when putting the app in the background
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && user?.has_pin) {
+      if (document.hidden && user?.has_pin && !isPublicRoute) {
         if (window.isFilePicking) {
           // Ignore lock because user is picking a file
         } else {
@@ -32,14 +36,18 @@ export default function AppGuard({ children }) {
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [user?.has_pin]);
+  }, [user?.has_pin, isPublicRoute]);
 
   useEffect(() => {
-    if (!loading && user?.has_pin) {
-      // Initially locked if PIN is set
-      setIsLocked(true);
+    if (!loading) {
+      if (user?.has_pin && !isPublicRoute) {
+        setIsLocked(true);
+      } else {
+        setIsLocked(false);
+        setPin('');
+      }
     }
-  }, [loading, user?.has_pin]);
+  }, [loading, user?.has_pin, isPublicRoute]);
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [vaultDownloadRequest, setVaultDownloadRequest] = useState(null);
@@ -197,11 +205,16 @@ export default function AppGuard({ children }) {
     }
   };
 
-  // Keyboard support for Laptop/Desktop
+  // Keyboard support for Laptop/Desktop (ONLY active when PIN lock screen is actually showing)
   useEffect(() => {
+    if (!showLock) return;
+
     const handleKeyDown = (e) => {
-      if (!isLocked) return;
-      
+      // Don't intercept if an actual input or textarea element has focus
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+        return;
+      }
+
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         handleKey(e.key);
@@ -216,13 +229,11 @@ export default function AppGuard({ children }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLocked, pin]); // Re-bind when PIN changes to ensure verifyPin has latest state
+  }, [showLock, pin]);
 
-  if (pathname === '/forgot-pin') {
+  if (isPublicRoute) {
     return children;
   }
-
-  const showLock = !loading && user?.has_pin && isLocked;
 
   return (
     <>

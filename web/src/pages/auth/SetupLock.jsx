@@ -81,6 +81,9 @@ export default function SetupLock() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
+        return;
+      }
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         handleKey(e.key);
