@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../../services/api';
 import GiftReveal from '../../components/ui/GiftReveal';
 import JiggleGiftBoxModal from '../../components/ui/JiggleGiftBoxModal';
+import GoldenDateTimePicker from '../../components/ui/GoldenDateTimePicker';
 import { Icons } from '../../components/ui/Icons';
 import { useAuth } from '../../context/AuthContext';
 import { wsService } from '../../services/websocket';
@@ -17,6 +18,7 @@ export default function LoveNotes() {
   const [content, setContent] = useState('');
   const [mood, setMood] = useState('💌');
   const [unlockDate, setUnlockDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initLoad, setInitLoad] = useState(true);
   const [activeGiftNote, setActiveGiftNote] = useState(null);
@@ -206,26 +208,131 @@ export default function LoveNotes() {
               }}
             />
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', marginBottom: 8, color: 'var(--muted)', fontSize: '0.9rem', fontWeight: 600 }}>Lock as Time Capsule (Optional)</label>
-              <input 
-                type="datetime-local" 
-                value={unlockDate}
-                onChange={e => setUnlockDate(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  padding: '12px 16px', 
-                  background: 'rgba(255,255,255,0.03)', 
-                  border: '1px solid rgba(255,255,255,0.1)', 
-                  borderRadius: 16, 
-                  color: '#fff',
-                  fontFamily: 'var(--font-b)',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }} 
-              />
-              <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: 'var(--purple)' }}>If set, the note will remain a locked gift box until this exact time.</p>
+            {/* Custom Golden Charcoal Time Capsule Trigger Card */}
+            <div style={{ marginBottom: 22 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <label style={{ color: 'var(--accent)', fontSize: '0.88rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>⏳</span> Lock as Time Capsule (Optional)
+                </label>
+                {unlockDate && (
+                  <button
+                    type="button"
+                    onClick={() => setUnlockDate('')}
+                    style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Remove Lock
+                  </button>
+                )}
+              </div>
+
+              {unlockDate ? (
+                <div 
+                  onClick={() => setShowDatePicker(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(201,169,110,0.14) 0%, rgba(28,28,34,0.85) 100%)',
+                    border: '1px solid rgba(201,169,110,0.4)',
+                    borderRadius: 20,
+                    padding: '16px 18px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(201,169,110,0.25)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      background: 'rgba(201,169,110,0.2)',
+                      border: '1px solid var(--accent)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.3rem'
+                    }}>
+                      🎁
+                    </div>
+                    <div>
+                      <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.95rem' }}>
+                        {new Date(unlockDate).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at {new Date(unlockDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div style={{ color: 'var(--accent)', fontSize: '0.78rem', marginTop: 2, fontWeight: 500 }}>
+                        Locked gift box until this time • Tap to adjust
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 700 }}>Edit ▶</span>
+                </div>
+              ) : (
+                <div 
+                  onClick={() => setShowDatePicker(true)}
+                  style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px dashed rgba(201,169,110,0.35)',
+                    borderRadius: 20,
+                    padding: '16px 18px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.background = 'rgba(201,169,110,0.06)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'rgba(201,169,110,0.35)';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 14,
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.2rem'
+                    }}>
+                      ⏳
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: '0.9rem' }}>
+                        Set Unlock Timer (Optional)
+                      </div>
+                      <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 2 }}>
+                        Leaves note sealed until a future anniversary or surprise moment
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ 
+                    background: 'rgba(201,169,110,0.15)', 
+                    color: 'var(--accent)', 
+                    border: '1px solid rgba(201,169,110,0.3)',
+                    padding: '6px 12px', 
+                    borderRadius: 12, 
+                    fontSize: '0.78rem', 
+                    fontWeight: 700 
+                  }}>
+                    + Set Timer
+                  </span>
+                </div>
+              )}
             </div>
+
+            <GoldenDateTimePicker
+              isOpen={showDatePicker}
+              onClose={() => setShowDatePicker(false)}
+              value={unlockDate}
+              onChange={val => setUnlockDate(val || '')}
+            />
             
             <button className="btn btn-p btn-full" onClick={send} disabled={loading || !content.trim()} style={{ padding: '16px', borderRadius: 18, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               {loading ? 'Sending...' : (
