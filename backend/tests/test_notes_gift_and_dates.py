@@ -74,8 +74,8 @@ async def test_love_note_timer_expiry_notifications_and_gift(test_env):
     token1 = create_access_token({"sub": "u_sender"})
     token2 = create_access_token({"sub": "u_receiver"})
 
-    # Sender creates a time capsule love note that unlocks in 1 second
-    future_unlock = (datetime.utcnow() + timedelta(seconds=1)).isoformat()
+    # Sender creates a time capsule love note that unlocks in 1 second (with trailing 'Z' as sent by browser)
+    future_unlock = (datetime.utcnow() + timedelta(seconds=1)).isoformat() + "Z"
     res_create = await client.post(
         "/api/notes/",
         json={

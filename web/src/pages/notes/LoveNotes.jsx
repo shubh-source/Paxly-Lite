@@ -81,10 +81,17 @@ export default function LoveNotes() {
     if (!content.trim()) return;
     setLoading(true);
     try {
+      let unlockIso = null;
+      if (unlockDate) {
+        const d = new Date(unlockDate);
+        if (!isNaN(d.getTime())) {
+          unlockIso = d.toISOString();
+        }
+      }
       await api.post('/notes/', { 
         title: mood, 
         content,
-        unlock_at: unlockDate ? new Date(unlockDate).toISOString() : null,
+        unlock_at: unlockIso,
         share_with_partner: true
       });
       setContent(''); 

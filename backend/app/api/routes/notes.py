@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete, update, and_
+from sqlalchemy import delete, update, and_, or_
 from app.models.orm import User, Note, Notification, CoupleSpace
 from app.websocket.manager import manager
 from app.core.security import get_current_user
@@ -12,12 +13,25 @@ from typing import Optional, List
 
 router = APIRouter(prefix="/notes", tags=["Notes"])
 
+def _to_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+def _to_iso_utc(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    s = dt.isoformat()
+    return s if s.endswith("Z") else s + "Z"
+
 async def _sync_unlocked_notes(db: AsyncSession, space_id: Optional[str] = None) -> int:
     now = datetime.utcnow()
     query = select(Note).filter(
         Note.unlock_at != None,
         Note.unlock_at <= now,
-        Note.unlock_notified == False
+        or_(Note.unlock_notified == False, Note.unlock_notified == None)
     )
     if space_id:
         query = query.filter(Note.couple_space_id == space_id)
@@ -122,15 +136,18 @@ async def create_note(data: NoteCreate, cu: User = Depends(get_current_user), db
     if data.share_with_partner and data.display_hours:
         until = datetime.utcnow() + timedelta(hours=data.display_hours)
 
-    is_future_capsule = bool(data.unlock_at and data.unlock_at > datetime.utcnow())
+    clean_unlock_at = _to_naive_utc(data.unlock_at)
+    is_future_capsule = bool(clean_unlock_at and clean_unlock_at > datetime.utcnow())
 
+    note_id = str(uuid.uuid4())
     new_note = Note(
+        id=note_id,
         couple_space_id=space_id,
         created_by=cu.id,
         title=data.title,
         content=data.content,
         color=data.color or "#ffffff",
-        unlock_at=data.unlock_at,
+        unlock_at=clean_unlock_at,
         unlock_notified=not is_future_capsule, # False if locked so timer triggers it later
         is_newly_shared=bool(cu.partner_id and data.share_with_partner),
         shared_display_until=until
@@ -155,7 +172,7 @@ async def create_note(data: NoteCreate, cu: User = Depends(get_current_user), db
             type=notif_type,
             title=notif_title,
             body=notif_body,
-            data={"note_id": new_note.id, "has_gift_box": has_gift_box}
+            data={"note_id": note_id, "has_gift_box": has_gift_box}
         ))
 
     await db.commit()
@@ -167,7 +184,7 @@ async def create_note(data: NoteCreate, cu: User = Depends(get_current_user), db
                 "type": notif_type,
                 "title": notif_title,
                 "body": notif_body,
-                "note_id": new_note.id,
+                "note_id": note_id,
                 "has_gift_box": has_gift_box
             })
         except Exception:
@@ -207,7 +224,8 @@ async def get_notes(cu: User = Depends(get_current_user), db: AsyncSession = Dep
     now = datetime.utcnow()
     out = []
     for note in notes:
-        is_locked = bool(note.unlock_at and note.unlock_at > now)
+        note_unlock = _to_naive_utc(note.unlock_at)
+        is_locked = bool(note_unlock and note_unlock > now)
         out.append({
             "id": note.id,
             "couple_space_id": note.couple_space_id,
@@ -218,9 +236,9 @@ async def get_notes(cu: User = Depends(get_current_user), db: AsyncSession = Dep
             "color": note.color or "#ffffff",
             "is_pinned": bool(note.is_pinned),
             "is_opened": bool(note.is_opened),
-            "unlock_at": note.unlock_at.isoformat() if note.unlock_at else None,
-            "created_at": note.created_at.isoformat() if note.created_at else now.isoformat(),
-            "updated_at": note.updated_at.isoformat() if note.updated_at else now.isoformat(),
+            "unlock_at": _to_iso_utc(note_unlock),
+            "created_at": _to_iso_utc(note.created_at) or _to_iso_utc(now),
+            "updated_at": _to_iso_utc(note.updated_at) or _to_iso_utc(now),
         })
 
     return out
@@ -269,8 +287,8 @@ async def get_pending_gift(cu: User = Depends(get_current_user), db: AsyncSessio
             "color": note.color or "#ffffff",
             "sender_name": partner_name,
             "is_opened": False,
-            "created_at": note.created_at.isoformat() if note.created_at else now.isoformat(),
-            "unlock_at": note.unlock_at.isoformat() if note.unlock_at else None,
+            "created_at": _to_iso_utc(note.created_at) or _to_iso_utc(now),
+            "unlock_at": _to_iso_utc(note.unlock_at),
         }
     }
 
