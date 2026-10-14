@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import api, { getMe, getSpace } from '../services/api';
 import { wsService } from '../services/websocket';
 import { clearUserBrowserStorage } from '../services/auraStorage';
+import { showInstantPresenceNotification } from '../services/systemNotification';
 
 const AuthContext = createContext(null);
 
@@ -16,9 +17,11 @@ export const AuthProvider = ({ children }) => {
     const cachedUser = localStorage.getItem('ros_user');
     
     let isCached = false;
+    let parsedUser = null;
     if (cachedUser) {
       try { 
-        setUser(JSON.parse(cachedUser)); 
+        parsedUser = JSON.parse(cachedUser);
+        setUser(parsedUser); 
         isCached = true;
         // 3s artificial delay so the premium splash screen animation can fully complete
         setTimeout(() => setLoading(false), 3000);
@@ -26,6 +29,11 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (token) {
+      // 🚀 Connect WebSocket IMMEDIATELY on boot with 0 delay (don't wait for HTTP roundtrips!)
+      if (parsedUser?.couple_space_id) {
+        wsService.connect(token, parsedUser.couple_space_id);
+      }
+
       Promise.all([
         getMe().catch(e => { throw e; }),
         getSpace().catch(() => null)
@@ -33,6 +41,7 @@ export const AuthProvider = ({ children }) => {
       .then(([u, spaceData]) => {
         setUser(u);
         localStorage.setItem('ros_user', JSON.stringify(u));
+        // Keep connected / ensure synced with verified server space_id
         wsService.connect(token, u.couple_space_id);
         
         if (spaceData) {
@@ -75,42 +84,35 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!user) return;
     
-    // Request permission once
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+    // Proactively request permission once
+    if (typeof window !== 'undefined' && "Notification" in window && Notification.permission === "default") {
+      try {
+        Notification.requestPermission().catch(() => {});
+      } catch {}
     }
 
+    let lastPresenceNotif = 0;
     const off = wsService.on('presence', (d) => {
       if (d.online && d.user_id !== user.id) {
-        if ("Notification" in window && Notification.permission === "granted") {
-          const notif = new Notification("Vlynxly Space", {
-            body: `${d.user_name || 'Your partner'} just entered the space! ❤️`,
-            icon: '/vite.svg',
-            silent: false
-          });
-          notif.onclick = () => {
-            window.focus();
-            notif.close();
-          };
+        const now = Date.now();
+        // Debounce notifications to avoid repeated alerts within 15 seconds
+        if (now - lastPresenceNotif > 15000) {
+          lastPresenceNotif = now;
+          showInstantPresenceNotification(
+            "Vlynxly Space",
+            `${d.user_name || 'Your partner'} just entered the space! ❤️`
+          );
         }
       }
     });
 
-    // Global Safety & Crisis Alert Listener (Part 57)
+    // Global Safety & Crisis Alert Listener
     const offSafety = wsService.on('safety_alert', (d) => {
-      if ("Notification" in window && Notification.permission === "granted") {
-        const notif = new Notification(d.title || "Aura Care Alert 💜", {
-          body: d.body || "Your partner is feeling overwhelmed and needs your support right now.",
-          icon: '/vite.svg',
-          requireInteraction: true,
-          silent: false
-        });
-        notif.onclick = () => {
-          window.focus();
-          window.location.href = '/chat';
-          notif.close();
-        };
-      }
+      showInstantPresenceNotification(
+        d.title || "Aura Care Alert 💜",
+        d.body || "Your partner is feeling overwhelmed and needs your support right now.",
+        { requireInteraction: true }
+      );
     });
 
     return () => {

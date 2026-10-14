@@ -12,6 +12,15 @@ import SplashScreen from './components/layout/SplashScreen';
 import { Icons } from './components/ui/Icons';
 import './index.css';
 
+// Register Service Worker for Instant Notifications
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('SW registration skipped:', err);
+    });
+  });
+}
+
 // Wake up Render free tier backend immediately
 const backendBase = import.meta.env.VITE_API_URL || 'https://paxly-lite.onrender.com';
 const pingBackend = () => fetch(`${backendBase}/api/health/ping`).catch(() => {});

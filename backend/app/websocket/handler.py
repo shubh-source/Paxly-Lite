@@ -21,6 +21,8 @@ async def get_user_from_token(token: str, db: AsyncSession):
         return result.scalars().first()
     except Exception: return None
 
+last_presence_touch = {}
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -44,6 +46,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     user_id = None
     space_id = None
+    partner_name = "Your partner"
     try:
         async with AsyncSessionLocal() as db:
             user = await get_user_from_token(token, db)
@@ -55,10 +58,16 @@ async def websocket_endpoint(websocket: WebSocket):
             user_id = user.id
             user_name = user.name
             partner_id = user.partner_id
+            if partner_id:
+                p_res = await db.execute(select(User).filter(User.id == partner_id))
+                p_user = p_res.scalars().first()
+                if p_user and p_user.name:
+                    partner_name = p_user.name
 
         await manager.connect(websocket, space_id, user_id)
+        last_presence_touch[user_id] = datetime.utcnow()
 
-        # Notify partner that this user is online
+        # Notify partner immediately that this user entered the space!
         await manager.send_to_space(space_id, {
             "type": "presence", "user_id": user_id, "online": True, "user_name": user_name
         }, exclude_user=user_id)
@@ -67,7 +76,7 @@ async def websocket_endpoint(websocket: WebSocket):
         if partner_id and manager.is_partner_online(space_id, user_id):
             try:
                 await websocket.send_json({
-                    "type": "presence", "user_id": partner_id, "online": True
+                    "type": "presence", "user_id": partner_id, "online": True, "user_name": partner_name
                 })
             except Exception:
                 pass
@@ -271,6 +280,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     payload["from_id"] = user_id
                     await manager.send_to_user(partner_id, payload)
 
+                elif p_type == "presence_touch":
+                    now_ts = datetime.utcnow()
+                    last_time = last_presence_touch.get(user_id)
+                    # Debounce: re-announce presence if at least 15s since last broadcast
+                    if not last_time or (now_ts - last_time).total_seconds() > 15:
+                        last_presence_touch[user_id] = now_ts
+                        await manager.send_to_space(space_id, {
+                            "type": "presence", "user_id": user_id, "online": True, "user_name": user_name
+                        }, exclude_user=user_id)
+
             except Exception as e:
                 print(f"WS Handler Error: {e}")
                 import traceback
@@ -278,6 +297,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         if space_id and user_id:
+            last_presence_touch.pop(user_id, None)
             manager.disconnect(space_id, user_id, websocket)
             if not manager.spaces.get(space_id, {}).get(user_id):
                 await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})
@@ -287,6 +307,7 @@ async def websocket_endpoint(websocket: WebSocket):
         last_error["error"] = str(e)
         last_error["trace"] = traceback.format_exc()
         if space_id and user_id:
+            last_presence_touch.pop(user_id, None)
             manager.disconnect(space_id, user_id, websocket)
             if not manager.spaces.get(space_id, {}).get(user_id):
                 await manager.send_to_space(space_id, {"type": "presence", "user_id": user_id, "online": False})

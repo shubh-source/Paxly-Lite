@@ -7,6 +7,38 @@ class WSService {
     this.coupleSpaceId = null;
     this._intentionalClose = false;
     this.queue = [];
+    this.reconnectAttempts = 0;
+
+    // ⚡ Fast Wakeup & Instant Reconnect on screen unlock / tab focus / network resume
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.handleResume();
+        }
+      });
+      window.addEventListener('focus', () => {
+        this.handleResume();
+      });
+      window.addEventListener('online', () => {
+        this.handleResume();
+      });
+    }
+  }
+
+  handleResume() {
+    if (!this.token || !this.coupleSpaceId) return;
+    if (!this.isConnected()) {
+      console.log('⚡ Tab/Screen resumed: reconnecting WebSocket instantly');
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+      this.reconnectAttempts = 0;
+      this.connect(this.token, this.coupleSpaceId);
+    } else {
+      // Announce immediate presence touch so partner knows we just became active
+      this.send({ type: 'presence_touch' });
+    }
   }
 
   connect(token, coupleSpaceId = null) {
@@ -41,6 +73,7 @@ class WSService {
 
     this.ws.onopen = () => {
       console.log('✅ WebSocket connected');
+      this.reconnectAttempts = 0;
       // Send token in payload instead of URL for better security
       this.send({ type: 'auth', token: token });
       
@@ -52,11 +85,14 @@ class WSService {
       if (this.pingTimer) {
         clearInterval(this.pingTimer);
       }
+      // Keepalive ping every 10 seconds for snappy disconnect detection
       this.pingTimer = setInterval(() => {
         if (this.isConnected()) {
-          try { this.ws.send(JSON.stringify({ type: 'ping' })); } catch {}
+          try { this.ws.send(JSON.stringify({ type: 'ping' })); } catch {
+            this.handleResume();
+          }
         }
-      }, 20000);
+      }, 10000);
 
       this.emit('connected', {});
       
@@ -95,7 +131,10 @@ class WSService {
       // - 4001 = no couple space yet (user not linked with partner)
       // - 4003 = forbidden
       if (!this._intentionalClose && e.code !== 4001 && e.code !== 4003 && e.code !== 1008) {
-        this.reconnectTimer = setTimeout(() => this.connect(this.token, this.coupleSpaceId), 3000);
+        // Fast adaptive retry: starts at 500ms
+        const delay = Math.min(500 * Math.pow(1.5, this.reconnectAttempts), 5000);
+        this.reconnectAttempts++;
+        this.reconnectTimer = setTimeout(() => this.connect(this.token, this.coupleSpaceId), delay);
       }
     };
 
