@@ -4,6 +4,7 @@ import api from '../../services/api';
 import NotificationService from '../../services/NotificationService';
 import { wsService } from '../../services/websocket';
 import { Icons } from '../../components/ui/Icons';
+import GoldenDateTimePicker from '../../components/ui/GoldenDateTimePicker';
 
 export const PRESET_OCCASIONS = [
   { id: 'anniversary', label: 'Anniversary', icon: 'Ring', defaultTitle: 'Our Anniversary', category: 'anniversary' },
@@ -165,6 +166,7 @@ export default function AnniversaryTracker() {
   const nav = useNavigate();
   const [dates, setDates] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedOccasion, setSelectedOccasion] = useState('anniversary');
   const [customTitle, setCustomTitle] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // all | upcoming | anniversary | birthday | custom
@@ -723,25 +725,46 @@ export default function AnniversaryTracker() {
               </div>
             </div>
 
-            {/* Date Input */}
+            {/* Golden Date Selector */}
             <div className="inp-wrap" style={{ marginBottom: 16 }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 6, display: 'block' }}>When is it? *</label>
-              <input
-                className="inp"
-                type="date"
-                value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+              <div 
+                onClick={() => setShowDatePicker(true)}
                 style={{
                   background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(201,169,110,0.3)',
                   borderRadius: 14,
                   padding: '12px 14px',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  colorScheme: 'dark',
-                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
                 }}
-              />
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Icons.Calendar size={18} color="var(--accent)" />
+                  <span style={{ color: form.date ? 'var(--text)' : 'var(--muted)', fontSize: '0.92rem', fontWeight: form.date ? 600 : 400 }}>
+                    {form.date ? new Date(form.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Tap to select date'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {form.date ? 'Change' : 'Select'} <Icons.Back size={12} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+                </span>
+              </div>
             </div>
+
+            <GoldenDateTimePicker
+              isOpen={showDatePicker}
+              onClose={() => setShowDatePicker(false)}
+              value={form.date}
+              onChange={val => setForm(f => ({ ...f, date: val || '' }))}
+              mode="date"
+              title="Select Occasion Date"
+              subtitle="Pick the special calendar day to remember"
+              confirmText="Set Date"
+              allowPast={true}
+            />
 
             {/* Optional Note */}
             <div className="inp-wrap" style={{ marginBottom: 22 }}>

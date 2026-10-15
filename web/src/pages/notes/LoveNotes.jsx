@@ -8,7 +8,26 @@ import { Icons } from '../../components/ui/Icons';
 import { useAuth } from '../../context/AuthContext';
 import { wsService } from '../../services/websocket';
 
-const MOODS = ['💌', '❤️', '🥰', '✨', '🌹', '💫', '🎵', '🌙'];
+const NOTE_THEMES = [
+  { id: 'LoveNote', label: 'Note', Icon: Icons.LoveNote },
+  { id: 'Heart', label: 'Love', Icon: Icons.Heart },
+  { id: 'Sparkles', label: 'Magic', Icon: Icons.Sparkles },
+  { id: 'Moon', label: 'Night', Icon: Icons.Moon },
+  { id: 'Flame', label: 'Passion', Icon: Icons.Flame },
+  { id: 'Wine', label: 'Romance', Icon: Icons.Wine },
+  { id: 'Coffee', label: 'Warmth', Icon: Icons.Coffee },
+  { id: 'Star', label: 'Special', Icon: Icons.Star },
+];
+
+function getNoteIcon(title) {
+  if (title && Icons[title]) return Icons[title];
+  if (title === '❤️' || title === '🥰' || title === '🌹') return Icons.Heart;
+  if (title === '✨' || title === '💫') return Icons.Sparkles;
+  if (title === '🌙') return Icons.Moon;
+  if (title === '🍷') return Icons.Wine;
+  if (title === '🎵') return Icons.Sparkles;
+  return Icons.LoveNote;
+}
 
 export default function LoveNotes() {
   const nav = useNavigate();
@@ -16,7 +35,7 @@ export default function LoveNotes() {
   const [notes, setNotes] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [content, setContent] = useState('');
-  const [mood, setMood] = useState('💌');
+  const [mood, setMood] = useState('LoveNote');
   const [unlockDate, setUnlockDate] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -97,7 +116,7 @@ export default function LoveNotes() {
         share_with_partner: true
       });
       setContent(''); 
-      setMood('💌'); 
+      setMood('LoveNote'); 
       setUnlockDate('');
       setShowForm(false);
       await fetchNotes();
@@ -166,25 +185,34 @@ export default function LoveNotes() {
             </div>
             
             <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {MOODS.map(m => (
-                <button 
-                  key={m} 
-                  onClick={() => setMood(m)} 
-                  style={{ 
-                    fontSize: '1.6rem', 
-                    background: mood === m ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.03)', 
-                    border: mood === m ? '2px solid var(--accent)' : '2px solid transparent', 
-                    borderRadius: 16, 
-                    width: 54,
-                    height: 54,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >{m}</button>
-              ))}
+              {NOTE_THEMES.map(m => {
+                const IconComp = m.Icon;
+                const isSelected = mood === m.id;
+                return (
+                  <button 
+                    key={m.id} 
+                    type="button"
+                    onClick={() => setMood(m.id)} 
+                    title={m.label}
+                    style={{ 
+                      background: isSelected ? 'rgba(201,169,110,0.18)' : 'rgba(255,255,255,0.03)', 
+                      border: isSelected ? '2px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)', 
+                      borderRadius: 16, 
+                      width: 52,
+                      height: 52,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: isSelected ? 'var(--accent)' : 'var(--muted)',
+                      transition: 'all 0.2s',
+                      boxShadow: isSelected ? '0 0 12px rgba(201,169,110,0.25)' : 'none'
+                    }}
+                  >
+                    <IconComp size={22} color={isSelected ? 'var(--accent)' : 'var(--muted)'} />
+                  </button>
+                );
+              })}
             </div>
 
             <textarea
@@ -211,8 +239,8 @@ export default function LoveNotes() {
             {/* Custom Golden Charcoal Time Capsule Trigger Card */}
             <div style={{ marginBottom: 22 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ color: 'var(--accent)', fontSize: '0.88rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>⏳</span> Lock as Time Capsule (Optional)
+                <label style={{ color: 'var(--accent)', fontSize: '0.88rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Icons.Hourglass size={16} color="var(--accent)" /> Lock as Time Capsule (Optional)
                 </label>
                 {unlockDate && (
                   <button
@@ -251,9 +279,8 @@ export default function LoveNotes() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '1.3rem'
                     }}>
-                      🎁
+                      <Icons.Gift size={22} color="var(--accent)" />
                     </div>
                     <div>
                       <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.95rem' }}>
@@ -264,7 +291,9 @@ export default function LoveNotes() {
                       </div>
                     </div>
                   </div>
-                  <span style={{ color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 700 }}>Edit ▶</span>
+                  <span style={{ color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    Edit <Icons.Back size={12} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+                  </span>
                 </div>
               ) : (
                 <div 
@@ -299,9 +328,8 @@ export default function LoveNotes() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '1.2rem'
                     }}>
-                      ⏳
+                      <Icons.Hourglass size={18} color="var(--muted)" />
                     </div>
                     <div>
                       <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: '0.9rem' }}>
@@ -382,7 +410,19 @@ export default function LoveNotes() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{ fontSize: '1.8rem', animation: 'spinPulse 2s infinite' }}>🎁</span>
+                      <div style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 14,
+                        background: 'rgba(201,169,110,0.2)',
+                        border: '1px solid var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        animation: 'spinPulse 2s infinite'
+                      }}>
+                        <Icons.Gift size={22} color="var(--accent)" />
+                      </div>
                       <div style={{ textAlign: 'left' }}>
                         <p style={{ margin: 0, fontWeight: 700, color: 'var(--accent)', fontSize: '0.95rem' }}>Surprise Gift Waiting!</p>
                         <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>Tap to unwrap this love note</p>
@@ -400,8 +440,26 @@ export default function LoveNotes() {
                   marginBottom: 12, 
                   visibility: (!note.is_opened && note.created_by !== user?.id) ? 'hidden' : 'visible' 
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: '1.8rem' }}>{note.title || '💌'}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {(() => {
+                      const NoteIcon = getNoteIcon(note.title);
+                      return (
+                        <div style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 12,
+                          background: 'rgba(201,169,110,0.14)',
+                          border: '1px solid rgba(201,169,110,0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--accent)',
+                          flexShrink: 0
+                        }}>
+                          <NoteIcon size={20} color="var(--accent)" />
+                        </div>
+                      );
+                    })()}
                     <div>
                       <span style={{ fontSize: '0.88rem', color: 'var(--accent)', fontWeight: 600, display: 'block' }}>{note.created_by === user?.id ? 'You' : (note.sender_name || 'Partner')}</span>
                       <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{formatDate(note.created_at)}</span>

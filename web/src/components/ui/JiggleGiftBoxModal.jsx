@@ -239,7 +239,7 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
                         animation: 'confettiFade 0.9s ease-out forwards'
                       }}
                     >
-                      {p.isHeart && <span style={{ fontSize: `${p.size + 4}px`, lineHeight: 1 }}>💖</span>}
+                      {p.isHeart && <Icons.Heart size={p.size + 6} color={p.color} fill={p.color} />}
                     </div>
                   ))}
                 </div>
@@ -287,11 +287,10 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '2.5rem',
               margin: '-56px auto 20px',
               boxShadow: '0 12px 30px rgba(0,0,0,0.4)'
             }}>
-              {note.title?.length <= 4 ? note.title : '💌'}
+              <Icons.LoveNote size={36} color="var(--accent)" />
             </div>
 
             <div style={{

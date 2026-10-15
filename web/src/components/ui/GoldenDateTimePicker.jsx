@@ -13,14 +13,19 @@ export default function GoldenDateTimePicker({
   onClose,
   value,
   onChange,
-  title = "Lock as Time Capsule"
+  title = "Lock as Time Capsule",
+  subtitle = "Seals note into a locked gift box until exact time",
+  mode = "datetime", // 'datetime' | 'date'
+  allowPast = false,
+  confirmText = "Set Time Capsule"
 }) {
   const [selectedDate, setSelectedDate] = useState(() => {
     if (value) {
-      const d = new Date(value);
+      const d = new Date(value.includes('T') ? value : value + 'T00:00:00');
       if (!isNaN(d.getTime())) return d;
     }
-    // Default to 3 hours in the future
+    // Default to 3 hours in the future for datetime, or today for date
+    if (mode === 'date') return new Date();
     return new Date(Date.now() + 3 * 60 * 60 * 1000);
   });
 
@@ -45,11 +50,11 @@ export default function GoldenDateTimePicker({
     if (isOpen) {
       let d = null;
       if (value) {
-        const parsed = new Date(value);
+        const parsed = new Date(value.includes('T') ? value : value + 'T00:00:00');
         if (!isNaN(parsed.getTime())) d = parsed;
       }
       if (!d) {
-        d = new Date(Date.now() + 3 * 60 * 60 * 1000);
+        d = mode === 'date' ? new Date() : new Date(Date.now() + 3 * 60 * 60 * 1000);
       }
       setSelectedDate(d);
       setViewYear(d.getFullYear());
@@ -59,7 +64,7 @@ export default function GoldenDateTimePicker({
       setMinute(Math.round(d.getMinutes() / 5) * 5 % 60);
       setAmpm(h >= 12 ? 'PM' : 'AM');
     }
-  }, [isOpen, value]);
+  }, [isOpen, value, mode]);
 
   // Recalculate target Date object when calendar day or time components change
   const currentTarget = useMemo(() => {
@@ -87,7 +92,7 @@ export default function GoldenDateTimePicker({
     for (let day = 1; day <= totalDays; day++) {
       const cellDate = new Date(viewYear, viewMonth, day);
       cellDate.setHours(0, 0, 0, 0);
-      const isPast = cellDate < today;
+      const isPast = !allowPast && cellDate < today;
       const isToday = cellDate.getTime() === today.getTime();
       const isSelected =
         selectedDate.getDate() === day &&
@@ -103,7 +108,7 @@ export default function GoldenDateTimePicker({
     }
 
     return days;
-  }, [viewYear, viewMonth, selectedDate]);
+  }, [viewYear, viewMonth, selectedDate, allowPast]);
 
   if (!isOpen) return null;
 
@@ -131,7 +136,7 @@ export default function GoldenDateTimePicker({
     setSelectedDate(next);
   };
 
-  // Quick Romantic Presets
+  // Quick Romantic Presets for DateTime Mode
   const applyPreset = (presetType) => {
     const now = new Date();
     let target = new Date();
@@ -177,6 +182,39 @@ export default function GoldenDateTimePicker({
     setAmpm(h >= 12 ? 'PM' : 'AM');
   };
 
+  // Quick Presets for Date Only Mode
+  const applyDatePreset = (presetType) => {
+    const now = new Date();
+    let target = new Date();
+
+    switch (presetType) {
+      case 'today':
+        target = new Date();
+        break;
+      case 'tomorrow':
+        target = new Date();
+        target.setDate(target.getDate() + 1);
+        break;
+      case '1week':
+        target = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '1month':
+        target = new Date();
+        target.setMonth(target.getMonth() + 1);
+        break;
+      case '1year':
+        target = new Date();
+        target.setFullYear(target.getFullYear() + 1);
+        break;
+      default:
+        break;
+    }
+
+    setSelectedDate(target);
+    setViewYear(target.getFullYear());
+    setViewMonth(target.getMonth());
+  };
+
   const formatCountdown = (dateObj) => {
     const diffMs = dateObj - new Date();
     if (diffMs <= 0) return 'Immediate (Timer has passed)';
@@ -196,6 +234,15 @@ export default function GoldenDateTimePicker({
   };
 
   const handleSave = () => {
+    if (mode === 'date') {
+      const y = selectedDate.getFullYear();
+      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const d = String(selectedDate.getDate()).padStart(2, '0');
+      onChange(`${y}-${m}-${d}`);
+      onClose();
+      return;
+    }
+
     if (currentTarget <= new Date()) {
       alert("Please select a future date and time for the time capsule.");
       return;
@@ -250,19 +297,24 @@ export default function GoldenDateTimePicker({
               justifyContent: 'center',
               color: 'var(--accent)'
             }}>
-              ⏳
+              {mode === 'date' ? (
+                <Icons.Calendar size={18} color="var(--accent)" />
+              ) : (
+                <Icons.Hourglass size={18} color="var(--accent)" />
+              )}
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontFamily: 'var(--font-d)', color: 'var(--text)', fontWeight: 600 }}>
                 {title}
               </h3>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)' }}>
-                Seals note into a locked gift box until exact time
+                {subtitle}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.1)',
@@ -276,55 +328,104 @@ export default function GoldenDateTimePicker({
               justifyContent: 'center'
             }}
           >
-            ✕
+            <Icons.Close size={15} color="var(--muted)" />
           </button>
         </div>
 
         {/* Quick Presets */}
         <div style={{ marginBottom: 20 }}>
           <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-            Quick Romantic Presets
+            {mode === 'date' ? 'Quick Date Presets' : 'Quick Romantic Presets'}
           </span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 8 }}>
-            {[
-              { id: '1h', label: '+1 Hour', icon: '⚡' },
-              { id: '3h', label: '+3 Hours', icon: '⏳' },
-              { id: 'tonight', label: 'Tonight 9 PM', icon: '🌙' },
-              { id: 'tomorrow_morning', label: 'Tomorrow 9 AM', icon: '☀️' },
-              { id: 'tomorrow_night', label: 'Tomorrow 9 PM', icon: '🍷' },
-              { id: '1week', label: 'In 1 Week', icon: '💌' },
-            ].map(p => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => applyPreset(p.id)}
-                style={{
-                  background: 'rgba(201, 169, 110, 0.06)',
-                  border: '1px solid rgba(201, 169, 110, 0.2)',
-                  borderRadius: 14,
-                  padding: '9px 6px',
-                  color: 'var(--text)',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 5,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(201, 169, 110, 0.18)';
-                  e.currentTarget.style.borderColor = 'var(--accent)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(201, 169, 110, 0.06)';
-                  e.currentTarget.style.borderColor = 'rgba(201, 169, 110, 0.2)';
-                }}
-              >
-                <span>{p.icon}</span> {p.label}
-              </button>
-            ))}
+            {mode === 'date' ? (
+              [
+                { id: 'today', label: 'Today', Icon: Icons.Calendar },
+                { id: 'tomorrow', label: 'Tomorrow', Icon: Icons.Sun },
+                { id: '1week', label: 'In 1 Week', Icon: Icons.Sparkles },
+                { id: '1month', label: 'In 1 Month', Icon: Icons.Heart },
+                { id: '1year', label: 'In 1 Year', Icon: Icons.Ring },
+              ].map(p => {
+                const IconComp = p.Icon;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyDatePreset(p.id)}
+                    style={{
+                      background: 'rgba(201, 169, 110, 0.06)',
+                      border: '1px solid rgba(201, 169, 110, 0.2)',
+                      borderRadius: 14,
+                      padding: '9px 6px',
+                      color: 'var(--text)',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(201, 169, 110, 0.18)';
+                      e.currentTarget.style.borderColor = 'var(--accent)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(201, 169, 110, 0.06)';
+                      e.currentTarget.style.borderColor = 'rgba(201, 169, 110, 0.2)';
+                    }}
+                  >
+                    <IconComp size={13} color="var(--accent)" />
+                    <span>{p.label}</span>
+                  </button>
+                );
+              })
+            ) : (
+              [
+                { id: '1h', label: '+1 Hour', Icon: Icons.Zap },
+                { id: '3h', label: '+3 Hours', Icon: Icons.Hourglass },
+                { id: 'tonight', label: 'Tonight 9 PM', Icon: Icons.Moon },
+                { id: 'tomorrow_morning', label: 'Tomorrow 9 AM', Icon: Icons.Sun },
+                { id: 'tomorrow_night', label: 'Tomorrow 9 PM', Icon: Icons.Wine },
+                { id: '1week', label: 'In 1 Week', Icon: Icons.LoveNote },
+              ].map(p => {
+                const IconComp = p.Icon;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyPreset(p.id)}
+                    style={{
+                      background: 'rgba(201, 169, 110, 0.06)',
+                      border: '1px solid rgba(201, 169, 110, 0.2)',
+                      borderRadius: 14,
+                      padding: '9px 6px',
+                      color: 'var(--text)',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(201, 169, 110, 0.18)';
+                      e.currentTarget.style.borderColor = 'var(--accent)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(201, 169, 110, 0.06)';
+                      e.currentTarget.style.borderColor = 'rgba(201, 169, 110, 0.2)';
+                    }}
+                  >
+                    <IconComp size={13} color="var(--accent)" />
+                    <span>{p.label}</span>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -345,6 +446,7 @@ export default function GoldenDateTimePicker({
               <button
                 type="button"
                 onClick={handlePrevMonth}
+                aria-label="Previous Month"
                 style={{
                   width: 32,
                   height: 32,
@@ -355,15 +457,15 @@ export default function GoldenDateTimePicker({
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.9rem'
+                  justifyContent: 'center'
                 }}
               >
-                ◀
+                <Icons.Back size={14} color="var(--text)" />
               </button>
               <button
                 type="button"
                 onClick={handleNextMonth}
+                aria-label="Next Month"
                 style={{
                   width: 32,
                   height: 32,
@@ -374,11 +476,10 @@ export default function GoldenDateTimePicker({
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.9rem'
+                  justifyContent: 'center'
                 }}
               >
-                ▶
+                <Icons.Back size={14} color="var(--text)" style={{ transform: 'rotate(180deg)' }} />
               </button>
             </div>
           </div>
@@ -459,125 +560,127 @@ export default function GoldenDateTimePicker({
           </div>
         </div>
 
-        {/* Time Selector in Charcoal & Gold */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.02)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          borderRadius: 20,
-          padding: '16px',
-          marginBottom: 18
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Unlock Time (Your Local Time)
-            </span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-              {hour12.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')} {ampm}
-            </span>
-          </div>
+        {/* Time Selector in Charcoal & Gold (Hidden in Date mode) */}
+        {mode !== 'date' && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+            borderRadius: 20,
+            padding: '16px',
+            marginBottom: 18
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Unlock Time (Your Local Time)
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                {hour12.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')} {ampm}
+              </span>
+            </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-            {/* Hour Selector */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 4 }}>HOUR</span>
-              <select
-                value={hour12}
-                onChange={e => setHour12(parseInt(e.target.value, 10))}
-                style={{
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+              {/* Hour Selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 4 }}>HOUR</span>
+                <select
+                  value={hour12}
+                  onChange={e => setHour12(parseInt(e.target.value, 10))}
+                  style={{
+                    background: '#1a1a20',
+                    border: '1px solid rgba(201, 169, 110, 0.3)',
+                    borderRadius: 14,
+                    padding: '10px 14px',
+                    color: 'var(--accent)',
+                    fontSize: '1.1rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                    <option key={h} value={h} style={{ background: '#1a1a20', color: '#fff' }}>
+                      {h.toString().padStart(2, '0')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <span style={{ fontSize: '1.4rem', color: 'var(--accent)', fontWeight: 700, marginTop: 16 }}>:</span>
+
+              {/* Minute Selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 4 }}>MINUTE</span>
+                <select
+                  value={minute}
+                  onChange={e => setMinute(parseInt(e.target.value, 10))}
+                  style={{
+                    background: '#1a1a20',
+                    border: '1px solid rgba(201, 169, 110, 0.3)',
+                    borderRadius: 14,
+                    padding: '10px 14px',
+                    color: 'var(--accent)',
+                    fontSize: '1.1rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {Array.from({ length: 12 }, (_, i) => i * 5).map(m => (
+                    <option key={m} value={m} style={{ background: '#1a1a20', color: '#fff' }}>
+                      {m.toString().padStart(2, '0')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* AM / PM Toggle */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginLeft: 8 }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 4 }}>PERIOD</span>
+                <div style={{
+                  display: 'flex',
                   background: '#1a1a20',
                   border: '1px solid rgba(201, 169, 110, 0.3)',
                   borderRadius: 14,
-                  padding: '10px 14px',
-                  color: 'var(--accent)',
-                  fontSize: '1.1rem',
-                  fontWeight: 700,
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
-                  <option key={h} value={h} style={{ background: '#1a1a20', color: '#fff' }}>
-                    {h.toString().padStart(2, '0')}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <span style={{ fontSize: '1.4rem', color: 'var(--accent)', fontWeight: 700, marginTop: 16 }}>:</span>
-
-            {/* Minute Selector */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 4 }}>MINUTE</span>
-              <select
-                value={minute}
-                onChange={e => setMinute(parseInt(e.target.value, 10))}
-                style={{
-                  background: '#1a1a20',
-                  border: '1px solid rgba(201, 169, 110, 0.3)',
-                  borderRadius: 14,
-                  padding: '10px 14px',
-                  color: 'var(--accent)',
-                  fontSize: '1.1rem',
-                  fontWeight: 700,
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                {Array.from({ length: 12 }, (_, i) => i * 5).map(m => (
-                  <option key={m} value={m} style={{ background: '#1a1a20', color: '#fff' }}>
-                    {m.toString().padStart(2, '0')}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* AM / PM Toggle */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginLeft: 8 }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 4 }}>PERIOD</span>
-              <div style={{
-                display: 'flex',
-                background: '#1a1a20',
-                border: '1px solid rgba(201, 169, 110, 0.3)',
-                borderRadius: 14,
-                overflow: 'hidden',
-                padding: 2
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setAmpm('AM')}
-                  style={{
-                    padding: '8px 12px',
-                    border: 'none',
-                    borderRadius: 12,
-                    background: ampm === 'AM' ? 'linear-gradient(135deg, #e5c07b, #c9a96e)' : 'transparent',
-                    color: ampm === 'AM' ? '#000' : 'var(--muted)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  AM
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAmpm('PM')}
-                  style={{
-                    padding: '8px 12px',
-                    border: 'none',
-                    borderRadius: 12,
-                    background: ampm === 'PM' ? 'linear-gradient(135deg, #e5c07b, #c9a96e)' : 'transparent',
-                    color: ampm === 'PM' ? '#000' : 'var(--muted)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  PM
-                </button>
+                  overflow: 'hidden',
+                  padding: 2
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setAmpm('AM')}
+                    style={{
+                      padding: '8px 12px',
+                      border: 'none',
+                      borderRadius: 12,
+                      background: ampm === 'AM' ? 'linear-gradient(135deg, #e5c07b, #c9a96e)' : 'transparent',
+                      color: ampm === 'AM' ? '#000' : 'var(--muted)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    AM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAmpm('PM')}
+                    style={{
+                      padding: '8px 12px',
+                      border: 'none',
+                      borderRadius: 12,
+                      background: ampm === 'PM' ? 'linear-gradient(135deg, #e5c07b, #c9a96e)' : 'transparent',
+                      color: ampm === 'PM' ? '#000' : 'var(--muted)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    PM
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Live Preview Banner */}
         <div style={{
@@ -590,17 +693,39 @@ export default function GoldenDateTimePicker({
           alignItems: 'center',
           gap: 12
         }}>
-          <span style={{ fontSize: '1.4rem' }}>🎁</span>
+          <div style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            background: 'rgba(201, 169, 110, 0.18)',
+            border: '1px solid rgba(201, 169, 110, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            {mode === 'date' ? (
+              <Icons.Calendar size={20} color="var(--accent)" />
+            ) : (
+              <Icons.Gift size={20} color="var(--accent)" />
+            )}
+          </div>
           <div style={{ flex: 1 }}>
             <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700 }}>
-              UNLOCK SCHEDULE
+              {mode === 'date' ? 'SELECTED DATE' : 'UNLOCK SCHEDULE'}
             </p>
             <p style={{ margin: '2px 0 0', fontSize: '0.88rem', color: '#fff', fontWeight: 600 }}>
-              {currentTarget.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {hour12.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')} {ampm}
+              {mode === 'date' ? (
+                selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+              ) : (
+                `${currentTarget.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at ${hour12.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${ampm}`
+              )}
             </p>
-            <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>
-              ({formatCountdown(currentTarget)})
-            </p>
+            {mode !== 'date' && (
+              <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>
+                ({formatCountdown(currentTarget)})
+              </p>
+            )}
           </div>
         </div>
 
@@ -622,7 +747,7 @@ export default function GoldenDateTimePicker({
                 cursor: 'pointer'
               }}
             >
-              Remove Lock
+              Clear
             </button>
           )}
 
@@ -663,7 +788,12 @@ export default function GoldenDateTimePicker({
               gap: 8
             }}
           >
-            Set Time Capsule ⏳
+            {mode === 'date' ? (
+              <Icons.Check size={18} color="#000" stroke={2.5} />
+            ) : (
+              <Icons.Hourglass size={16} color="#000" />
+            )}
+            <span>{confirmText}</span>
           </button>
         </div>
       </div>

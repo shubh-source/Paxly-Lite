@@ -474,6 +474,45 @@ export const Icons = {
       <path d="M17 19h4" />
     </IconWrapper>
   ),
+  Hourglass: (props) => (
+    <IconWrapper {...props}>
+      <path d="M5 22h14" />
+      <path d="M5 2h14" />
+      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
+      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+    </IconWrapper>
+  ),
+  Moon: (props) => (
+    <IconWrapper {...props}>
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </IconWrapper>
+  ),
+  Sun: (props) => (
+    <IconWrapper {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </IconWrapper>
+  ),
+  Zap: (props) => (
+    <IconWrapper {...props}>
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </IconWrapper>
+  ),
+  Wine: (props) => (
+    <IconWrapper {...props}>
+      <path d="M8 22h8" />
+      <path d="M7 10h10" />
+      <path d="M12 15v7" />
+      <path d="M12 15a5 5 0 0 0 5-5c0-2-.5-4-2-8H9c-1.5 4-2 6-2 8a5 5 0 0 0 5 5Z" />
+    </IconWrapper>
+  ),
   Loader: ({ size = 24, className = '', style }) => (
     <svg 
       width={size} 
