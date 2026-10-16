@@ -186,11 +186,11 @@ app.add_middleware(
 # --- THE FORTRESS MIDDLEWARE ---
 @app.middleware("http")
 async def fortress_middleware(request: Request, call_next):
-    # Bypass security check for OPTIONS (CORS preflight) and health pings
-    if request.method == "OPTIONS" or request.url.path.startswith("/api/health"):
+    # Bypass security check for OPTIONS (CORS preflight), root health check, and health routes
+    if request.method == "OPTIONS" or request.url.path == "/" or request.url.path.startswith("/api/health"):
         return await call_next(request)
         
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "127.0.0.1"
     
     # 1. SECURITY: IP BAN CHECK (GLOBAL)
     try:

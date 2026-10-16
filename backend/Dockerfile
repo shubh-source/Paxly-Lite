@@ -24,4 +24,4 @@ EXPOSE 10000
 
 # Run the application with Gunicorn using Uvicorn workers for production
 # Using shell form to allow $PORT environment variable expansion
-CMD gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT --timeout 120
+CMD gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:${PORT:-10000} --timeout 120

@@ -5,6 +5,7 @@ services:
     rootDir: backend
     branch: main
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health/ping
     envVars:
       - key: PORT
         value: 10000
