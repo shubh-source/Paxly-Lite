@@ -216,3 +216,67 @@ async def test_ai_session_start_authoritative_history_and_thread_isolation(test_
     synopsis = res_start.json()["synopsis"]
     # The summary should be based on "Partner A: Love you Bob", NOT the fake client injected text!
     assert "Love you Bob" in synopsis
+
+
+@pytest.mark.asyncio
+async def test_vault_save_message_decrypts_text(test_env):
+    """Verify that saving an encrypted chat message to Memory Vault decrypts description instead of saving raw cipher."""
+    from app.models.orm import Memory
+    client = test_env["client"]
+    session_factory = test_env["session_factory"]
+
+    async with session_factory() as session:
+        u = User(id="user_vault_1", email="v1@test.com", name="VaultUser", couple_space_id="space_vault")
+        session.add(u)
+        m = Message(
+            id="msg_vault_1",
+            couple_space_id="space_vault",
+            sender_id="user_vault_1",
+            text=encrypt_data("Secret vault message text"),
+            media_url="https://storage.example.com/photo.jpg",
+            message_type="image"
+        )
+        session.add(m)
+        await session.commit()
+
+    token = create_access_token({"sub": "user_vault_1"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = await client.post("/api/memories/save-message", json={"message_id": "msg_vault_1"}, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["description"] == "Secret vault message text"
+
+
+@pytest.mark.asyncio
+async def test_voice_note_solo_user_rename_and_delete(test_env):
+    """Verify that solo users can rename and delete their voice notes without couple_space_id."""
+    from app.models.orm import VoiceNote
+    client = test_env["client"]
+    session_factory = test_env["session_factory"]
+
+    async with session_factory() as session:
+        solo_user = User(id="user_solo_vn", email="solo@test.com", name="SoloUser", couple_space_id=None)
+        session.add(solo_user)
+        vn = VoiceNote(
+            id="vn_solo_1",
+            couple_space_id="solo_user_solo_vn",
+            sender_id="user_solo_vn",
+            url="https://storage.example.com/vn.webm",
+            filename="vn_solo_1.webm",
+            custom_name="Original Name"
+        )
+        session.add(vn)
+        await session.commit()
+
+    token = create_access_token({"sub": "user_solo_vn"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Rename
+    res_ren = await client.patch("/api/voice-notes/vn_solo_1/rename", json={"custom_name": "New Solo Name"}, headers=headers)
+    assert res_ren.status_code == 200
+    assert res_ren.json()["custom_name"] == "New Solo Name"
+
+    # Delete
+    res_del = await client.delete("/api/voice-notes/vn_solo_1", headers=headers)
+    assert res_del.status_code == 200

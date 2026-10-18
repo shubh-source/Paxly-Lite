@@ -8,6 +8,7 @@ from app.models.orm import User, Memory, CoupleSpace, Message
 from app.core.security import get_current_user
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.encryption import decrypt_data
 import os, uuid
 from app.core.storage import storage
 
@@ -149,11 +150,12 @@ async def save_message_to_vault(req: SaveMessageRequest, cu: User = Depends(get_
         raise HTTPException(404, "Message not found")
         
     date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    clean_desc = decrypt_data(msg.text) if msg.text else ""
     
     new_mem = Memory(
         couple_space_id=space_id,
         title="Saved Message",
-        description=msg.text,
+        description=clean_desc,
         date=date_str,
         image_url=msg.media_url,
         created_by=cu.id
@@ -205,7 +207,7 @@ async def get_chat_media(type: str = "image", cu: User = Depends(get_current_use
         res_list.append(MemoryOut(
             id=str(m.id),
             title="Chat Media",
-            description=m.text,
+            description=decrypt_data(m.text) if m.text else "",
             image_url=m.media_url,
             date=m.timestamp.strftime("%Y-%m-%d"),
             created_by=m.sender_id,

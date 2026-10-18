@@ -104,21 +104,25 @@ async def get_voice_notes(
 
 @router.patch("/{note_id}/rename")
 async def rename_voice_note(note_id: str, data: VoiceRename, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(VoiceNote).filter(VoiceNote.id == note_id, VoiceNote.couple_space_id == cu.couple_space_id))
+    space_id = cu.couple_space_id or f"solo_{cu.id}"
+    res = await db.execute(select(VoiceNote).filter(VoiceNote.id == note_id, VoiceNote.couple_space_id == space_id))
     note = res.scalars().first()
     if not note:
         raise HTTPException(404, "Voice note not found.")
     
-    note.custom_name = data.custom_name
+    note.custom_name = data.custom_name.strip() if data.custom_name else note.filename
     await db.commit()
     return {"id": note.id, "custom_name": note.custom_name}
 
 @router.delete("/{note_id}")
 async def delete_voice_note(note_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(VoiceNote).filter(VoiceNote.id == note_id, VoiceNote.couple_space_id == cu.couple_space_id))
+    space_id = cu.couple_space_id or f"solo_{cu.id}"
+    res = await db.execute(select(VoiceNote).filter(VoiceNote.id == note_id, VoiceNote.couple_space_id == space_id))
     note = res.scalars().first()
-    if note:
-        await storage.delete_file(note.filename, "voice")
-        await db.delete(note)
-        await db.commit()
+    if not note:
+        raise HTTPException(404, "Voice note not found.")
+    
+    await storage.delete_file(note.filename, "voice")
+    await db.delete(note)
+    await db.commit()
     return {"ok": True}
