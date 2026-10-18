@@ -6,26 +6,35 @@ import ssl
 # PostgreSQL connection string from settings (Must use 6543 for Render IPv4 compatibility)
 DATABASE_URL = settings.DATABASE_URL
 
-# Build SSL context for Supabase (required for pooler connections)
-_ssl_ctx = ssl.create_default_context()
-_ssl_ctx.check_hostname = False
-_ssl_ctx.verify_mode = ssl.CERT_NONE
+# Build SSL context for Supabase / PostgreSQL (required for pooler connections)
+_ssl_ctx = None
+if DATABASE_URL.startswith("postgresql"):
+    _ssl_ctx = ssl.create_default_context()
+    if getattr(settings, "DB_SSL_VERIFY", False):
+        _ssl_ctx.check_hostname = True
+        _ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+    else:
+        _ssl_ctx.check_hostname = False
+        _ssl_ctx.verify_mode = ssl.CERT_NONE
 
 from sqlalchemy.pool import NullPool
 
 # create_async_engine with Supabase-compatible settings:
 # - statement_cache_size=0 required for Supabase transaction-mode pooler
 # - NullPool prevents SQLAlchemy from pooling connections that PgBouncer is already pooling
+connect_args = {
+    "statement_cache_size": 0,
+    "prepared_statement_cache_size": 0,
+    "command_timeout": 60,
+}
+if _ssl_ctx is not None:
+    connect_args["ssl"] = _ssl_ctx
+
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     poolclass=NullPool,
-    connect_args={
-        "ssl": _ssl_ctx,
-        "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
-        "command_timeout": 60,
-    },
+    connect_args=connect_args,
 )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()

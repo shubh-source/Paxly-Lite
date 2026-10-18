@@ -4,6 +4,7 @@ from typing import Optional
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/vlynxly"
+    DB_SSL_VERIFY: bool = False
 
     # Security
     SECRET_KEY: str = "change-this-secret-key"

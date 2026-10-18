@@ -144,6 +144,18 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(f"Application startup rejected due to encryption initialization error: {e}") from e
 
     is_prod = getattr(settings, "ENVIRONMENT", "").lower() == "production"
+
+    # Enforce cryptographically strong SECRET_KEY in production
+    insecure_keys = {"change-this-secret-key", "secret", "default", "changeme", "password"}
+    secret_key = (getattr(settings, "SECRET_KEY", None) or "").strip()
+    if is_prod:
+        if not secret_key or secret_key in insecure_keys or len(secret_key) < 32:
+            raise RuntimeError(
+                "❌ FATAL STARTUP CONFIGURATION ERROR: In production, SECRET_KEY must be a cryptographically secure random string with at least 32 characters."
+            )
+    elif not secret_key or secret_key in insecure_keys:
+        print("⚠️ WARNING: Insecure default SECRET_KEY in use. Replace with a secure random key before deploying to production.")
+
     try:
         async with engine.begin() as conn:
             await _initialize_database_schema(conn)
@@ -166,19 +178,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Vlynxly Fortress API", version="1.1.1", lifespan=lifespan)
 
-# 1. SECURITY: CORS (Must be at the TOP)
+# 1. SECURITY: CORS (Strict allowed origins and Vercel preview regex; no arbitrary wildcards)
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost",
+    "capacitor://localhost",
+    "https://paxly-lite.vercel.app",
+    "https://vlynxly-web.vercel.app",
+]
+if getattr(settings, "FRONTEND_URL", None):
+    clean_frontend = settings.FRONTEND_URL.rstrip("/")
+    if clean_frontend and clean_frontend not in allowed_origins:
+        allowed_origins.append(clean_frontend)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://localhost",
-        "capacitor://localhost",
-        "https://paxly-lite.vercel.app",
-        "https://vlynxly-web.vercel.app",
-        "null"
-    ],
-    allow_origin_regex=".*",
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https:\/\/(paxly-lite|vlynxly)[a-zA-Z0-9_-]*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

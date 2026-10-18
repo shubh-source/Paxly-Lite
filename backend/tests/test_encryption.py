@@ -216,6 +216,7 @@ async def test_app_lifespan_startup_fails_in_production_with_missing_key():
 async def test_app_lifespan_startup_succeeds_with_valid_key():
     from app.main import app, lifespan
     settings.ENCRYPTION_KEY = Fernet.generate_key().decode()
+    settings.SECRET_KEY = "a" * 32
     settings.ENVIRONMENT = "production"
 
     async with lifespan(app):
