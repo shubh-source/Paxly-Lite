@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
+import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import delete
@@ -123,6 +124,13 @@ async def create_anniversary(data: AnniversaryCreate, cu: User = Depends(get_cur
         raise HTTPException(status_code=400, detail="Title cannot be empty.")
 
     clean_date = (data.date or "").strip()
+    if not clean_date:
+        raise HTTPException(status_code=400, detail="Date cannot be empty.")
+    if not re.match(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", clean_date):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format. Expected strictly zero-padded YYYY-MM-DD format."
+        )
     try:
         # Validate that this is a real calendar date (e.g., rejects 2024-02-30, invalid months, etc.)
         parsed_date = datetime.strptime(clean_date, "%Y-%m-%d").date()

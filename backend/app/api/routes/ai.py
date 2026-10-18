@@ -1671,7 +1671,11 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
             if lines:
                 chat_history_to_use = "\n".join(lines)
     except Exception as e:
-        print(f"Notice: unable to query couple DB messages: {e}")
+        print(f"Database query failure in AI session start: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Database error occurred while retrieving chat history. Session cannot be safely started."
+        )
 
     # Fallback to sanitized client-provided history if no messages in DB
     if not chat_history_to_use:

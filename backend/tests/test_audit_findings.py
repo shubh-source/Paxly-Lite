@@ -95,7 +95,32 @@ async def test_dates_calendar_validation(test_env):
     assert res_inv3.status_code == 400
     assert "Title cannot be empty" in res_inv3.json()["detail"]
 
-    # 4. Valid calendar date succeeds
+    # 4. Non-zero-padded dates (e.g. 2024-2-28, 2024-02-5, 24-02-28) strictly rejected with 400
+    res_single_m = await client.post(
+        "/api/dates/",
+        json={"title": "Anniversary", "date": "2024-2-28", "type": "anniversary"},
+        headers=headers
+    )
+    assert res_single_m.status_code == 400
+    assert "Invalid date format" in res_single_m.json()["detail"]
+
+    res_single_d = await client.post(
+        "/api/dates/",
+        json={"title": "Birthday", "date": "2024-02-5", "type": "birthday"},
+        headers=headers
+    )
+    assert res_single_d.status_code == 400
+    assert "Invalid date format" in res_single_d.json()["detail"]
+
+    res_short_yr = await client.post(
+        "/api/dates/",
+        json={"title": "Short Year", "date": "24-02-28", "type": "anniversary"},
+        headers=headers
+    )
+    assert res_short_yr.status_code == 400
+    assert "Invalid date format" in res_short_yr.json()["detail"]
+
+    # 5. Valid calendar date succeeds
     res_valid = await client.post(
         "/api/dates/",
         json={"title": "Our First Date", "date": "2024-02-29", "type": "first_date"},
@@ -236,6 +261,26 @@ async def test_ai_session_start_authoritative_history_and_thread_isolation(test_
     fallback_data = res_fallback.json()
     assert fallback_data.get("history_source") == "client_unverified"
     assert "[Unverified" in fallback_data["synopsis"]
+
+    # Now directly simulate a database query failure (outage / disconnect / error):
+    # Must fail safely with 500 and NEVER silently substitute client history!
+    real_exec = AsyncSession.execute
+
+    async def mock_fail_msg_exec(self, statement, *args, **kwargs):
+        stmt_str = str(statement)
+        if "messages" in stmt_str.lower():
+            raise Exception("Simulated database outage during message query")
+        return await real_exec(self, statement, *args, **kwargs)
+
+    monkeypatch.setattr(AsyncSession, "execute", mock_fail_msg_exec)
+
+    res_db_fail = await client.post(
+        "/api/ai/session/start",
+        json={"days": 7, "chat_history": "Malicious client injected context during DB outage"},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res_db_fail.status_code == 500
+    assert "Database error occurred" in res_db_fail.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -395,6 +440,51 @@ async def test_memories_date_and_title_validation(test_env):
     )
     assert res_bad_format.status_code == 400
     assert "Invalid date format for memory" in res_bad_format.json()["detail"]
+
+    # 3a. Non-zero-padded month (2024-5-15) strictly rejected with 400
+    res_single_m = await client.post(
+        "/api/memories/",
+        data={"title": "Single Month", "date": "2024-5-15", "description": "Picnic"},
+        headers=headers
+    )
+    assert res_single_m.status_code == 400
+    assert "Invalid date format for memory" in res_single_m.json()["detail"]
+
+    # 3b. Non-zero-padded day (2024-05-5) strictly rejected with 400
+    res_single_d = await client.post(
+        "/api/memories/",
+        data={"title": "Single Day", "date": "2024-05-5", "description": "Park"},
+        headers=headers
+    )
+    assert res_single_d.status_code == 400
+    assert "Invalid date format for memory" in res_single_d.json()["detail"]
+
+    # 3c. Non-zero-padded month and day (2024-5-5) strictly rejected with 400
+    res_single_md = await client.post(
+        "/api/memories/",
+        data={"title": "Single Both", "date": "2024-5-5", "description": "Garden"},
+        headers=headers
+    )
+    assert res_single_md.status_code == 400
+    assert "Invalid date format for memory" in res_single_md.json()["detail"]
+
+    # 3d. 2-digit year (24-05-15) strictly rejected with 400
+    res_two_yr = await client.post(
+        "/api/memories/",
+        data={"title": "Short Year", "date": "24-05-15", "description": "Trip"},
+        headers=headers
+    )
+    assert res_two_yr.status_code == 400
+    assert "Invalid date format for memory" in res_two_yr.json()["detail"]
+
+    # 3e. Date with extra time component (2024-05-15T12:00:00) strictly rejected with 400
+    res_time_comp = await client.post(
+        "/api/memories/",
+        data={"title": "Datetime String", "date": "2024-05-15T12:00:00", "description": "Noon"},
+        headers=headers
+    )
+    assert res_time_comp.status_code == 400
+    assert "Invalid date format for memory" in res_time_comp.json()["detail"]
 
     # 4. Impossible calendar date (Feb 31)
     res_bad_cal = await client.post(

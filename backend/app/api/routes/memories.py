@@ -9,7 +9,7 @@ from app.core.security import get_current_user
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.encryption import decrypt_data
-import os, uuid
+import os, uuid, re
 from app.core.storage import storage
 
 router = APIRouter(prefix="/memories", tags=["Memories"])
@@ -75,14 +75,22 @@ async def create_memory(
     if not clean_title:
         raise HTTPException(status_code=400, detail="Memory title is required and cannot be blank.")
 
-    # Validate date format (must be non-empty and valid YYYY-MM-DD)
+    # Validate date format (must be non-empty, strictly zero-padded YYYY-MM-DD, and a valid calendar date)
     clean_date = (date or "").strip()
     if not clean_date:
         raise HTTPException(status_code=400, detail="Memory date is required and cannot be blank.")
+    if not re.match(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", clean_date):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format for memory. Expected strictly zero-padded YYYY-MM-DD format."
+        )
     try:
         datetime.strptime(clean_date, "%Y-%m-%d")
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid date format for memory. Expected YYYY-MM-DD.")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format for memory. Expected a valid calendar date in YYYY-MM-DD format."
+        )
 
     image_url = None
     if image and image.filename:
