@@ -1609,7 +1609,8 @@ async def summarize_history(history_text: str) -> str:
 async def get_active_session(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not cu.couple_space_id: return None
     res = await db.execute(select(AICounselingSession).filter(
-        AICounselingSession.couple_space_id == cu.couple_space_id
+        AICounselingSession.couple_space_id == cu.couple_space_id,
+        or_(AICounselingSession.partner_a_id == cu.id, AICounselingSession.partner_b_id == cu.id)
     ).order_by(desc(AICounselingSession.created_at)).limit(1))
     
     session = res.scalars().first()
@@ -1631,13 +1632,15 @@ async def get_session_history(cu: User = Depends(get_current_user), db: AsyncSes
     if not cu.couple_space_id: return []
     res = await db.execute(select(AICounselingSession).filter(
         AICounselingSession.couple_space_id == cu.couple_space_id,
+        or_(AICounselingSession.partner_a_id == cu.id, AICounselingSession.partner_b_id == cu.id),
         AICounselingSession.status == "completed"
     ).order_by(desc(AICounselingSession.completed_at)))
     return [{"id": s.id, "completed_at": s.completed_at, "report": s.final_report} for s in res.scalars().all()]
 
 @router.post("/session/start")
 async def start_session(data: AISessionStart, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not cu.couple_space_id: raise HTTPException(400, "Partner connection required.")
+    if not cu.couple_space_id or not cu.partner_id:
+        raise HTTPException(400, "Partner connection required.")
     
     if not data.chat_history:
         raise HTTPException(400, "No chat history provided.")
@@ -1674,7 +1677,15 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
 async def interview_chat(data: AIInterviewRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(AICounselingSession).filter(AICounselingSession.id == data.session_id))
     session = res.scalars().first()
-    if not session or session.status != "interviewing": raise HTTPException(400, "No active session.")
+    if not session:
+        raise HTTPException(404, "Session not found.")
+        
+    # Security check: only registered session participants can interview
+    if cu.id not in (session.partner_a_id, session.partner_b_id):
+        raise HTTPException(403, "Not authorized to participate in this counseling session.")
+
+    if session.status != "interviewing":
+        raise HTTPException(400, "Session is not in interviewing state.")
 
     system = f"You are conducting a private, one-on-one interview with {cu.name} regarding their relationship. You have analyzed their chat history and know: {session.history_synopsis}. Be extremely friendly, empathetic, and warm. Ask kind questions to uncover their true feelings and point of view that they haven't shared with their partner yet. Make them feel safe and heard."
     
@@ -1685,11 +1696,20 @@ async def interview_chat(data: AIInterviewRequest, cu: User = Depends(get_curren
 async def finish_interview(session_id: str, pov: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(AICounselingSession).filter(AICounselingSession.id == session_id))
     session = res.scalars().first()
-    if not session: raise HTTPException(404)
+    if not session:
+        raise HTTPException(404, "Session not found.")
     
+    # Security check: only registered session participants can submit their POV
+    if cu.id not in (session.partner_a_id, session.partner_b_id):
+        raise HTTPException(403, "Not authorized to participate in this counseling session.")
+
+    if session.status != "interviewing":
+        raise HTTPException(400, "Session is not in interviewing state.")
+    
+    # Strictly attribute submission to the authentic matching partner identity
     if cu.id == session.partner_a_id:
         session.partner_a_pov = pov
-    else:
+    elif cu.id == session.partner_b_id:
         session.partner_b_pov = pov
         
     await db.commit()

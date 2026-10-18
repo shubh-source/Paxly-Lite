@@ -10,7 +10,7 @@ from sqlalchemy.future import select
 
 from app.core.database import Base, get_db
 import app.main as main_module
-from app.models.orm import User, AIChatThread
+from app.models.orm import User, AIChatThread, AICounselingSession
 from app.core.security import create_access_token
 from app.api.routes.ai import DEFAULT_AURA_SETTINGS
 
@@ -510,3 +510,62 @@ async def test_malformed_payloads(test_env):
         headers=headers
     )
     assert res3.status_code == 422
+
+@pytest.mark.asyncio
+async def test_counseling_session_participant_authorization(test_env):
+    """Verifies that nonparticipants cannot interview or submit POVs to another couple's counseling session."""
+    session_factory = test_env["session_factory"]
+    client = test_env["client"]
+
+    async with session_factory() as session:
+        u_a1 = User(id="u_a1", name="Alice", email="alice@test.com", password="hash", partner_id="u_a2", couple_space_id="space_a")
+        u_a2 = User(id="u_a2", name="Bob", email="bob@test.com", password="hash", partner_id="u_a1", couple_space_id="space_a")
+        u_c = User(id="u_c", name="Eve", email="eve@test.com", password="hash", partner_id=None, couple_space_id="space_c")
+        
+        c_session = AICounselingSession(
+            id="session_alpha_123",
+            couple_space_id="space_a",
+            partner_a_id="u_a1",
+            partner_b_id="u_a2",
+            status="interviewing",
+            history_synopsis="Alice and Bob had an argument about communication."
+        )
+        session.add_all([u_a1, u_a2, u_c, c_session])
+        await session.commit()
+
+    token_a1 = create_access_token({"sub": "u_a1"})
+    token_c = create_access_token({"sub": "u_c"})
+
+    # 1. Attacker User C tries to join Alice & Bob's interview -> 403 Forbidden
+    res_interview_c = await client.post(
+        "/api/ai/session/interview",
+        json={"session_id": "session_alpha_123", "message": "Tell me what happened"},
+        headers={"Authorization": f"Bearer {token_c}"}
+    )
+    assert res_interview_c.status_code == 403
+    assert "not authorized" in res_interview_c.json()["detail"].lower()
+
+    # 2. Attacker User C tries to finish / submit POV to Alice & Bob's session -> 403 Forbidden
+    res_finish_c = await client.post(
+        "/api/ai/session/finish-interview",
+        params={"session_id": "session_alpha_123", "pov": "Malicious spoofed point of view"},
+        headers={"Authorization": f"Bearer {token_c}"}
+    )
+    assert res_finish_c.status_code == 403
+    assert "not authorized" in res_finish_c.json()["detail"].lower()
+
+    # 3. Legitimate participant Alice submits her POV -> 200 OK, waiting for Bob
+    res_finish_a1 = await client.post(
+        "/api/ai/session/finish-interview",
+        params={"session_id": "session_alpha_123", "pov": "My real perspective on our relationship"},
+        headers={"Authorization": f"Bearer {token_a1}"}
+    )
+    assert res_finish_a1.status_code == 200
+    assert res_finish_a1.json()["status"] == "waiting_for_partner"
+
+    # 4. Verify in DB that partner_a_pov was set and partner_b_pov is still None
+    async with session_factory() as session:
+        s_db = (await session.execute(select(AICounselingSession).filter(AICounselingSession.id == "session_alpha_123"))).scalars().first()
+        assert s_db.partner_a_pov == "My real perspective on our relationship"
+        assert s_db.partner_b_pov is None
+
