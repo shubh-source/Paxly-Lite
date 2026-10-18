@@ -179,8 +179,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id:
                         try:
                             async with AsyncSessionLocal() as db:
-                                msg = await db.execute(select(Message).filter(Message.id == message_id))
-                                msg = msg.scalars().first()
+                                # Security: Scope message lookup strictly to the authenticated couple space
+                                res = await db.execute(
+                                    select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+                                )
+                                msg = res.scalars().first()
                                 if msg:
                                     from sqlalchemy.orm.attributes import flag_modified
                                     new_reactions = dict(msg.reactions or {})
@@ -191,21 +194,24 @@ async def websocket_endpoint(websocket: WebSocket):
                                     msg.reactions = new_reactions
                                     flag_modified(msg, "reactions")
                                     await db.commit()
+
+                                    await manager.send_to_space(space_id, {
+                                        "type": "reaction",
+                                        "message_id": message_id,
+                                        "user_id": user_id,
+                                        "emoji": emoji,
+                                        "reactions": new_reactions
+                                    })
                                 else:
-                                    if emoji:
-                                        new_reactions[user_id] = emoji
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "error",
+                                            "message": "Message not found in your couple space."
+                                        })
+                                    except Exception:
+                                        pass
                         except Exception as e:
                             print(f"Reaction DB Error: {e}")
-                            if emoji:
-                                new_reactions[user_id] = emoji
-
-                        await manager.send_to_space(space_id, {
-                            "type": "reaction",
-                            "message_id": message_id,
-                            "user_id": user_id,
-                            "emoji": emoji,
-                            "reactions": new_reactions
-                        })
 
                 elif p_type == "mood_update":
                     await manager.send_to_space(space_id, {
@@ -228,8 +234,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                     if allowed and msg_id:
                         async with AsyncSessionLocal() as db:
-                            msg = await db.execute(select(Message).filter(Message.id == msg_id))
-                            msg = msg.scalars().first()
+                            # Security: Scope media lookup strictly to the authenticated couple space
+                            res = await db.execute(
+                                select(Message).filter(Message.id == msg_id, Message.couple_space_id == space_id)
+                            )
+                            msg = res.scalars().first()
                             if msg and msg.media_url:
                                 from app.models.orm import Memory
                                 mem = Memory(
