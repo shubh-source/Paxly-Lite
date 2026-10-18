@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development" # 'development', 'test', 'production'
     FRONTEND_URL: str = "http://localhost:3000"
     BACKEND_URL: str = "http://localhost:8000"
+    ALLOWED_ORIGINS: str = "" # Comma-separated list of additional trusted origins
 
     # Media & Storage
     MEDIA_DIR: str = "./media"

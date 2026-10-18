@@ -178,7 +178,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Vlynxly Fortress API", version="1.1.1", lifespan=lifespan)
 
-# 1. SECURITY: CORS (Strict allowed origins and Vercel preview regex; no arbitrary wildcards)
+# 1. SECURITY: CORS (Strict exact allowed origins only; no wildcard regex or loose matching)
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -192,10 +192,16 @@ if getattr(settings, "FRONTEND_URL", None):
     if clean_frontend and clean_frontend not in allowed_origins:
         allowed_origins.append(clean_frontend)
 
+custom_origins = getattr(settings, "ALLOWED_ORIGINS", "")
+if custom_origins:
+    for origin in custom_origins.split(","):
+        clean_origin = origin.strip().rstrip("/")
+        if clean_origin and clean_origin not in allowed_origins:
+            allowed_origins.append(clean_origin)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"^https:\/\/(paxly-lite|vlynxly)[a-zA-Z0-9_-]*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

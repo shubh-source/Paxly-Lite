@@ -4,21 +4,35 @@ from starlette.testclient import TestClient
 from app.main import app
 from app.core.config import settings
 
-def test_cors_middleware_allowed_origins():
+def test_cors_middleware_credentialed_requests():
     client = TestClient(app)
     
-    # Allowed origin: local dev
+    # 1. Trusted origin: local dev preflight & credentialed request
     res = client.options(
         "/api/health/ping",
         headers={
             "Origin": "http://localhost:5173",
-            "Access-Control-Request-Method": "GET"
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "Authorization"
         }
     )
+    assert res.status_code == 200
     assert res.headers.get("access-control-allow-origin") == "http://localhost:5173"
     assert res.headers.get("access-control-allow-credentials") == "true"
 
-    # Allowed origin: production vercel app
+    # Actual GET request with Origin header from trusted origin
+    res = client.get(
+        "/api/health/ping",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Authorization": "Bearer test-token"
+        }
+    )
+    assert res.status_code == 200
+    assert res.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    assert res.headers.get("access-control-allow-credentials") == "true"
+
+    # 2. Trusted origin: production vercel app preflight & credentialed request
     res = client.options(
         "/api/health/ping",
         headers={
@@ -26,19 +40,22 @@ def test_cors_middleware_allowed_origins():
             "Access-Control-Request-Method": "GET"
         }
     )
+    assert res.status_code == 200
     assert res.headers.get("access-control-allow-origin") == "https://paxly-lite.vercel.app"
+    assert res.headers.get("access-control-allow-credentials") == "true"
 
-    # Allowed origin: vercel preview deployment regex match
-    res = client.options(
+    res = client.get(
         "/api/health/ping",
         headers={
-            "Origin": "https://paxly-lite-git-feature-123.vercel.app",
-            "Access-Control-Request-Method": "GET"
+            "Origin": "https://paxly-lite.vercel.app",
+            "Cookie": "access_token=secret_jwt"
         }
     )
-    assert res.headers.get("access-control-allow-origin") == "https://paxly-lite-git-feature-123.vercel.app"
+    assert res.status_code == 200
+    assert res.headers.get("access-control-allow-origin") == "https://paxly-lite.vercel.app"
+    assert res.headers.get("access-control-allow-credentials") == "true"
 
-    # Disallowed origin: arbitrary malicious third party
+    # 3. Untrusted origin: arbitrary malicious third party preflight
     res = client.options(
         "/api/health/ping",
         headers={
@@ -46,9 +63,31 @@ def test_cors_middleware_allowed_origins():
             "Access-Control-Request-Method": "GET"
         }
     )
-    assert "access-control-allow-origin" not in res.headers or res.headers.get("access-control-allow-origin") != "https://malicious-site.com"
+    assert res.status_code == 400
+    assert "access-control-allow-origin" not in res.headers
 
-    # Disallowed origin: null
+    # Untrusted origin: actual request with credentials
+    res = client.get(
+        "/api/health/ping",
+        headers={
+            "Origin": "https://malicious-site.com",
+            "Cookie": "access_token=secret_jwt"
+        }
+    )
+    assert "access-control-allow-origin" not in res.headers
+
+    # 4. Untrusted origin: lookalike / subdomain attacks (e.g. paxly-lite.malicious.com)
+    res = client.options(
+        "/api/health/ping",
+        headers={
+            "Origin": "https://paxly-lite.attacker.com",
+            "Access-Control-Request-Method": "GET"
+        }
+    )
+    assert res.status_code == 400
+    assert "access-control-allow-origin" not in res.headers
+
+    # 5. Disallowed origin: "null"
     res = client.options(
         "/api/health/ping",
         headers={
@@ -56,7 +95,8 @@ def test_cors_middleware_allowed_origins():
             "Access-Control-Request-Method": "GET"
         }
     )
-    assert res.headers.get("access-control-allow-origin") != "null"
+    assert res.status_code == 400
+    assert "access-control-allow-origin" not in res.headers
 
 
 def test_production_secret_key_validation(monkeypatch):
