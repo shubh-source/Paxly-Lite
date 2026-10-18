@@ -5,8 +5,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.background import BackgroundTasks
 from contextlib import asynccontextmanager
-from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, payments, place_partner, calls, website, health
+from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, place_partner, calls, website, health
 import os
+from datetime import datetime, timedelta
 from app.services.email_service import email_service
 from app.core.config import settings
 
@@ -196,11 +197,20 @@ async def fortress_middleware(request: Request, call_next):
     try:
         async with AsyncSessionLocal() as db:
             ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
-            if ban_check.scalars().first():
-                return JSONResponse(
-                    status_code=403,
-                    content={"message": "Access Denied: Your IP is permanently banned for security reasons."}
-                )
+            ban = ban_check.scalars().first()
+            if ban:
+                # If this was an automatic lockout, check if 15-minute cooldown has expired
+                if ban.reason and "Automatic lockout" in ban.reason:
+                    ban_expiry = (ban.banned_at or datetime.utcnow()) + timedelta(minutes=15)
+                    if datetime.utcnow() > ban_expiry:
+                        await db.delete(ban)
+                        await db.commit()
+                        ban = None
+                if ban:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"message": "Access Denied: Your IP has been restricted for security reasons."}
+                    )
     except Exception as e:
         print(f"Fortress DB check failed: {e}")
         pass # Allow the request through if DB is temporarily unavailable
@@ -277,7 +287,6 @@ app.include_router(theatre.router, prefix="/api")
 app.include_router(surprise.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(payment.router, prefix="/api")
-app.include_router(payments.router, prefix="/api")
 app.include_router(place_partner.router, prefix="/api")
 app.include_router(calls.router, prefix="/api")
 app.include_router(website.router, prefix="/api")

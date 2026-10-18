@@ -64,12 +64,23 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "127.0.0.1"
     
-    # Check if IP is banned
+    # Check if IP is banned or locked out
     ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
-    if ban_check.scalars().first():
-        raise HTTPException(status_code=403, detail="Access denied. Your IP is permanently banned due to multiple failed login attempts.")
+    ban = ban_check.scalars().first()
+    if ban:
+        if ban.reason and "Automatic lockout" in ban.reason:
+            ban_expiry = (ban.banned_at or datetime.utcnow()) + timedelta(minutes=15)
+            if datetime.utcnow() > ban_expiry:
+                await db.delete(ban)
+                await db.commit()
+                ban = None
+            else:
+                remaining_min = max(1, int((ban_expiry - datetime.utcnow()).total_seconds() // 60) + 1)
+                raise HTTPException(status_code=429, detail=f"Too many failed login attempts. Your IP is temporarily locked. Try again in {remaining_min} minutes.")
+        if ban:
+            raise HTTPException(status_code=403, detail="Access denied. Your IP has been restricted for security reasons.")
 
     result = await db.execute(select(User).filter(User.email == data.email.lower()))
     user = result.scalars().first()
@@ -88,11 +99,11 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
         failures = count_res.scalar()
         
         if failures >= 3:
-            # AUTO BAN TRIGGER
-            new_ban = BannedIP(ip_address=client_ip, reason=f"Automatic ban after {failures} failed attempts reaching threshold.")
+            # AUTO LOCKOUT TRIGGER (15-min cooldown window)
+            new_ban = BannedIP(ip_address=client_ip, reason=f"Automatic lockout after {failures} failed attempts reaching threshold.")
             db.add(new_ban)
             await db.commit()
-            raise HTTPException(status_code=403, detail="3 Strike Rule: Your IP has been permanently banned.")
+            raise HTTPException(status_code=429, detail="Too many failed login attempts. Your IP has been temporarily locked for 15 minutes.")
             
         await db.commit()
         raise HTTPException(status_code=401, detail=f"Invalid email or password. ({failures}/3 attempts used)")

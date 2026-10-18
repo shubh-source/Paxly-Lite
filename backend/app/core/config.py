@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3"
 
     # Razorpay
-    RAZORPAY_KEY_ID: str = "rzp_test_SZlNsaYYbenJQA"
-    RAZORPAY_KEY_SECRET: str = "r8l9u3RlbXAvciop0eexonVi"
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
     RAZORPAY_WEBHOOK_SECRET: str = ""
     RAZORPAY_ACCOUNT_NO: str = ""
 

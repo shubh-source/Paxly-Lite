@@ -1,4 +1,5 @@
 import os
+import asyncio
 import aiofiles
 from app.core.config import settings
 
@@ -23,15 +24,16 @@ class StorageService:
         """
         if self.mode == "supabase":
             path = f"{folder}/{filename}"
-            # Supabase upload expects bytes
-            self.supabase.storage.from_(self.bucket).upload(
-                path=path,
-                file=content,
-                file_options={"content-type": "image/jpeg"} # Default, can be optimized
-            )
-            # Return public URL
-            res = self.supabase.storage.from_(self.bucket).get_public_url(path)
-            return res
+            # Run synchronous Supabase SDK network I/O in worker thread to prevent event-loop blocking
+            def _upload():
+                self.supabase.storage.from_(self.bucket).upload(
+                    path=path,
+                    file=content,
+                    file_options={"content-type": "image/jpeg"} # Default, can be optimized
+                )
+                return self.supabase.storage.from_(self.bucket).get_public_url(path)
+
+            return await asyncio.to_thread(_upload)
         else:
             # Local Storage
             path = os.path.join(settings.MEDIA_DIR, folder, filename)
@@ -43,11 +45,11 @@ class StorageService:
     async def delete_file(self, filename: str, folder: str = "general"):
         if self.mode == "supabase":
             path = f"{folder}/{filename}"
-            self.supabase.storage.from_(self.bucket).remove([path])
+            await asyncio.to_thread(self.supabase.storage.from_(self.bucket).remove, [path])
         else:
             path = os.path.join(settings.MEDIA_DIR, folder, filename)
             if os.path.exists(path):
-                os.remove(path)
+                await asyncio.to_thread(os.remove, path)
 
 # Global instances
 storage = StorageService()

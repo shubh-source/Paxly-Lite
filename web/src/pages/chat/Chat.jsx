@@ -1461,7 +1461,21 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                       {/* TEXT */}
                       {displayMsgText && (
-                        <span style={{ fontSize:'0.96rem', whiteSpace:'pre-wrap', lineHeight:1.55 }}>{msg.text}</span>
+                        msg.text?.startsWith('gAAAAA') && msg.text.length > 50 ? (
+                          <span style={{ 
+                            fontSize: '0.86rem', 
+                            color: 'rgba(255, 255, 255, 0.55)', 
+                            fontStyle: 'italic', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '6px' 
+                          }}>
+                            <span>🔒</span>
+                            <span>Encrypted message (session key mismatch)</span>
+                          </span>
+                        ) : (
+                          <span style={{ fontSize:'0.96rem', whiteSpace:'pre-wrap', lineHeight:1.55 }}>{msg.text}</span>
+                        )
                       )}
                     </div>
 

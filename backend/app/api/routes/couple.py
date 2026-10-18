@@ -7,12 +7,13 @@ from app.models.schemas import InviteAccept
 from app.models.orm import User, CoupleSpace, Invite
 from app.core.security import get_current_user
 from app.core.database import get_db
-import random, string, uuid
+import secrets, string, uuid
 
 router = APIRouter(prefix="/couple", tags=["Couple"])
 
 def gen_code():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(6))
 
 @router.post("/invite/generate")
 async def generate_invite(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
