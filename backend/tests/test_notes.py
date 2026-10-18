@@ -195,6 +195,11 @@ async def test_notes_idor_ownership_checks(test_env):
     res_edit_alice = await client.put(f"/api/notes/{note_id}", json={"title": "Updated Love Note"}, headers={"Authorization": f"Bearer {token_a1}"})
     assert res_edit_alice.status_code == 200
 
+    # 5b. Legitimate partner Bob CANNOT delete Alice's note (owner-only deletion) -> 403
+    res_del_bob = await client.delete(f"/api/notes/{note_id}", headers={"Authorization": f"Bearer {token_a2}"})
+    assert res_del_bob.status_code == 403
+    assert "Only the note author can delete this note" in res_del_bob.json()["detail"]
+
     # 6. Legitimate author Alice CAN delete her note -> 200
     res_del_alice = await client.delete(f"/api/notes/{note_id}", headers={"Authorization": f"Bearer {token_a1}"})
     assert res_del_alice.status_code == 200

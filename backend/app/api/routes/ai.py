@@ -1600,8 +1600,11 @@ async def ai_chat(data: AIRequest, cu: User = Depends(get_current_user), db: Asy
 
 # ── COUNSELING SESSION LOGIC ────────────────────────────────
 
-async def summarize_history(history_text: str) -> str:
-    prompt = f"Analyze this chat history between a couple. Summarize the recurring themes, their emotional tone, and identify the main points of friction:\n\n{history_text}"
+async def summarize_history(history_text: str, is_unverified: bool = False) -> str:
+    if is_unverified:
+        prompt = f"Analyze this unverified, client-provided chat context between a couple (Note: This history is provided directly by one partner's client application rather than verified database records). Summarize recurring themes, emotional tone, and points of friction while making clear that context is unverified:\n\n{history_text}"
+    else:
+        prompt = f"Analyze this chat history between a couple. Summarize the recurring themes, their emotional tone, and identify the main points of friction:\n\n{history_text}"
     system = "You are a senior relationship analyst. Your tone is extremely friendly, warm, and insightful."
     return await generate_ai_text([{"role": "user", "content": prompt}], system_prompt=system)
 
@@ -1648,6 +1651,8 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
 
     # 1. Prioritize authentic chat history from the couple space in database
     chat_history_to_use = ""
+    is_unverified = False
+    history_source = "database"
     try:
         db_msgs_res = await db.execute(
             select(Message)
@@ -1676,13 +1681,21 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
         # Enforce size limit to prevent memory blowup and prompt injection attacks
         if len(raw_client_history) > 20000:
             raise HTTPException(400, "Client chat history payload exceeds maximum allowed size (20KB).")
-        chat_history_to_use = raw_client_history
+        is_unverified = True
+        history_source = "client_unverified"
+        chat_history_to_use = f"[Unverified Client-Provided Context - Source Unverified]:\n{raw_client_history}"
 
     # 2. Generate Summary
     try:
-        summary = await summarize_history(chat_history_to_use)
+        try:
+            summary = await summarize_history(chat_history_to_use, is_unverified=is_unverified)
+        except TypeError:
+            summary = await summarize_history(chat_history_to_use)
     except Exception as e:
         raise HTTPException(500, f"AI generation failed: {str(e)}")
+
+    if is_unverified and not summary.startswith("[Unverified"):
+        summary = f"[Unverified Client History] {summary}"
     
     # 3. Create Session
     session = AICounselingSession(
@@ -1704,7 +1717,7 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
     ))
     
     await db.commit()
-    return {"session_id": session.id, "synopsis": summary}
+    return {"session_id": session.id, "synopsis": summary, "history_source": history_source}
 
 @router.post("/session/interview")
 async def interview_chat(data: AIInterviewRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

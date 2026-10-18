@@ -70,13 +70,19 @@ async def create_memory(
 ):
     space_id = ensure_space(cu)
     
-    # Validate date format
-    clean_date = date.strip() if date else ""
-    if clean_date:
-        try:
-            datetime.strptime(clean_date, "%Y-%m-%d")
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format for memory. Expected YYYY-MM-DD.")
+    # Validate title
+    clean_title = (title or "").strip()
+    if not clean_title:
+        raise HTTPException(status_code=400, detail="Memory title is required and cannot be blank.")
+
+    # Validate date format (must be non-empty and valid YYYY-MM-DD)
+    clean_date = (date or "").strip()
+    if not clean_date:
+        raise HTTPException(status_code=400, detail="Memory date is required and cannot be blank.")
+    try:
+        datetime.strptime(clean_date, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid date format for memory. Expected YYYY-MM-DD.")
 
     image_url = None
     if image and image.filename:
@@ -106,7 +112,7 @@ async def create_memory(
 
     new_mem = Memory(
         couple_space_id=space_id,
-        title=title.strip() if title else "Memory",
+        title=clean_title,
         description=description,
         date=clean_date,
         image_url=image_url,

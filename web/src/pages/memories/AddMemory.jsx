@@ -19,6 +19,7 @@ export default function AddMemory() {
 
   const submit = async () => {
     if (!form.title.trim()) return setErr('Add a title.');
+    if (!form.date || !form.date.trim()) return setErr('Please select a valid date.');
     setLoading(true); setErr('');
     try {
       await createMemory(form.title, form.description, form.date, file);

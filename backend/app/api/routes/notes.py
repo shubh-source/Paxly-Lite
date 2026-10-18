@@ -324,14 +324,18 @@ async def get_dashboard_notes(cu: User = Depends(get_current_user), db: AsyncSes
     notes = result.scalars().all()
     out = []
     for note in notes:
+        note_unlock = _to_naive_utc(note.unlock_at)
+        is_locked = bool(note_unlock and note_unlock > now)
         out.append({
             "id": note.id,
             "couple_space_id": note.couple_space_id,
             "created_by": note.created_by,
             "title": note.title or "💌",
-            "content": decrypt_data(note.content) if note.content else "",
+            "content": "" if is_locked else (decrypt_data(note.content) if note.content else ""),
             "color": note.color or "#ffffff",
             "is_opened": bool(note.is_opened),
+            "is_locked": is_locked,
+            "unlock_at": _to_iso_utc(note_unlock),
             "shared_display_until": _to_iso_utc(note.shared_display_until),
             "created_at": _to_iso_utc(note.created_at),
         })
@@ -414,10 +418,8 @@ async def delete_note(note_id: str, cu: User = Depends(get_current_user), db: As
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    is_owner = note.created_by == cu.id
-    is_in_space = bool(cu.couple_space_id and note.couple_space_id == cu.couple_space_id)
-    if not (is_owner or is_in_space):
-        raise HTTPException(status_code=403, detail="Not authorized to delete this note")
+    if note.created_by != cu.id:
+        raise HTTPException(status_code=403, detail="Only the note author can delete this note")
 
     await db.delete(note)
     await db.commit()

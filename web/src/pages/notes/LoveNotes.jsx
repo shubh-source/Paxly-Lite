@@ -465,7 +465,9 @@ export default function LoveNotes() {
                       <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{formatDate(note.created_at)}</span>
                     </div>
                   </div>
-                  <button onClick={() => deleteNote(note.id)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--muted)', cursor: 'pointer', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Trash size={16} /></button>
+                  {note.created_by === user?.id && (
+                    <button onClick={() => deleteNote(note.id)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--muted)', cursor: 'pointer', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Delete note"><Icons.Trash size={16} /></button>
+                  )}
                 </div>
                 {note.unlock_at && new Date(note.unlock_at.endsWith("Z") ? note.unlock_at : note.unlock_at + "Z") > new Date() ? (
                   <div style={{ 

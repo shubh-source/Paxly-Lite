@@ -189,7 +189,7 @@ async def test_ai_session_start_authoritative_history_and_thread_isolation(test_
 
     # Mock AI summarizer to avoid calling external models
     import app.api.routes.ai as ai_mod
-    async def mock_summarize(history: str):
+    async def mock_summarize(history: str, *args, **kwargs):
         return f"Summary of: {history[:30]}"
     monkeypatch.setattr(ai_mod, "summarize_history", mock_summarize)
 
@@ -213,9 +213,29 @@ async def test_ai_session_start_authoritative_history_and_thread_isolation(test_
         headers=headers
     )
     assert res_start.status_code == 200
-    synopsis = res_start.json()["synopsis"]
+    res_data = res_start.json()
+    synopsis = res_data["synopsis"]
     # The summary should be based on "Partner A: Love you Bob", NOT the fake client injected text!
     assert "Love you Bob" in synopsis
+    assert res_data.get("history_source") == "database"
+
+    # Now verify unverified client fallback when DB history is completely empty
+    async with session_factory() as session:
+        u3 = User(id="ai_u3", email="u3@test.com", name="Carol", partner_id="ai_u4", couple_space_id="space_ai_empty")
+        u4 = User(id="ai_u4", email="u4@test.com", name="Dave", partner_id="ai_u3", couple_space_id="space_ai_empty")
+        session.add_all([u3, u4])
+        await session.commit()
+
+    token3 = create_access_token({"sub": "ai_u3"})
+    res_fallback = await client.post(
+        "/api/ai/session/start",
+        json={"days": 7, "chat_history": "Client sent message without DB records"},
+        headers={"Authorization": f"Bearer {token3}"}
+    )
+    assert res_fallback.status_code == 200
+    fallback_data = res_fallback.json()
+    assert fallback_data.get("history_source") == "client_unverified"
+    assert "[Unverified" in fallback_data["synopsis"]
 
 
 @pytest.mark.asyncio
@@ -280,3 +300,117 @@ async def test_voice_note_solo_user_rename_and_delete(test_env):
     # Delete
     res_del = await client.delete("/api/voice-notes/vn_solo_1", headers=headers)
     assert res_del.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_love_notes_dashboard_alerts_locked_content_and_owner_only_deletion(test_env):
+    """Verify that dashboard-alerts never leak locked note content and only the author can delete a note."""
+    client = test_env["client"]
+    session_factory = test_env["session_factory"]
+
+    async with session_factory() as session:
+        u1 = User(id="user_ln_1", email="ln1@test.com", name="Aman", partner_id="user_ln_2", couple_space_id="space_notes_alert")
+        u2 = User(id="user_ln_2", email="ln2@test.com", name="Priya", partner_id="user_ln_1", couple_space_id="space_notes_alert")
+        session.add_all([u1, u2])
+        await session.commit()
+
+    token1 = create_access_token({"sub": "user_ln_1"})
+    token2 = create_access_token({"sub": "user_ln_2"})
+
+    # 1. Aman creates a locked time-capsule note shared with Priya
+    future_time = (datetime.utcnow() + timedelta(days=3)).isoformat()
+    res_create = await client.post(
+        "/api/notes/",
+        json={
+            "title": "Future Surprise",
+            "content": "Secret love letter to open on Sunday!",
+            "share_with_partner": True,
+            "display_hours": 72,
+            "unlock_at": future_time
+        },
+        headers={"Authorization": f"Bearer {token1}"}
+    )
+    assert res_create.status_code == 200
+    note_id = res_create.json()["id"]
+
+    # 2. Priya fetches dashboard alerts: Note MUST appear, but content MUST BE EMPTY (""), is_locked=True!
+    res_alerts = await client.get("/api/notes/dashboard-alerts", headers={"Authorization": f"Bearer {token2}"})
+    assert res_alerts.status_code == 200
+    alerts = res_alerts.json()
+    matched = [n for n in alerts if n["id"] == note_id]
+    assert len(matched) == 1
+    locked_note_alert = matched[0]
+    assert locked_note_alert["title"] == "Future Surprise"
+    assert locked_note_alert["content"] == ""  # STRICTLY BLANK BEFORE UNLOCK TIME
+    assert locked_note_alert["is_locked"] is True
+    assert locked_note_alert["unlock_at"] is not None
+
+    # 3. Priya (partner) attempts to delete Aman's note -> 403 Forbidden (owner-only deletion)
+    res_del_partner = await client.delete(f"/api/notes/{note_id}", headers={"Authorization": f"Bearer {token2}"})
+    assert res_del_partner.status_code == 403
+    assert "Only the note author can delete this note" in res_del_partner.json()["detail"]
+
+    # 4. Aman (creator) deletes his own note -> 200 OK
+    res_del_owner = await client.delete(f"/api/notes/{note_id}", headers={"Authorization": f"Bearer {token1}"})
+    assert res_del_owner.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_memories_date_and_title_validation(test_env):
+    """Verify memories endpoint rejects blank/invalid calendar dates and blank titles with 400."""
+    client = test_env["client"]
+    session_factory = test_env["session_factory"]
+
+    async with session_factory() as session:
+        user = User(id="user_mem_val", email="memval@test.com", name="MemUser", couple_space_id="space_mem_val")
+        session.add(user)
+        await session.commit()
+
+    token = create_access_token({"sub": "user_mem_val"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Blank title
+    res_no_title = await client.post(
+        "/api/memories/",
+        data={"title": "   ", "date": "2024-05-15", "description": "Trip to Paris"},
+        headers=headers
+    )
+    assert res_no_title.status_code == 400
+    assert "Memory title is required" in res_no_title.json()["detail"]
+
+    # 2. Blank date
+    res_no_date = await client.post(
+        "/api/memories/",
+        data={"title": "Our First Meet", "date": "   ", "description": "Coffee shop"},
+        headers=headers
+    )
+    assert res_no_date.status_code == 400
+    assert "Memory date is required" in res_no_date.json()["detail"]
+
+    # 3. Invalid date format (not YYYY-MM-DD)
+    res_bad_format = await client.post(
+        "/api/memories/",
+        data={"title": "Beach Day", "date": "15-05-2024", "description": "Sunset"},
+        headers=headers
+    )
+    assert res_bad_format.status_code == 400
+    assert "Invalid date format for memory" in res_bad_format.json()["detail"]
+
+    # 4. Impossible calendar date (Feb 31)
+    res_bad_cal = await client.post(
+        "/api/memories/",
+        data={"title": "Special Day", "date": "2024-02-31", "description": "Fake date"},
+        headers=headers
+    )
+    assert res_bad_cal.status_code == 400
+    assert "Invalid date format for memory" in res_bad_cal.json()["detail"]
+
+    # 5. Valid leap day date succeeds
+    res_valid = await client.post(
+        "/api/memories/",
+        data={"title": "Leap Day Memory", "date": "2024-02-29", "description": "Once every 4 years"},
+        headers=headers
+    )
+    assert res_valid.status_code == 200
+    assert res_valid.json()["title"] == "Leap Day Memory"
+    assert res_valid.json()["date"] == "2024-02-29"
