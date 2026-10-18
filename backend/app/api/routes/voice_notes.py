@@ -17,14 +17,42 @@ router = APIRouter(prefix="/voice-notes", tags=["VoiceNotes"])
 class VoiceRename(BaseModel):
     custom_name: str
 
+MAX_VOICE_NOTE_SIZE = 15 * 1024 * 1024  # 15 MB
+ALLOWED_AUDIO_EXTENSIONS = {"webm", "mp3", "wav", "ogg", "m4a", "aac", "mp4"}
+ALLOWED_AUDIO_MIMES = {
+    "audio/webm", "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+    "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/aac", "video/webm"
+}
+
 @router.post("/upload")
 async def upload_voice(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = cu.couple_space_id or f"solo_{cu.id}"
     
-    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "webm"
+    ext = file.filename.split(".")[-1].lower() if file.filename and "." in file.filename else "webm"
+    if ext not in ALLOWED_AUDIO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid audio format '.{ext}'. Allowed: {', '.join(sorted(ALLOWED_AUDIO_EXTENSIONS))}")
+
+    if file.content_type and file.content_type.lower() not in ALLOWED_AUDIO_MIMES:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio MIME type: {file.content_type}")
+
+    # Read file chunk-by-chunk to prevent memory exhaustion
+    chunk_size = 512 * 1024  # 512 KB
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_VOICE_NOTE_SIZE:
+            raise HTTPException(status_code=413, detail="Voice note exceeds maximum allowed size of 15MB.")
+        chunks.append(chunk)
+
+    if total_size == 0:
+        raise HTTPException(status_code=400, detail="Uploaded voice file is empty.")
+
+    content = b"".join(chunks)
     filename = f"{uuid.uuid4()}.{ext}"
-    content = await file.read()
-    size = len(content)
     url = await storage.upload_file(content, filename, "voice")
     
     new_note = VoiceNote(
@@ -32,7 +60,7 @@ async def upload_voice(file: UploadFile = File(...), cu: User = Depends(get_curr
         sender_id=cu.id,
         url=url,
         filename=filename,
-        size=size
+        size=total_size
     )
     db.add(new_note)
     await db.commit()

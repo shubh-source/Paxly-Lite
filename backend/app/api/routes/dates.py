@@ -118,11 +118,25 @@ class AnniversaryCreate(BaseModel):
 
 @router.post("/")
 async def create_anniversary(data: AnniversaryCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    clean_title = (data.title or "").strip()
+    if not clean_title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty.")
+
+    clean_date = (data.date or "").strip()
+    try:
+        # Validate that this is a real calendar date (e.g., rejects 2024-02-30, invalid months, etc.)
+        parsed_date = datetime.strptime(clean_date, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format. Expected a valid calendar date in YYYY-MM-DD format."
+        )
+
     space_id = cu.couple_space_id or f"solo_{cu.id}"
     new_ann = Anniversary(
         couple_space_id=space_id,
-        title=data.title.strip(),
-        date=data.date.strip(),
+        title=clean_title,
+        date=parsed_date.isoformat(),
         type=(data.type or "custom").strip().lower(),
     )
     db.add(new_ann)

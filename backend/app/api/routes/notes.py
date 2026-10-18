@@ -8,6 +8,7 @@ from app.models.orm import User, Note, Notification, CoupleSpace
 from app.websocket.manager import manager
 from app.core.security import get_current_user
 from app.core.database import get_db
+from app.core.encryption import encrypt_data, decrypt_data
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -139,13 +140,14 @@ async def create_note(data: NoteCreate, cu: User = Depends(get_current_user), db
     clean_unlock_at = _to_naive_utc(data.unlock_at)
     is_future_capsule = bool(clean_unlock_at and clean_unlock_at > datetime.utcnow())
 
+    encrypted_content = encrypt_data(data.content) if data.content else None
     note_id = str(uuid.uuid4())
     new_note = Note(
         id=note_id,
         couple_space_id=space_id,
         created_by=cu.id,
         title=data.title,
-        content=data.content,
+        content=encrypted_content,
         color=data.color or "#ffffff",
         unlock_at=clean_unlock_at,
         unlock_notified=not is_future_capsule, # False if locked so timer triggers it later
@@ -232,7 +234,7 @@ async def get_notes(cu: User = Depends(get_current_user), db: AsyncSession = Dep
             "created_by": note.created_by,
             "sender_name": (cu.name or "You") if note.created_by == cu.id else partner_name,
             "title": note.title or "💌",
-            "content": "" if is_locked else (note.content or ""),
+            "content": "" if is_locked else (decrypt_data(note.content) if note.content else ""),
             "color": note.color or "#ffffff",
             "is_pinned": bool(note.is_pinned),
             "is_opened": bool(note.is_opened),
@@ -283,7 +285,7 @@ async def get_pending_gift(cu: User = Depends(get_current_user), db: AsyncSessio
         "note": {
             "id": note.id,
             "title": note.title or "💌",
-            "content": note.content or "",
+            "content": decrypt_data(note.content) if note.content else "",
             "color": note.color or "#ffffff",
             "sender_name": partner_name,
             "is_opened": False,
@@ -319,7 +321,21 @@ async def get_dashboard_notes(cu: User = Depends(get_current_user), db: AsyncSes
             and_(Note.shared_display_until > now)
         )
     )
-    return result.scalars().all()
+    notes = result.scalars().all()
+    out = []
+    for note in notes:
+        out.append({
+            "id": note.id,
+            "couple_space_id": note.couple_space_id,
+            "created_by": note.created_by,
+            "title": note.title or "💌",
+            "content": decrypt_data(note.content) if note.content else "",
+            "color": note.color or "#ffffff",
+            "is_opened": bool(note.is_opened),
+            "shared_display_until": _to_iso_utc(note.shared_display_until),
+            "created_at": _to_iso_utc(note.created_at),
+        })
+    return out
 
 @router.post("/{note_id}/open")
 async def open_note(note_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -381,6 +397,8 @@ async def update_note(note_id: str, data: dict, cu: User = Depends(get_current_u
 
     allowed = {"title", "content", "color", "is_pinned"}
     updates = {k: v for k, v in data.items() if k in allowed}
+    if "content" in updates and updates["content"]:
+        updates["content"] = encrypt_data(updates["content"])
     updates["updated_at"] = datetime.utcnow()
     
     for key, val in updates.items():

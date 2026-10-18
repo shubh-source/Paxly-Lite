@@ -80,11 +80,35 @@ export function getIconForDate(item) {
   return 'Milestone';
 }
 
-function getTimeRemaining(dateStr, now = new Date()) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const target = new Date(now.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0);
+function isLeapYear(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+}
 
-  const isToday = now.getMonth() === d.getMonth() && now.getDate() === d.getDate();
+function getTimeRemaining(dateStr, now = new Date()) {
+  if (!dateStr) return { total: 0, days: 0, hours: 0, minutes: 0, seconds: 0, isToday: false };
+
+  // Parse YYYY-MM-DD components directly to avoid timezone shift anomalies
+  const parts = dateStr.split('-');
+  const origMonth = parts.length >= 2 ? parseInt(parts[1], 10) - 1 : 0; // 0-indexed month
+  const origDay = parts.length >= 3 ? parseInt(parts[2], 10) : 1;
+
+  function buildTargetDate(year) {
+    let day = origDay;
+    // Leap day handling: Feb 29 in non-leap year safely resolves to Feb 28
+    if (origMonth === 1 && origDay === 29 && !isLeapYear(year)) {
+      day = 28;
+    }
+    return new Date(year, origMonth, day, 0, 0, 0, 0);
+  }
+
+  let targetYear = now.getFullYear();
+  let target = buildTargetDate(targetYear);
+
+  // Check if today is the day of the event
+  const isToday = now.getFullYear() === target.getFullYear() &&
+                  now.getMonth() === target.getMonth() &&
+                  now.getDate() === target.getDate();
+
   if (isToday) {
     return {
       total: 0,
@@ -101,7 +125,8 @@ function getTimeRemaining(dateStr, now = new Date()) {
   }
 
   if (target < now) {
-    target.setFullYear(now.getFullYear() + 1);
+    targetYear += 1;
+    target = buildTargetDate(targetYear);
   }
 
   const diff = target.getTime() - now.getTime();

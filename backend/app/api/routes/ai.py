@@ -1642,19 +1642,52 @@ async def start_session(data: AISessionStart, cu: User = Depends(get_current_use
     if not cu.couple_space_id or not cu.partner_id:
         raise HTTPException(400, "Partner connection required.")
     
-    if not data.chat_history:
-        raise HTTPException(400, "No chat history provided.")
+    # Bound time window between 1 and 30 days
+    days_window = max(1, min(data.days or 7, 30))
+    since = datetime.utcnow() - timedelta(days=days_window)
+
+    # 1. Prioritize authentic chat history from the couple space in database
+    chat_history_to_use = ""
+    try:
+        db_msgs_res = await db.execute(
+            select(Message)
+            .filter(Message.couple_space_id == cu.couple_space_id, Message.timestamp >= since)
+            .order_by(Message.timestamp.asc())
+            .limit(100)
+        )
+        db_msgs = db_msgs_res.scalars().all()
+        if db_msgs:
+            lines = []
+            for m in db_msgs:
+                decrypted_t = decrypt_data(m.text) if m.text else ""
+                if decrypted_t:
+                    sender_label = "Partner A" if m.sender_id == cu.id else "Partner B"
+                    lines.append(f"{sender_label}: {decrypted_t}")
+            if lines:
+                chat_history_to_use = "\n".join(lines)
+    except Exception as e:
+        print(f"Notice: unable to query couple DB messages: {e}")
+
+    # Fallback to sanitized client-provided history if no messages in DB
+    if not chat_history_to_use:
+        raw_client_history = (data.chat_history or "").strip()
+        if not raw_client_history:
+            raise HTTPException(400, "No chat history found for the selected time window.")
+        # Enforce size limit to prevent memory blowup and prompt injection attacks
+        if len(raw_client_history) > 20000:
+            raise HTTPException(400, "Client chat history payload exceeds maximum allowed size (20KB).")
+        chat_history_to_use = raw_client_history
 
     # 2. Generate Summary
     try:
-        summary = await summarize_history(data.chat_history)
+        summary = await summarize_history(chat_history_to_use)
     except Exception as e:
         raise HTTPException(500, f"AI generation failed: {str(e)}")
     
     # 3. Create Session
     session = AICounselingSession(
         couple_space_id=cu.couple_space_id,
-        history_window_days=data.days,
+        history_window_days=days_window,
         history_synopsis=summary,
         partner_a_id=cu.id,
         partner_b_id=cu.partner_id,
@@ -1925,10 +1958,10 @@ async def sync_thread(req: AIThreadSyncRequest, cu: User = Depends(get_current_u
         await db.commit()
     except Exception as e:
         await db.rollback()
-        # Handle race condition for duplicate insert
+        # Handle race condition for duplicate insert strictly scoped to the calling user
         await db.execute(
             update(AIChatThread)
-            .where(AIChatThread.id == req.id)
+            .where(AIChatThread.id == req.id, AIChatThread.user_id == cu.id)
             .values(
                 title=req.title,
                 encrypted_messages=encrypted_msgs,

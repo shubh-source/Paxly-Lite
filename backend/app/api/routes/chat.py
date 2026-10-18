@@ -162,13 +162,27 @@ async def upload_media(file: UploadFile = File(...), cu: User = Depends(get_curr
     if ext not in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mp3", "m4a", "ogg", "webm", "heic", "mov"]:
         raise HTTPException(400, f"File type {ext} not allowed.")
     
-    content = await file.read()
-    size = len(content)
-    
     limit_mb = settings.MAX_FILE_SIZE_MB if cu.is_premium else 5
-    if size > limit_mb * 1024 * 1024:
-        raise HTTPException(400, f"File too large. Free users limit: 5MB, Premium limit: {settings.MAX_FILE_SIZE_MB}MB.")
+    max_bytes = limit_mb * 1024 * 1024
+    chunk_size = 512 * 1024  # 512 KB
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Free users limit: 5MB, Premium limit: {settings.MAX_FILE_SIZE_MB}MB."
+            )
+        chunks.append(chunk)
+
+    if total_size == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
     
+    content = b"".join(chunks)
     filename = f"{uuid.uuid4()}.{ext}"
     url = await storage.upload_file(content, filename, "chat")
     return {"media_url": url, "filename": filename}

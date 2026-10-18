@@ -54,6 +54,10 @@ async def get_memories(cu: User = Depends(get_current_user), db: AsyncSession = 
         ))
     return res_list
 
+MAX_MEMORY_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
+ALLOWED_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
 @router.post("/", response_model=MemoryOut)
 async def create_memory(
     title: str = Form(...),
@@ -64,18 +68,46 @@ async def create_memory(
     db: AsyncSession = Depends(get_db)
 ):
     space_id = ensure_space(cu)
+    
+    # Validate date format
+    clean_date = date.strip() if date else ""
+    if clean_date:
+        try:
+            datetime.strptime(clean_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format for memory. Expected YYYY-MM-DD.")
+
     image_url = None
-    if image:
-        ext = image.filename.split(".")[-1].lower()
-        filename = f"{uuid.uuid4()}.{ext}"
-        content = await image.read()
-        image_url = await storage.upload_file(content, filename, "memories")
+    if image and image.filename:
+        ext = image.filename.split(".")[-1].lower() if "." in image.filename else ""
+        if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Invalid image format '.{ext}'. Allowed: {', '.join(sorted(ALLOWED_IMAGE_EXTENSIONS))}")
+        
+        if image.content_type and image.content_type.lower() not in ALLOWED_IMAGE_MIMES:
+            raise HTTPException(status_code=400, detail=f"Unsupported image MIME type: {image.content_type}")
+
+        chunk_size = 512 * 1024  # 512 KB
+        chunks = []
+        total_size = 0
+        while True:
+            chunk = await image.read(chunk_size)
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if total_size > MAX_MEMORY_IMAGE_SIZE:
+                raise HTTPException(status_code=413, detail="Memory image exceeds maximum allowed size of 10MB.")
+            chunks.append(chunk)
+
+        if total_size > 0:
+            content = b"".join(chunks)
+            filename = f"{uuid.uuid4()}.{ext}"
+            image_url = await storage.upload_file(content, filename, "memories")
 
     new_mem = Memory(
         couple_space_id=space_id,
-        title=title,
+        title=title.strip() if title else "Memory",
         description=description,
-        date=date,
+        date=clean_date,
         image_url=image_url,
         created_by=cu.id
     )
