@@ -53,16 +53,24 @@ async def get_items(cu: User = Depends(get_current_user), db: AsyncSession = Dep
 
 @router.put("/{item_id}")
 async def toggle_item(item_id: str, data: BucketUpdate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    await db.execute(
+    if not cu.couple_space_id:
+        raise HTTPException(403, "Not connected.")
+    res = await db.execute(
         update(BucketItem)
-        .filter(BucketItem.id == item_id)
+        .filter(BucketItem.id == item_id, BucketItem.couple_space_id == cu.couple_space_id)
         .values(completed=data.completed, completed_at=datetime.utcnow() if data.completed else None)
     )
+    if res.rowcount == 0:
+        raise HTTPException(404, "Bucket item not found or access denied")
     await db.commit()
     return {"ok": True}
 
 @router.delete("/{item_id}")
 async def delete_item(item_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    await db.execute(delete(BucketItem).filter(BucketItem.id == item_id))
+    if not cu.couple_space_id:
+        raise HTTPException(403, "Not connected.")
+    res = await db.execute(delete(BucketItem).filter(BucketItem.id == item_id, BucketItem.couple_space_id == cu.couple_space_id))
+    if res.rowcount == 0:
+        raise HTTPException(404, "Bucket item not found or access denied")
     await db.commit()
     return {"ok": True}

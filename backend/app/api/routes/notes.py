@@ -323,10 +323,20 @@ async def get_dashboard_notes(cu: User = Depends(get_current_user), db: AsyncSes
 
 @router.post("/{note_id}/open")
 async def open_note(note_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    await db.execute(update(Note).filter(Note.id == note_id).values(is_opened=True))
+    result = await db.execute(select(Note).filter(Note.id == note_id))
+    note = result.scalars().first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    is_owner = note.created_by == cu.id
+    is_in_space = bool(cu.couple_space_id and note.couple_space_id == cu.couple_space_id)
+    if not (is_owner or is_in_space):
+        raise HTTPException(status_code=403, detail="Not authorized to open this note")
+
+    note.is_opened = True
     await db.commit()
 
-    if cu.couple_space_id:
+    if cu.couple_space_id and note.couple_space_id == cu.couple_space_id:
         try:
             await manager.send_to_space(cu.couple_space_id, {
                 "type": "love_note_opened",
@@ -338,18 +348,59 @@ async def open_note(note_id: str, cu: User = Depends(get_current_user), db: Asyn
 
     return {"ok": True}
 
+@router.post("/{note_id}/dismiss-alert")
+async def dismiss_dashboard_alert(note_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Note).filter(Note.id == note_id))
+    note = result.scalars().first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    is_owner = note.created_by == cu.id
+    is_in_space = bool(cu.couple_space_id and note.couple_space_id == cu.couple_space_id)
+    if not (is_owner or is_in_space):
+        raise HTTPException(status_code=403, detail="Not authorized to dismiss this note")
+
+    note.is_newly_shared = False
+    await db.commit()
+    return {"ok": True}
+
 @router.put("/{note_id}")
 async def update_note(note_id: str, data: dict, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Note).filter(Note.id == note_id))
+    note = result.scalars().first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    is_owner = note.created_by == cu.id
+    is_in_space = bool(cu.couple_space_id and note.couple_space_id == cu.couple_space_id)
+    if not (is_owner or is_in_space):
+        raise HTTPException(status_code=403, detail="Not authorized to modify this note")
+
+    if not is_owner and any(k in data for k in ("title", "content", "color")):
+        raise HTTPException(status_code=403, detail="Only the note author can modify note content")
+
     allowed = {"title", "content", "color", "is_pinned"}
     updates = {k: v for k, v in data.items() if k in allowed}
     updates["updated_at"] = datetime.utcnow()
     
-    await db.execute(update(Note).filter(Note.id == note_id).values(**updates))
+    for key, val in updates.items():
+        setattr(note, key, val)
+
     await db.commit()
     return {"ok": True}
 
 @router.delete("/{note_id}")
 async def delete_note(note_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    await db.execute(delete(Note).filter(Note.id == note_id))
+    result = await db.execute(select(Note).filter(Note.id == note_id))
+    note = result.scalars().first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    is_owner = note.created_by == cu.id
+    is_in_space = bool(cu.couple_space_id and note.couple_space_id == cu.couple_space_id)
+    if not (is_owner or is_in_space):
+        raise HTTPException(status_code=403, detail="Not authorized to delete this note")
+
+    await db.delete(note)
     await db.commit()
     return {"ok": True}

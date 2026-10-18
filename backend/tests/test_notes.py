@@ -148,3 +148,54 @@ async def test_notes_time_capsule_locked(test_env):
     assert len(notes) == 1
     assert notes[0]["content"] == ""  # Stripped for locked note
     assert notes[0]["unlock_at"] is not None
+
+@pytest.mark.asyncio
+async def test_notes_idor_ownership_checks(test_env):
+    """Verifies that foreign users cannot open, modify, or delete another couple's note."""
+    session_factory = test_env["session_factory"]
+    client = test_env["client"]
+
+    async with session_factory() as session:
+        u_a1 = User(id="u_a1", name="Alice", email="alice@test.com", password="hash", partner_id="u_a2", couple_space_id="space_a")
+        u_a2 = User(id="u_a2", name="Bob", email="bob@test.com", password="hash", partner_id="u_a1", couple_space_id="space_a")
+        u_b = User(id="u_b", name="Eve", email="eve@test.com", password="hash", partner_id=None, couple_space_id="space_b")
+        session.add_all([u_a1, u_a2, u_b])
+        await session.commit()
+
+    token_a1 = create_access_token({"sub": "u_a1"})
+    token_a2 = create_access_token({"sub": "u_a2"})
+    token_b = create_access_token({"sub": "u_b"})
+
+    # Alice creates a private note in Space A
+    res_create = await client.post(
+        "/api/notes/",
+        json={"title": "Private Love Note", "content": "Only for Bob", "share_with_partner": True},
+        headers={"Authorization": f"Bearer {token_a1}"}
+    )
+    assert res_create.status_code == 200
+    note_id = res_create.json()["id"]
+
+    # 1. Attacker Eve tries to open Alice's note -> 403
+    res_open_eve = await client.post(f"/api/notes/{note_id}/open", headers={"Authorization": f"Bearer {token_b}"})
+    assert res_open_eve.status_code == 403
+
+    # 2. Attacker Eve tries to edit Alice's note -> 403
+    res_edit_eve = await client.put(f"/api/notes/{note_id}", json={"title": "Hacked"}, headers={"Authorization": f"Bearer {token_b}"})
+    assert res_edit_eve.status_code == 403
+
+    # 3. Attacker Eve tries to delete Alice's note -> 403
+    res_del_eve = await client.delete(f"/api/notes/{note_id}", headers={"Authorization": f"Bearer {token_b}"})
+    assert res_del_eve.status_code == 403
+
+    # 4. Legitimate partner Bob CAN open the note -> 200
+    res_open_bob = await client.post(f"/api/notes/{note_id}/open", headers={"Authorization": f"Bearer {token_a2}"})
+    assert res_open_bob.status_code == 200
+
+    # 5. Legitimate author Alice CAN edit her note -> 200
+    res_edit_alice = await client.put(f"/api/notes/{note_id}", json={"title": "Updated Love Note"}, headers={"Authorization": f"Bearer {token_a1}"})
+    assert res_edit_alice.status_code == 200
+
+    # 6. Legitimate author Alice CAN delete her note -> 200
+    res_del_alice = await client.delete(f"/api/notes/{note_id}", headers={"Authorization": f"Bearer {token_a1}"})
+    assert res_del_alice.status_code == 200
+
