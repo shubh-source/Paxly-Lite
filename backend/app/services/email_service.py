@@ -14,6 +14,8 @@ class EmailService:
     async def send_reset_link(self, email: str, name: str, reset_link: str):
         """Sends a beautiful recovery email to the user."""
         subject = "Secure Your Sanctuary: Password Recovery"
+        if not self.smtp_user or not self.smtp_password:
+            print(f"\n[DEV MODE PASSWORD RESET] To: {email} | Reset Link: {reset_link}\n", flush=True)
         
         # HTML Content in Vlynxly Premium Style
         html = f"""
@@ -108,7 +110,7 @@ class EmailService:
         
         def blocking_send():
             print(f"DEBUG: Starting SMTP connection to {self.smtp_server}:{self.smtp_port}...", flush=True)
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10)
             server.starttls()
             server.login(self.smtp_user, self.smtp_password)
             server.send_message(msg)

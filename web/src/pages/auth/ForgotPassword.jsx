@@ -18,7 +18,9 @@ export default function ForgotPassword() {
       await requestPasswordReset(email);
       setSubmitted(true);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Something went wrong. Please try again.');
+      const detail = err.response?.data?.detail || err.response?.data?.message;
+      const msg = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ') : 'Something went wrong. Please try again.');
+      setError(msg);
     } finally {
       setLoading(false);
     }

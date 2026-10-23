@@ -18,8 +18,16 @@ export default function ResetPassword() {
 
   const handleReset = async (e) => {
     e.preventDefault();
+    if (!token) {
+      setError("Invalid or missing recovery token. Please request a new recovery link.");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
       return;
     }
     setLoading(true);
@@ -28,7 +36,9 @@ export default function ResetPassword() {
       await resetPassword(token, password);
       setSubmitted(true);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Reset failed. Your link might be expired.');
+      const detail = err.response?.data?.detail || err.response?.data?.message;
+      const msg = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ') : 'Reset failed. Your link might be expired.');
+      setError(msg);
     } finally {
       setLoading(false);
     }
