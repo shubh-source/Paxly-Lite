@@ -239,6 +239,36 @@ async def websocket_endpoint(websocket: WebSocket):
                         except Exception as e:
                             print(f"WS Edit Error: {e}")
 
+                elif p_type in ["message_delete", "delete_message"]:
+                    message_id = payload.get("message_id")
+                    for_everyone = payload.get("for_everyone", True)
+                    if message_id:
+                        try:
+                            async with AsyncSessionLocal() as db:
+                                res = await db.execute(
+                                    select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+                                )
+                                msg = res.scalars().first()
+                                if msg:
+                                    if for_everyone:
+                                        if msg.sender_id == user_id:
+                                            await db.delete(msg)
+                                            await db.commit()
+                                            await manager.send_to_space(space_id, {
+                                                "type": "message_deleted",
+                                                "message_id": message_id
+                                            })
+                                    else:
+                                        from sqlalchemy.orm.attributes import flag_modified
+                                        deleted_list = list(msg.deleted_for or [])
+                                        if user_id not in deleted_list:
+                                            deleted_list.append(user_id)
+                                            msg.deleted_for = deleted_list
+                                            flag_modified(msg, "deleted_for")
+                                            await db.commit()
+                        except Exception as e:
+                            print(f"WS Delete Error: {e}")
+
                 elif p_type == "mood_update":
                     await manager.send_to_space(space_id, {
                         "type": "mood_update", "user_id": user_id, 

@@ -356,18 +356,23 @@ async def delete_message(message_id: str, for_everyone: bool = True, cu: User = 
         await db.delete(msg)
         await db.commit()
         
-        # Send WebSocket event to partner to remove message
-        from app.websocket.manager import manager
-        await manager.send_to_user(msg.couple_space_id.replace(cu.id, ''), {
-            "type": "message_deleted",
-            "message_id": message_id
-        })
+        # Send WebSocket event to space so all active tabs/devices remove message
+        try:
+            from app.websocket.manager import manager
+            await manager.send_to_space(space_id, {
+                "type": "message_deleted",
+                "message_id": message_id
+            })
+        except Exception as e:
+            print(f"WS Broadcast error on message_deleted: {e}")
     else:
         # Delete for me only
+        from sqlalchemy.orm.attributes import flag_modified
         deleted_list = list(msg.deleted_for or [])
         if cu.id not in deleted_list:
             deleted_list.append(cu.id)
             msg.deleted_for = deleted_list
+            flag_modified(msg, "deleted_for")
             await db.commit()
             
     return {"ok": True}

@@ -122,6 +122,9 @@ export const addReaction = (messageId, emoji) =>
 export const editMessage = (messageId, text) =>
   api.patch(`/chat/messages/${messageId}`, { text }).then(r => r.data);
 
+export const deleteMessage = (messageId, forEveryone = true) =>
+  api.delete(`/chat/messages/${messageId}`, { params: { for_everyone: forEveryone } }).then(r => r.data);
+
 // Mood
 export const submitMood = (mood_type, note = '') =>
   api.post('/mood/set', { mood_type, note }).then(r => r.data);
