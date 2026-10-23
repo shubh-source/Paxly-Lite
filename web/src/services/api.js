@@ -88,6 +88,10 @@ export const resetPassword = (token, new_password) =>
 export const updateMe = (data) =>
   api.put('/auth/me', data).then(r => r.data);
 
+// Security & App PIN
+export const verifyPinReset = (payload) =>
+  api.post('/security/pin/verify-reset', payload).then(r => r.data);
+
 // Couple
 export const generateInvite = () =>
   api.post('/couple/invite/generate').then(r => r.data);

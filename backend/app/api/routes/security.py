@@ -38,6 +38,12 @@ class SecurityQuestionSetRequest(BaseModel):
 class SecurityQuestionVerifyRequest(BaseModel):
     answer: str
 
+class PINResetVerifyRequest(BaseModel):
+    method: str  # "password" | "anniversary" | "question"
+    password: Optional[str] = None
+    date: Optional[str] = None
+    answer: Optional[str] = None
+
 class AutoLockRequest(BaseModel):
     seconds: int
 
@@ -146,9 +152,64 @@ async def set_pin(req: PINSetRequest, db: AsyncSession = Depends(get_db), cu: Us
     if not req.pin.isdigit() or len(req.pin) < 4:
         raise HTTPException(400, "PIN must be 4-6 digits.")
     pin_hash = hashlib.sha256(req.pin.encode()).hexdigest()
-    await db.execute(update(User).where(User.id == cu.id).values(app_pin=pin_hash, pin_set_at=datetime.utcnow()))
+    await db.execute(update(User).where(User.id == cu.id).values(
+        app_pin=pin_hash,
+        pin_set_at=datetime.utcnow(),
+        pin_failed_attempts=0,
+        intruder_trigger=False
+    ))
     await db.commit()
     return {"status": "ok", "message": "App PIN updated."}
+
+@router.post("/pin/verify-reset")
+async def verify_pin_reset(
+    req: PINResetVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+    cu: User = Depends(get_current_user)
+):
+    if req.method == "password":
+        if not req.password:
+            raise HTTPException(400, "Password is required.")
+        from app.core.security import verify_password
+        if not verify_password(req.password, cu.password):
+            raise HTTPException(400, "Incorrect account password.")
+        await db.execute(update(User).where(User.id == cu.id).values(pin_failed_attempts=0, intruder_trigger=False))
+        await db.commit()
+        return {"status": "ok", "message": "Password verified successfully."}
+
+    elif req.method == "anniversary":
+        if not req.date:
+            raise HTTPException(400, "Anniversary date is required.")
+        from app.models.orm import Anniversary
+        space_id = cu.couple_space_id or f"solo_{cu.id}"
+        res = await db.execute(select(Anniversary).filter(Anniversary.couple_space_id == space_id))
+        anniversaries = res.scalars().all()
+        
+        input_date = req.date.strip()[:10]
+        match = any(a.date and a.date.strip()[:10] == input_date for a in anniversaries)
+        if not match:
+            if not anniversaries:
+                raise HTTPException(400, "No anniversary found in your space. Please verify using your account password.")
+            raise HTTPException(400, "Incorrect anniversary date.")
+
+        await db.execute(update(User).where(User.id == cu.id).values(pin_failed_attempts=0, intruder_trigger=False))
+        await db.commit()
+        return {"status": "ok", "message": "Anniversary date verified successfully."}
+
+    elif req.method == "question":
+        if not req.answer:
+            raise HTTPException(400, "Security answer is required.")
+        if not cu.security_answer:
+            raise HTTPException(400, "Security question not set on your account.")
+        ans_hash = hashlib.sha256(req.answer.lower().strip().encode()).hexdigest()
+        if ans_hash != cu.security_answer:
+            raise HTTPException(400, "Incorrect security answer.")
+        await db.execute(update(User).where(User.id == cu.id).values(pin_failed_attempts=0, intruder_trigger=False))
+        await db.commit()
+        return {"status": "ok", "message": "Security answer verified successfully."}
+
+    else:
+        raise HTTPException(400, "Invalid verification method.")
 
 @router.post("/pin/question/set")
 async def set_security_question(req: SecurityQuestionSetRequest, db: AsyncSession = Depends(get_db), cu: User = Depends(get_current_user)):
