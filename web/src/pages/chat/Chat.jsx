@@ -134,10 +134,10 @@ export default function Chat() {
     touchStartY.current = touch.clientY;
     setSwipingMsgId(msg.id);
 
-    // Long press (400ms) opens emoji reaction bar on mobile
+    // Long press (400ms) opens options menu on mobile
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => {
-      setContextMenuMsg({ msg, x: touch.clientX, y: touch.clientY, type: "emoji" });
+      setContextMenuMsg({ msg, x: touch.clientX, y: touch.clientY, type: "options" });
     }, 400);
   };
 
@@ -172,10 +172,11 @@ export default function Chat() {
 
   const handleContextMenu = (e, msg) => {
     e.preventDefault();
-    setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "emoji" });
+    setContextMenuMsg({ msg, x: e.clientX, y: e.clientY, type: "options" });
   };
 
   const lastTapTime = useRef(0);
+  const tapTimeout = useRef(null);
   const daysTogether = space?.created_at ? Math.max(1, Math.floor((Date.now() - new Date(space.created_at)) / (1000 * 60 * 60 * 24))) : 0;
 
   // Save requests
@@ -1409,19 +1410,39 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       onClick={(e) => {
                         if (isSecure && !me && !isSpent && !isCompromised) {
                           handleSecureView(msg);
-                        } else if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id]) {
+                          return;
+                        }
+                        if (msg.message_type === 'image' && user?.blur_sensitive && !unblurred[msg.id]) {
                           setUnblurred(p => ({ ...p, [msg.id]: true }));
-                        } else {
-                          // Double tap detection
-                          const now = Date.now();
-                          if (now - lastTapTime.current < 350) {
-                            handleEmojiSelect(msg, '❤️', true);
-                            setFloatingHeart(msg.id);
-                            setTimeout(() => setFloatingHeart(null), 1000);
-                            lastTapTime.current = 0;
-                          } else {
-                            lastTapTime.current = now;
+                          return;
+                        }
+
+                        // Tap / Double-Tap detection
+                        const now = Date.now();
+                        if (now - lastTapTime.current < 300) {
+                          // Double tap: cancel single tap and react with heart ❤️
+                          if (tapTimeout.current) {
+                            clearTimeout(tapTimeout.current);
+                            tapTimeout.current = null;
                           }
+                          handleEmojiSelect(msg, '❤️', true);
+                          setFloatingHeart(msg.id);
+                          setTimeout(() => setFloatingHeart(null), 1000);
+                          lastTapTime.current = 0;
+                        } else {
+                          lastTapTime.current = now;
+                          const r = e.currentTarget.getBoundingClientRect();
+                          const clickX = e.clientX || (r.left + r.width / 2);
+                          const clickY = e.clientY || r.top;
+                          if (tapTimeout.current) clearTimeout(tapTimeout.current);
+                          tapTimeout.current = setTimeout(() => {
+                            setContextMenuMsg({
+                              msg,
+                              x: clickX,
+                              y: clickY,
+                              type: "options"
+                            });
+                          }, 250);
                         }
                       }}
                       style={{
@@ -1580,13 +1601,40 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     )}
                   </div>
 
-                  {/* Timestamp */}
-                  <span style={{ fontSize:'0.65rem', color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)', marginTop: hasReactions ? 14 : 4, opacity:.6, fontWeight:500 }}>
-                    {ts(msg)}
-                    {msg.is_edited && (
-                      <span style={{ marginLeft: 4, fontStyle: 'italic', opacity: 0.85 }}>(edited)</span>
+                  {/* Timestamp & Edited Indicator */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: hasReactions ? 14 : 4,
+                    fontSize: '0.68rem',
+                    color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)',
+                    fontWeight: 500
+                  }}>
+                    <span style={{ opacity: 0.65 }}>{ts(msg)}</span>
+                    {Boolean(msg.is_edited) && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                          fontSize: '0.64rem',
+                          fontWeight: 600,
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          background: me ? 'rgba(201, 169, 110, 0.22)' : 'rgba(255, 255, 255, 0.12)',
+                          color: me ? (activeTheme.textMe ? activeTheme.textMe : '#E3BE86') : '#E3BE86',
+                          border: `1px solid ${activeTheme.accent || '#C9A96E'}40`,
+                          letterSpacing: '0.2px',
+                          lineHeight: 1.3
+                        }}
+                        title={msg.edited_at ? `Edited at ${new Date(msg.edited_at).toLocaleTimeString()}` : 'Edited message'}
+                      >
+                        <Icons.Edit size={10} />
+                        Edited
+                      </span>
                     )}
-                  </span>
+                  </div>
                 </div>
 
                 {/* ActionBar for PARTNER (Right Side) */}
@@ -1911,7 +1959,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             <div style={{
               position: 'absolute',
               left: Math.max(16, Math.min(window.innerWidth - 320, (contextMenuMsg.x || window.innerWidth / 2) - 140)),
-              top: Math.max(70, Math.min(window.innerHeight - 120, (contextMenuMsg.y || 200) - 55)),
+              top: Math.max(70, Math.min(window.innerHeight - 380, (contextMenuMsg.y || 200) - 55)),
               background: '#181818',
               borderRadius: 24,
               boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
@@ -1922,33 +1970,38 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               zIndex: 1000000
             }} onClick={e => e.stopPropagation()}>
               
-              {(!contextMenuMsg.type || contextMenuMsg.type === 'emoji') && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', gap: 10 }}>
-                    {['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✨'].map(emoji => (
-                      <span 
-                        key={emoji} 
-                        style={{ 
-                          fontSize: '1.55rem', 
-                          cursor: 'pointer', 
-                          padding: 4, 
-                          transition: 'transform 0.15s ease',
-                          display: 'inline-block',
-                          userSelect: 'none'
-                        }}
-                        onClick={() => handleEmojiSelect(contextMenuMsg.msg, emoji)}
-                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
-                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                      >{emoji}</span>
-                    ))}
-                  </div>
-                )}
+              {/* Emoji quick reaction bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', gap: 10 }}>
+                {['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✨'].map(emoji => (
+                  <span 
+                    key={emoji} 
+                    style={{ 
+                      fontSize: '1.55rem', 
+                      cursor: 'pointer', 
+                      padding: 4, 
+                      transition: 'transform 0.15s ease',
+                      display: 'inline-block',
+                      userSelect: 'none'
+                    }}
+                    onClick={() => handleEmojiSelect(contextMenuMsg.msg, emoji)}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                  >{emoji}</span>
+                ))}
+              </div>
 
-                {contextMenuMsg.type === 'options' && (
-                  <>
-                    {[
-                      { icon: <Icons.Reply size={18} />, label: 'Reply', action: () => { setReplyingTo(contextMenuMsg.msg); setContextMenuMsg(null); } },
-                      { icon: <Icons.Copy size={18} />, label: 'Copy', action: () => { navigator.clipboard.writeText(contextMenuMsg.msg.text); setContextMenuMsg(null); } },
-                      {
+              {contextMenuMsg.type === 'options' && (
+                <>
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                  {(() => {
+                    const isOwnMsg = Boolean(user?.id) && Boolean(contextMenuMsg.msg?.sender_id) && String(contextMenuMsg.msg.sender_id) === String(user.id);
+                    const canEdit = isOwnMsg &&
+                      (!contextMenuMsg.msg.message_type || contextMenuMsg.msg.message_type === 'text') &&
+                      !contextMenuMsg.msg.is_once_view &&
+                      !contextMenuMsg.msg.id?.startsWith('temp_');
+
+                    const actionItems = [
+                      ...(canEdit ? [{
                         icon: <Icons.Edit size={18} />,
                         label: 'Edit',
                         action: () => {
@@ -1963,59 +2016,84 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                               inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
                             }
                           }, 50);
-                        },
-                        show: contextMenuMsg.msg.sender_id === user?.id &&
-                              (!contextMenuMsg.msg.message_type || contextMenuMsg.msg.message_type === 'text') &&
-                              !contextMenuMsg.msg.is_once_view &&
-                              !contextMenuMsg.msg.id?.startsWith('temp_')
-                      },
-                      { icon: <Icons.Pin size={18} />, label: 'Pin to Chat', action: () => { setPinnedMsg(contextMenuMsg.msg); setContextMenuMsg(null); } },
-                      { icon: <Icons.Vault size={18} />, label: 'Save to Vault', action: () => { 
-                        if (contextMenuMsg.msg.id.startsWith('temp_')) {
-                          alert('Please wait for the message to finish sending before saving.');
-                          setContextMenuMsg(null);
-                          return;
                         }
-                        api.post('/memories/save-message', { message_id: contextMenuMsg.msg.id })
-                          .then(() => alert('✨ Saved to Memory Vault!'))
-                          .catch((e) => alert('Failed to save message: ' + (e.response?.data?.detail || e.message)));
-                        setContextMenuMsg(null); 
-                      } },
-                      { icon: <span style={{ fontSize: '1.2rem' }}>✨</span>, label: 'Ask Aura', action: () => { alert('Aura is analyzing this message...'); setContextMenuMsg(null); } },
-                    ].filter(item => item.show === undefined || item.show).map((item, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: item.label === 'Ask Aura' ? 'var(--accent)' : '#fff', fontWeight: item.label === 'Ask Aura' ? 700 : 400, cursor: 'pointer', fontSize: '0.95rem' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        onClick={item.action}>
-                        {item.label}
-                        <div style={{ opacity: item.label === 'Ask Aura' ? 1 : 0.7, filter: item.label === 'Ask Aura' ? 'drop-shadow(0 0 5px rgba(201,169,110,0.5))' : 'none' }}>{item.icon}</div>
-                      </div>
-                    ))}
-                    
-                    <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
-                    
-                    {contextMenuMsg.msg.sender_id === user?.id ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: '#ff4444', cursor: 'pointer', fontSize: '0.95rem' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        onClick={() => {
-                          setDeleteModalMsg(contextMenuMsg.msg);
-                          setContextMenuMsg(null);
-                        }}>
-                        Delete
-                        <div style={{ opacity: 0.7 }}><Icons.Trash size={18} /></div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: '#ff4444', cursor: 'pointer', fontSize: '0.95rem' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        onClick={() => { alert('Reported!'); setContextMenuMsg(null); }}>
-                        Report
-                        <div style={{ opacity: 0.7 }}><Icons.Report size={18} /></div>
-                      </div>
-                    )}
-                  </>
-                )}
+                      }] : []),
+                      {
+                        icon: <Icons.Reply size={18} />,
+                        label: 'Reply',
+                        action: () => { setReplyingTo(contextMenuMsg.msg); setContextMenuMsg(null); }
+                      },
+                      {
+                        icon: <Icons.Copy size={18} />,
+                        label: 'Copy',
+                        action: () => { navigator.clipboard.writeText(contextMenuMsg.msg.text || ''); setContextMenuMsg(null); }
+                      },
+                      {
+                        icon: <Icons.Pin size={18} />,
+                        label: 'Pin to Chat',
+                        action: () => { setPinnedMsg(contextMenuMsg.msg); setContextMenuMsg(null); }
+                      },
+                      ...(!isOwnMsg ? [{
+                        icon: <span style={{ fontSize: '1.2rem' }}>✨</span>,
+                        label: 'Ask Aura',
+                        action: () => { alert('Aura is analyzing this message...'); setContextMenuMsg(null); }
+                      }] : []),
+                      {
+                        icon: <Icons.Vault size={18} />,
+                        label: 'Save to Vault',
+                        action: () => { 
+                          if (contextMenuMsg.msg.id?.startsWith('temp_')) {
+                            alert('Please wait for the message to finish sending before saving.');
+                            setContextMenuMsg(null);
+                            return;
+                          }
+                          api.post('/memories/save-message', { message_id: contextMenuMsg.msg.id })
+                            .then(() => alert('✨ Saved to Memory Vault!'))
+                            .catch((e) => alert('Failed to save message: ' + (e.response?.data?.detail || e.message)));
+                          setContextMenuMsg(null); 
+                        }
+                      },
+                    ];
+
+                    return (
+                      <>
+                        {actionItems.map((item, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: item.label === 'Ask Aura' ? 'var(--accent)' : '#fff', fontWeight: item.label === 'Ask Aura' ? 700 : 400, cursor: 'pointer', fontSize: '0.95rem' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            onClick={item.action}>
+                            {item.label}
+                            <div style={{ opacity: item.label === 'Ask Aura' ? 1 : 0.7, filter: item.label === 'Ask Aura' ? 'drop-shadow(0 0 5px rgba(201,169,110,0.5))' : 'none' }}>{item.icon}</div>
+                          </div>
+                        ))}
+
+                        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+
+                        {isOwnMsg ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: '#ff4444', cursor: 'pointer', fontSize: '0.95rem' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            onClick={() => {
+                              setDeleteModalMsg(contextMenuMsg.msg);
+                              setContextMenuMsg(null);
+                            }}>
+                            Delete
+                            <div style={{ opacity: 0.7 }}><Icons.Trash size={18} /></div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', color: '#ff4444', cursor: 'pointer', fontSize: '0.95rem' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            onClick={() => { alert('Reported!'); setContextMenuMsg(null); }}>
+                            Report
+                            <div style={{ opacity: 0.7 }}><Icons.Report size={18} /></div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
               </div>
             </div>
           )}
