@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../services/api';
+import api, { resolveMediaUrl } from '../../services/api';
 import { Icons } from '../ui/Icons';
 import { wsService } from '../../services/websocket';
 
@@ -51,6 +51,7 @@ export default function AppGuard({ children }) {
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [vaultDownloadRequest, setVaultDownloadRequest] = useState(null);
+  const [intruderAlert, setIntruderAlert] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -72,7 +73,11 @@ export default function AppGuard({ children }) {
        setVaultDownloadRequest(d);
     });
 
-    return () => { off(); offEnd(); offVault(); };
+    const offIntruder = wsService.on('intruder_alert', d => {
+       setIntruderAlert(d);
+    });
+
+    return () => { off(); offEnd(); offVault(); offIntruder(); };
   }, [user, pathname]);
 
   const answerCall = () => {
@@ -87,36 +92,69 @@ export default function AppGuard({ children }) {
   };
 
   const captureIntruder = async () => {
+    let stream = null;
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn('Camera API not available');
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        console.warn('Camera API not available in this environment');
         return;
       }
-      // Force front camera, max possible hardware resolution, and 60fps
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'user',
-          frameRate: { ideal: 60, max: 60 },
-          width: { ideal: 4096 },
-          height: { ideal: 2160 }
-        } 
-      });
-      const video = document.createElement('video');
-      video.setAttribute('playsinline', 'true'); // Required for mobile
-      video.srcObject = stream;
-      await video.play();
+      
+      // Safe progressive constraints: prefer front camera, fallback to any available camera
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
+      } catch (err) {
+        console.warn('Front camera constraints failed, attempting fallback video capture', err);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
 
-      // Wait for camera to adjust exposure and frame to render
-      await new Promise(resolve => setTimeout(resolve, 800));
+      if (!stream) return;
+
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.autoplay = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('muted', 'true');
+      video.srcObject = stream;
+
+      try {
+        await video.play();
+      } catch (playErr) {
+        console.warn('Video play warning:', playErr);
+      }
+
+      // Wait until frame is rendered and video dimensions are known
+      let attempts = 0;
+      while ((!video.videoWidth || video.readyState < 2) && attempts < 15) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      // Give camera auto-exposure 350ms to settle
+      await new Promise(resolve => setTimeout(resolve, 350));
+
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
 
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, width, height);
+      }
       
+      // Stop stream tracks immediately so camera hardware indicator turns off
       stream.getTracks().forEach(track => track.stop());
+      stream = null;
 
       canvas.toBlob(async (blob) => {
+        if (!blob) return;
         const formData = new FormData();
         formData.append('file', blob, 'intruder.jpg');
         try {
@@ -126,9 +164,13 @@ export default function AppGuard({ children }) {
         } catch (e) {
           console.error('Failed to upload intruder selfie', e);
         }
-      }, 'image/jpeg', 0.8);
+      }, 'image/jpeg', 0.85);
     } catch (e) {
       console.error('Failed to access camera for intruder selfie', e);
+    } finally {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
     }
   };
 
@@ -372,6 +414,86 @@ export default function AppGuard({ children }) {
                 wsService.sendVaultDownloadResponse(vaultDownloadRequest.sender_id, true, vaultDownloadRequest.memory_id);
                 setVaultDownloadRequest(null);
               }} style={{ flex: 1, padding: 14, color: '#000', fontWeight: 700 }}>Allow Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {intruderAlert && (
+        <div style={{
+          position: 'fixed',
+          top: 24,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '92%',
+          maxWidth: 420,
+          background: 'rgba(28, 12, 16, 0.94)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 59, 48, 0.45)',
+          borderRadius: 24,
+          padding: '16px 18px',
+          zIndex: 999999,
+          boxShadow: '0 20px 50px rgba(255, 59, 48, 0.3)',
+          animation: 'slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        }}>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            {intruderAlert.photo_url ? (
+              <img 
+                src={resolveMediaUrl(intruderAlert.photo_url)} 
+                alt="Intruder" 
+                style={{ width: 56, height: 70, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,59,48,0.5)', flexShrink: 0 }} 
+              />
+            ) : (
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,59,48,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #FF3B30', flexShrink: 0 }}>
+                <Icons.Shield size={28} color="#FF3B30" />
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#FF3B30', background: 'rgba(255,59,48,0.2)', padding: '2px 8px', borderRadius: 8, letterSpacing: '0.5px' }}>SECURITY ALERT</span>
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#fff', marginBottom: 2 }}>
+                🚨 Intruder Detected!
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.82)', lineHeight: 1.35 }}>
+                Failed unlock attempts on <b>{intruderAlert.victim_name || 'Partner'}</b>'s app. Photo captured.
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button 
+                  onClick={() => {
+                    navigate('/profile/settings?sub=logs');
+                    setIntruderAlert(null);
+                  }}
+                  style={{
+                    background: '#FF3B30',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '7px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(255,59,48,0.3)'
+                  }}
+                >
+                  View Logs &rarr;
+                </button>
+                <button 
+                  onClick={() => setIntruderAlert(null)}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '7px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           </div>
         </div>

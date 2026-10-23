@@ -52,7 +52,8 @@ export default function SetupLock() {
     try {
       // 1. Ask for Camera permission for Intruder Selfie silently
       try {
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream?.getTracks?.().forEach(track => track.stop());
         // Stream acquired, permission granted. Stop it immediately.
       } catch (e) {
         console.warn('Camera permission denied or unavailable.', e);

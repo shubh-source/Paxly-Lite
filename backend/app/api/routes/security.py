@@ -122,24 +122,81 @@ async def verify_pin(req: PINVerifyRequest, db: AsyncSession = Depends(get_db), 
 @router.post("/intruder/upload")
 async def upload_intruder_selfie(file: UploadFile = File(...), db: AsyncSession = Depends(get_db), cu: User = Depends(get_current_user)):
     filename = f"{cu.id}_{int(datetime.utcnow().timestamp())}.jpg"
+    content = await file.read()
+    
     path = os.path.join(settings.MEDIA_DIR, "intruder", filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     async with aiofiles.open(path, "wb") as f:
-        while chunk := await file.read(1024 * 1024): await f.write(chunk)
+        await f.write(content)
+
     db.add(IntruderLog(user_id=cu.id, photo=filename))
+
+    # Add in-app notification for the partner
+    if cu.partner_id:
+        from app.models.orm import Notification
+        db.add(Notification(
+            user_id=cu.partner_id,
+            type="intruder_alert",
+            title="🚨 Intruder Alert",
+            body=f"Unauthorized unlock attempts detected on {cu.name}'s app. Intruder photo captured.",
+            data={"photo_url": f"/api/security/intruder/photo/{filename}", "filename": filename}
+        ))
+
     await db.commit()
+
     if cu.partner_id:
         from app.websocket.manager import manager
-        await manager.send_to_user(cu.partner_id, {"type": "intruder_alert", "photo_url": f"/api/security/intruder/photo/{filename}"})
-    return {"status": "ok"}
+        try:
+            await manager.send_to_user(cu.partner_id, {
+                "type": "intruder_alert", 
+                "photo_url": f"/api/security/intruder/photo/{filename}",
+                "victim_name": cu.name
+            })
+        except Exception as e:
+            print(f"WS Intruder alert error: {e}")
+
+    return {"status": "ok", "photo_url": f"/api/security/intruder/photo/{filename}"}
 
 @router.get("/intruder/logs")
 async def get_intruder_logs(db: AsyncSession = Depends(get_db), cu: User = Depends(get_current_user)):
     user_ids = [cu.id]
     if cu.partner_id: user_ids.append(cu.partner_id)
-    res = await db.execute(select(IntruderLog).filter(IntruderLog.user_id.in_(user_ids)).order_by(IntruderLog.timestamp.desc()).limit(20))
+    res = await db.execute(
+        select(IntruderLog)
+        .filter(IntruderLog.user_id.in_(user_ids))
+        .order_by(IntruderLog.timestamp.desc())
+        .limit(30)
+    )
     logs = res.scalars().all()
-    return [{"id": l.id, "photo_url": f"/api/security/intruder/photo/{l.photo}", "timestamp": l.timestamp} for l in logs]
+    return [
+        {
+            "id": l.id, 
+            "photo_url": f"/api/security/intruder/photo/{l.photo}", 
+            "filename": l.photo,
+            "timestamp": l.timestamp.isoformat() + "Z" if l.timestamp else None
+        } 
+        for l in logs
+    ]
+
+@router.delete("/intruder/logs/{log_id}")
+async def delete_intruder_log(log_id: int, db: AsyncSession = Depends(get_db), cu: User = Depends(get_current_user)):
+    user_ids = [cu.id]
+    if cu.partner_id: user_ids.append(cu.partner_id)
+    res = await db.execute(select(IntruderLog).filter(IntruderLog.id == log_id, IntruderLog.user_id.in_(user_ids)))
+    log = res.scalars().first()
+    if not log:
+        raise HTTPException(404, "Log not found")
+    
+    try:
+        path = os.path.join(settings.MEDIA_DIR, "intruder", log.photo)
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        pass
+        
+    await db.delete(log)
+    await db.commit()
+    return {"ok": True}
 
 @router.get("/intruder/photo/{filename}")
 async def get_intruder_photo(filename: str):

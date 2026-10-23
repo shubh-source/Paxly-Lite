@@ -38,6 +38,8 @@ export default function Notifications() {
       nav('/notes');
     } else if (n.type === 'anniversary_reminder') {
       nav('/dates');
+    } else if (n.type === 'intruder_alert') {
+      nav('/profile/settings?sub=logs');
     }
   };
 
@@ -62,6 +64,7 @@ export default function Notifications() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {notifs.map(n => {
               const isSafety = n.type === 'safety_alert';
+              const isIntruder = n.type === 'intruder_alert';
               return (
                 <div 
                   key={n.id} 
@@ -71,11 +74,15 @@ export default function Notifications() {
                     display: 'flex', gap: 16, alignItems: 'flex-start', cursor: 'pointer',
                     background: isSafety 
                       ? 'linear-gradient(135deg, rgba(168,85,247,0.18) 0%, rgba(236,72,153,0.12) 100%)'
+                      : isIntruder
+                      ? 'linear-gradient(135deg, rgba(255,59,48,0.18) 0%, rgba(180,20,30,0.1) 100%)'
                       : n.read ? 'var(--s1)' : 'rgba(201,169,110,0.1)',
                     border: isSafety
                       ? '1px solid rgba(216,180,254,0.4)'
+                      : isIntruder
+                      ? '1px solid rgba(255,59,48,0.4)'
                       : n.read ? '1px solid transparent' : '1px solid rgba(201,169,110,0.3)',
-                    boxShadow: isSafety ? '0 4px 20px rgba(168,85,247,0.15)' : 'none',
+                    boxShadow: isSafety ? '0 4px 20px rgba(168,85,247,0.15)' : isIntruder ? '0 4px 20px rgba(255,59,48,0.2)' : 'none',
                     transition: 'transform 0.2s',
                     borderRadius: 16,
                     padding: 16
@@ -83,7 +90,7 @@ export default function Notifications() {
                 >
                   <div style={{ 
                     padding: 10, 
-                    background: isSafety ? 'rgba(168,85,247,0.2)' : 'rgba(255,255,255,0.05)', 
+                    background: isSafety ? 'rgba(168,85,247,0.2)' : isIntruder ? 'rgba(255,59,48,0.2)' : 'rgba(255,255,255,0.05)', 
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
@@ -91,6 +98,8 @@ export default function Notifications() {
                   }}>
                     {isSafety ? (
                       <Icons.Heart size={22} color="#ec4899" />
+                    ) : isIntruder ? (
+                      <Icons.Shield size={22} color="#FF3B30" />
                     ) : (n.type === 'love_note' || n.type === 'love_note_gift' || n.type === 'love_note_author_unlocked' || n.type === 'love_note_capsule') ? (
                       <Icons.LoveNote size={20} color="var(--accent)" />
                     ) : n.type === 'anniversary_reminder' ? (
@@ -106,7 +115,7 @@ export default function Notifications() {
                       fontWeight: 600, 
                       fontSize: '0.95rem', 
                       marginBottom: 4, 
-                      color: isSafety ? '#f472b6' : n.read ? 'var(--text)' : 'var(--accent)',
+                      color: isSafety ? '#f472b6' : isIntruder ? '#FF453A' : n.read ? 'var(--text)' : 'var(--accent)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between'
@@ -122,8 +131,18 @@ export default function Notifications() {
                           borderRadius: 12 
                         }}>Care Alert</span>
                       )}
+                      {isIntruder && (
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          fontWeight: 700, 
+                          background: 'rgba(255,59,48,0.25)', 
+                          color: '#FF3B30', 
+                          padding: '2px 8px', 
+                          borderRadius: 12 
+                        }}>Breach Alert</span>
+                      )}
                     </div>
-                    <div style={{ fontSize: '0.85rem', color: isSafety ? '#e2e8f0' : 'var(--muted)', lineHeight: 1.45, marginBottom: 8 }}>
+                    <div style={{ fontSize: '0.85rem', color: isSafety || isIntruder ? '#e2e8f0' : 'var(--muted)', lineHeight: 1.45, marginBottom: 8 }}>
                       {n.body}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -133,6 +152,11 @@ export default function Notifications() {
                       {isSafety && (
                         <div style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 600 }}>
                           Tap to open chat &rarr;
+                        </div>
+                      )}
+                      {isIntruder && (
+                        <div style={{ fontSize: '0.75rem', color: '#FF453A', fontWeight: 600 }}>
+                          View intruder logs &rarr;
                         </div>
                       )}
                     </div>

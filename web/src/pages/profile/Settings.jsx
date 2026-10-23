@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../services/api';
+import api, { resolveMediaUrl } from '../../services/api';
 import { Icons } from '../../components/ui/Icons';
 
 // --- LEGAL CONTENT ---
@@ -24,19 +24,22 @@ const PRIVACY = [
 export default function Settings() {
   const { user, logoutUser, setUser } = useAuth();
   const nav = useNavigate();
-  const [sub, setSub] = useState(null); // 'profile' | 'security' | 'privacy' | 'relationship' | 'terms' | 'privacy-policy' | 'about' | 'closure'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSub = searchParams.get('sub');
+  const [sub, setSub] = useState(initialSub || null); // 'profile' | 'security' | 'privacy' | 'relationship' | 'terms' | 'privacy-policy' | 'about' | 'closure' | 'logs'
 
   const logout = () => { logoutUser(); nav('/'); };
 
   // Router for sub-views
-  if (sub === 'profile')      return <ProfileSub user={user} setUser={setUser} onBack={() => setSub(null)} />;
-  if (sub === 'security')     return <SecuritySub user={user} onBack={() => setSub(null)} />;
-  if (sub === 'privacy')      return <PrivacySub user={user} setUser={setUser} onBack={() => setSub(null)} />;
-  if (sub === 'relationship') return <RelationshipSub user={user} setUser={setUser} onBack={() => setSub(null)} />;
-  if (sub === 'terms')        return <LegalSub title="Terms & Conditions" content={TERMS} onBack={() => setSub(null)} />;
-  if (sub === 'privacy-policy') return <LegalSub title="Privacy Policy" content={PRIVACY} onBack={() => setSub(null)} />;
-  if (sub === 'about')        return <AboutSub onBack={() => setSub(null)} />;
-  if (sub === 'closure')      return <ClosureSub onBack={() => setSub(null)} onRequested={logout} />;
+  if (sub === 'profile')      return <ProfileSub user={user} setUser={setUser} onBack={() => { setSearchParams({}); setSub(null); }} />;
+  if (sub === 'security')     return <SecuritySub user={user} onBack={() => { setSearchParams({}); setSub(null); }} />;
+  if (sub === 'privacy')      return <PrivacySub user={user} setUser={setUser} onBack={() => { setSearchParams({}); setSub(null); }} />;
+  if (sub === 'relationship') return <RelationshipSub user={user} setUser={setUser} onBack={() => { setSearchParams({}); setSub(null); }} />;
+  if (sub === 'terms')        return <LegalSub title="Terms & Conditions" content={TERMS} onBack={() => { setSearchParams({}); setSub(null); }} />;
+  if (sub === 'privacy-policy') return <LegalSub title="Privacy Policy" content={PRIVACY} onBack={() => { setSearchParams({}); setSub(null); }} />;
+  if (sub === 'about')        return <AboutSub onBack={() => { setSearchParams({}); setSub(null); }} />;
+  if (sub === 'closure')      return <ClosureSub onBack={() => { setSearchParams({}); setSub(null); }} onRequested={logout} />;
+  if (sub === 'logs')         return <IntruderLogsSub onBack={() => { setSearchParams({}); setSub(null); }} />;
 
   return (
     <div className="page" style={{ paddingBottom: 100 }}>
@@ -258,33 +261,148 @@ function PasswordSub({ onBack }) {
 
 function IntruderLogsSub({ onBack }) {
   const [logs, setLogs] = useState([]);
-  useEffect(() => { api.get('/security/intruder/logs').then(r => setLogs(r.data)); }, []);
+  const [loading, setLoading] = useState(true);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    api.get('/security/intruder/logs')
+      .then(r => setLogs(r.data || []))
+      .catch(e => console.error('Failed to load intruder logs', e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDelete = async (logId, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('Delete this intruder selfie log?')) return;
+    setDeletingId(logId);
+    try {
+      await api.delete(`/security/intruder/logs/${logId}`);
+      setLogs(prev => prev.filter(l => l.id !== logId));
+      if (selectedPhoto?.id === logId) setSelectedPhoto(null);
+    } catch {
+      alert('Failed to delete log.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="page">
       <header className="header" style={{ background: 'rgba(22, 22, 24, 0.4)', borderBottom: '1px solid rgba(255,255,255,0.05)', margin: '20px 20px 24px', borderRadius: '24px', padding: '16px 20px' }}>
-        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12 }}>← Back</button>
+        <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icons.Back size={18} /> Back
+        </button>
         <span className="header-title" style={{ color: 'var(--text)' }}>Intruder Logs</span>
         <div style={{ width: 60 }} />
       </header>
       <div className="content" style={{ maxWidth: 540, padding: '0 20px' }}>
-        <p style={{ textAlign: 'center', marginBottom: 28, fontSize: '0.9rem', color: 'var(--muted)', lineHeight: 1.6 }}>Photos of unauthorized attempts to unlock your Vlynxly app.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {logs.map(log => (
-            <div key={log.id} className="card" style={{ padding: 12, borderRadius: 20, background: 'rgba(255,255,255,0.03)' }}>
-              <img src={log.photo_url} style={{ width: '100%', borderRadius: 12, aspectRatio: '3/4', objectFit: 'cover', marginBottom: 12, border: '1px solid rgba(255,255,255,0.1)' }} />
-              <p style={{ margin: 0, textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)' }}>
-                {log.timestamp ? new Date(String(log.timestamp).endsWith('Z') ? log.timestamp : `${log.timestamp}Z`).toLocaleString() : ''}
+        <p style={{ textAlign: 'center', marginBottom: 24, fontSize: '0.88rem', color: 'var(--muted)', lineHeight: 1.6 }}>
+          Photos secretly captured after 3 consecutive wrong PIN unlock attempts.
+        </p>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)' }}>Loading intruder logs...</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            {logs.map(log => (
+              <div 
+                key={log.id} 
+                className="card" 
+                onClick={() => setSelectedPhoto(log)}
+                style={{ padding: 12, borderRadius: 20, background: 'rgba(255,255,255,0.03)', position: 'relative', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', borderRadius: 12, overflow: 'hidden', marginBottom: 10, background: '#111' }}>
+                  <img 
+                    src={resolveMediaUrl(log.photo_url)} 
+                    alt="Intruder capture"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  />
+                  <button 
+                    onClick={(e) => handleDelete(log.id, e)}
+                    disabled={deletingId === log.id}
+                    title="Delete log"
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.65)',
+                      backdropFilter: 'blur(4px)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: '#FF453A',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    🗑
+                  </button>
+                </div>
+                <p style={{ margin: 0, textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)' }}>
+                  {log.timestamp ? new Date(String(log.timestamp).endsWith('Z') ? log.timestamp : `${log.timestamp}Z`).toLocaleString() : 'Unknown date'}
+                </p>
+              </div>
+            ))}
+
+            {logs.length === 0 && (
+              <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '80px 0', opacity: 0.7 }}>
+                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Icons.Shield size={64} color="var(--accent)" stroke={1.5} /></div>
+                <h4 style={{ color: '#fff', marginBottom: 6 }}>All Secure</h4>
+                <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>No unauthorized unlock attempts have been detected.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedPhoto && (
+          <div 
+            onClick={() => setSelectedPhoto(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.88)',
+              backdropFilter: 'blur(10px)',
+              zIndex: 999999,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 20
+            }}
+          >
+            <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+              <img 
+                src={resolveMediaUrl(selectedPhoto.photo_url)} 
+                alt="Intruder Full" 
+                style={{ width: '100%', maxHeight: '70vh', borderRadius: 20, objectFit: 'contain', border: '1px solid rgba(255,255,255,0.2)', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }} 
+              />
+              <p style={{ color: '#fff', fontSize: '0.9rem', marginTop: 12, fontWeight: 600 }}>
+                {selectedPhoto.timestamp ? new Date(String(selectedPhoto.timestamp).endsWith('Z') ? selectedPhoto.timestamp : `${selectedPhoto.timestamp}Z`).toLocaleString() : ''}
               </p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 16 }}>
+                <button 
+                  className="btn btn-d"
+                  onClick={() => handleDelete(selectedPhoto.id)}
+                  style={{ background: '#FF3B30', color: '#fff', padding: '10px 20px', borderRadius: 12, fontSize: '0.85rem' }}
+                >
+                  Delete Log
+                </button>
+                <button 
+                  className="btn btn-g"
+                  onClick={() => setSelectedPhoto(null)}
+                  style={{ padding: '10px 20px', borderRadius: 12, fontSize: '0.85rem' }}
+                >
+                  Close
+                </button>
+              </div>
             </div>
-          ))}
-          {logs.length === 0 && (
-            <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '80px 0', opacity: 0.5 }}>
-              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Icons.Shield size={64} color="var(--accent)" stroke={1.5} /></div>
-              <p>No intruder logs found.</p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -8,6 +8,16 @@ const defaultBackend = env.PROD
 const apiBase = (env.VITE_API_URL || defaultBackend).replace(/\/+$/, '');
 const baseURL = apiBase.endsWith('/api') ? apiBase : `${apiBase}/api`;
 
+export const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  const cleanBase = apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase;
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${cleanBase}${path}`;
+};
+
 const api = axios.create({ baseURL });
 
 // Auto-attach JWT token
