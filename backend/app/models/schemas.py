@@ -72,6 +72,11 @@ class MessageOut(BaseModel):
     is_compromised: bool = False
     reply_to_id: Optional[str] = None
     timestamp: datetime
+    is_edited: bool = False
+    edited_at: Optional[datetime] = None
+
+class MessageEdit(BaseModel):
+    text: str
 
 class ReactionAdd(BaseModel):
     emoji: str

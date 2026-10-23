@@ -119,6 +119,9 @@ export const uploadMedia = (file, customName = null) => {
 export const addReaction = (messageId, emoji) =>
   api.post(`/chat/messages/${messageId}/react`, { emoji }).then(r => r.data);
 
+export const editMessage = (messageId, text) =>
+  api.patch(`/chat/messages/${messageId}`, { text }).then(r => r.data);
+
 // Mood
 export const submitMood = (mood_type, note = '') =>
   api.post('/mood/set', { mood_type, note }).then(r => r.data);

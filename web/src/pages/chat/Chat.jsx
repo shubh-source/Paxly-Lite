@@ -74,6 +74,7 @@ export default function Chat() {
   
   // Gestures & Reactions
   const [replyingTo, setReplyingTo] = useState(null);
+  const [editingMsg, setEditingMsg] = useState(null);
   const [floatingHeart, setFloatingHeart] = useState(null);
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [contextMenuMsg, setContextMenuMsg] = useState(null);
@@ -341,6 +342,29 @@ export default function Chat() {
       wsService.on('message_deleted', d => {
         setMsgs(p => p.filter(m => m.id !== d.message_id));
       }),
+      wsService.on('message_edited', d => {
+        const sk = localStorage.getItem('paxly_sk');
+        let cachedP = null;
+        try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
+        const pk = partner?.public_key || cachedP?.public_key;
+        let newText = d.text;
+        if (newText && sk && pk) {
+          try {
+            newText = decryptMessage(newText, sk, pk);
+          } catch (e) {
+            console.error('Failed to decrypt edited message:', e);
+          }
+        }
+        setMsgs(p => p.map(m => {
+          if (m.id !== d.message_id) return m;
+          return {
+            ...m,
+            text: newText,
+            is_edited: true,
+            edited_at: d.edited_at || new Date().toISOString()
+          };
+        }));
+      }),
       wsService.on('media_save_request', d => {
         if (d.sender_id !== user?.id)
           setSaveRequest({ from: partner?.name || 'Partner', ...d });
@@ -445,6 +469,48 @@ export default function Chat() {
 
   const send = async () => {
     if (!text.trim() || sending) return;
+
+    if (editingMsg) {
+      const rawText = text.trim();
+      const targetId = editingMsg.id;
+      setSending(true);
+
+      const sk = localStorage.getItem('paxly_sk');
+      let cachedP = null;
+      try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
+      const pk = partner?.public_key || cachedP?.public_key;
+      let payloadText = rawText;
+      if (sk && pk) {
+        payloadText = encryptMessage(rawText, sk, pk);
+      }
+
+      // Optimistic update in UI
+      setMsgs(p => p.map(m => m.id === targetId ? { ...m, text: rawText, is_edited: true, edited_at: new Date().toISOString() } : m));
+      setEditingMsg(null);
+      setText('');
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
+
+      if (wsService.isConnected()) {
+        wsService.send({
+          type: 'message_edit',
+          message_id: targetId,
+          text: payloadText
+        });
+      }
+
+      try {
+        await api.patch(`/chat/messages/${targetId}`, { text: payloadText });
+      } catch (err) {
+        console.error("Failed to edit message:", err);
+        alert("Failed to edit message: " + (err.response?.data?.detail || err.message));
+        syncMessages();
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     // Reset typing state on sender side
     clearTimeout(typingTimer.current);
@@ -1517,6 +1583,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   {/* Timestamp */}
                   <span style={{ fontSize:'0.65rem', color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)', marginTop: hasReactions ? 14 : 4, opacity:.6, fontWeight:500 }}>
                     {ts(msg)}
+                    {msg.is_edited && (
+                      <span style={{ marginLeft: 4, fontStyle: 'italic', opacity: 0.85 }}>(edited)</span>
+                    )}
                   </span>
                 </div>
 
@@ -1538,6 +1607,45 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         {/* ── INPUT BAR ─────────────────────────────────────── */}
         <div className="chat-input-bar">
           <input type="file" ref={fileRef} accept="image/*,video/*" onChange={onFileSelect} style={{ display:'none' }} />
+
+          {/* Edit Banner */}
+          {editingMsg && (
+            <div style={{
+              background: 'rgba(30, 30, 33, 0.95)',
+              borderLeft: `4px solid ${activeTheme.accent || '#C9A96E'}`,
+              borderRadius: '8px',
+              padding: '10px 12px',
+              marginBottom: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                <Icons.Edit size={18} color={activeTheme.accent || '#C9A96E'} />
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <span style={{ color: activeTheme.accent || '#C9A96E', fontSize: '0.85rem', fontWeight: 700 }}>
+                    Editing Message
+                  </span>
+                  <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>
+                    {editingMsg.text}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingMsg(null);
+                  setText('');
+                  if (inputRef.current) inputRef.current.style.height = 'auto';
+                }}
+                style={{ background: 'none', border: 'none', color: '#fff', opacity: 0.6, cursor: 'pointer', padding: 8 }}
+                title="Cancel edit"
+              >
+                <Icons.Close size={18} />
+              </button>
+            </div>
+          )}
 
           {/* Reply Banner */}
           {replyingTo && (
@@ -1669,6 +1777,10 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       send();
+                    } else if (e.key === 'Escape' && editingMsg) {
+                      setEditingMsg(null);
+                      setText('');
+                      e.target.style.height = 'auto';
                     }
                   }}
                   rows={1}
@@ -1836,7 +1948,27 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     {[
                       { icon: <Icons.Reply size={18} />, label: 'Reply', action: () => { setReplyingTo(contextMenuMsg.msg); setContextMenuMsg(null); } },
                       { icon: <Icons.Copy size={18} />, label: 'Copy', action: () => { navigator.clipboard.writeText(contextMenuMsg.msg.text); setContextMenuMsg(null); } },
-                      { icon: <Icons.Edit size={18} />, label: 'Edit', action: () => { alert('Editing coming soon!'); setContextMenuMsg(null); }, show: contextMenuMsg.msg.sender_id === user?.id },
+                      {
+                        icon: <Icons.Edit size={18} />,
+                        label: 'Edit',
+                        action: () => {
+                          setEditingMsg(contextMenuMsg.msg);
+                          setText(contextMenuMsg.msg.text || '');
+                          setReplyingTo(null);
+                          setContextMenuMsg(null);
+                          setTimeout(() => {
+                            if (inputRef.current) {
+                              inputRef.current.focus();
+                              inputRef.current.style.height = 'auto';
+                              inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
+                            }
+                          }, 50);
+                        },
+                        show: contextMenuMsg.msg.sender_id === user?.id &&
+                              (!contextMenuMsg.msg.message_type || contextMenuMsg.msg.message_type === 'text') &&
+                              !contextMenuMsg.msg.is_once_view &&
+                              !contextMenuMsg.msg.id?.startsWith('temp_')
+                      },
                       { icon: <Icons.Pin size={18} />, label: 'Pin to Chat', action: () => { setPinnedMsg(contextMenuMsg.msg); setContextMenuMsg(null); } },
                       { icon: <Icons.Vault size={18} />, label: 'Save to Vault', action: () => { 
                         if (contextMenuMsg.msg.id.startsWith('temp_')) {

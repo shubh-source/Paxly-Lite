@@ -104,6 +104,8 @@ class Message(Base):
     reply_to_id = Column(String, nullable=True)
     deleted_for = Column(JSONB, default=[])
     timestamp = Column(DateTime, default=datetime.utcnow)
+    is_edited = Column(Boolean, default=False)
+    edited_at = Column(DateTime, nullable=True)
 
 
 class Mood(Base):

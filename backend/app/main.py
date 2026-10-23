@@ -26,6 +26,7 @@ def _sqlite_column_migrations():
             "sender_name": "VARCHAR", "reactions": "JSON DEFAULT '{}'",
             "is_once_view": "BOOLEAN DEFAULT 0", "view_limit": "INTEGER DEFAULT 1",
             "views_used": "INTEGER DEFAULT 0", "is_compromised": "BOOLEAN DEFAULT 0",
+            "is_edited": "BOOLEAN DEFAULT 0", "edited_at": "TIMESTAMP",
         },
         "users": {
             "blur_sensitive": "BOOLEAN DEFAULT 0", "hide_activity": "BOOLEAN DEFAULT 0",
@@ -84,6 +85,8 @@ async def _migrate_postgresql(conn):
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_limit INTEGER DEFAULT 1",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS views_used INTEGER DEFAULT 0",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_compromised BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS blur_sensitive BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS hide_activity BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode BOOLEAN DEFAULT FALSE",

@@ -213,6 +213,32 @@ async def websocket_endpoint(websocket: WebSocket):
                         except Exception as e:
                             print(f"Reaction DB Error: {e}")
 
+                elif p_type in ["message_edit", "message_edited"]:
+                    message_id = payload.get("message_id")
+                    raw_text = (payload.get("text") or "").strip()
+                    if message_id and raw_text:
+                        try:
+                            async with AsyncSessionLocal() as db:
+                                res = await db.execute(
+                                    select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+                                )
+                                msg = res.scalars().first()
+                                if msg and msg.sender_id == user_id and not msg.is_once_view and (not msg.message_type or msg.message_type == "text"):
+                                    msg.text = encrypt_data(raw_text)
+                                    msg.is_edited = True
+                                    msg.edited_at = datetime.utcnow()
+                                    await db.commit()
+                                    await manager.send_to_space(space_id, {
+                                        "type": "message_edited",
+                                        "message_id": message_id,
+                                        "sender_id": user_id,
+                                        "text": raw_text,
+                                        "is_edited": True,
+                                        "edited_at": msg.edited_at.isoformat() + "Z"
+                                    })
+                        except Exception as e:
+                            print(f"WS Edit Error: {e}")
+
                 elif p_type == "mood_update":
                     await manager.send_to_space(space_id, {
                         "type": "mood_update", "user_id": user_id, 

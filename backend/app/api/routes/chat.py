@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import delete, update
-from app.models.schemas import ReactionAdd, MessageOut
+from app.models.schemas import ReactionAdd, MessageOut, MessageEdit
 from app.models.orm import User, Message, CoupleSpace
 from app.core.security import get_current_user
 from app.core.database import get_db
@@ -40,6 +40,8 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
         "reply_to_id": m.reply_to_id,
         "allow_download": allow_download if not m.is_once_view else False,
         "timestamp": m.timestamp.isoformat() + "Z",
+        "is_edited": bool(getattr(m, "is_edited", False)),
+        "edited_at": m.edited_at.isoformat() + "Z" if getattr(m, "edited_at", None) else None,
     }
 
 from pydantic import BaseModel
@@ -287,6 +289,60 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
         pass
 
     return {"ok": True}
+
+@router.patch("/messages/{message_id}")
+async def edit_message(
+    message_id: str,
+    data: MessageEdit,
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    space_id = ensure_space(cu)
+    res = await db.execute(
+        select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+    )
+    msg = res.scalars().first()
+    if not msg:
+        raise HTTPException(404, "Message not found.")
+    
+    if msg.sender_id != cu.id:
+        raise HTTPException(403, "You can only edit your own messages.")
+    
+    if msg.is_once_view:
+        raise HTTPException(400, "View-once messages cannot be edited.")
+    
+    if msg.message_type and msg.message_type != "text":
+        raise HTTPException(400, "Only text messages can be edited.")
+    
+    clean_text = (data.text or "").strip()
+    if not clean_text:
+        raise HTTPException(400, "Message text cannot be empty.")
+    
+    msg.text = encrypt_data(clean_text)
+    msg.is_edited = True
+    msg.edited_at = datetime.utcnow()
+    
+    await db.commit()
+    await db.refresh(msg)
+    
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, {
+            "type": "message_edited",
+            "message_id": message_id,
+            "sender_id": cu.id,
+            "text": clean_text,
+            "is_edited": True,
+            "edited_at": msg.edited_at.isoformat() + "Z"
+        })
+    except Exception as e:
+        print(f"WS Broadcast error on message_edited: {e}")
+        
+    space_res = await db.execute(select(CoupleSpace).filter(CoupleSpace.id == space_id))
+    space = space_res.scalars().first()
+    allow_download = space.allow_media_save if space else True
+    
+    return fmt_msg(msg, cu.name, allow_download)
 
 @router.delete("/messages/{message_id}")
 async def delete_message(message_id: str, for_everyone: bool = True, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
