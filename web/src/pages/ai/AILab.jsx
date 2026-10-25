@@ -148,7 +148,7 @@ export default function AILab() {
           <Icons.Aura size={64} color="var(--accent)" />
           <h2 style={{ marginTop: 24, marginBottom: 12, color: 'var(--accent)' }}>Premium Feature</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.95rem', maxWidth: 300, lineHeight: 1.6 }}>
-            Deep Lab analyzes your chat history to resolve complex relationship issues. Upgrade to Paxly Premium to unlock this feature.
+            Deep Lab analyzes your chat history to resolve complex relationship issues. Upgrade to Vlynxly Premium to unlock this feature.
           </p>
           <button onClick={() => setShowPremiumModal(true)} style={{ marginTop: 32, padding: '14px 32px', borderRadius: 24, background: 'var(--accent)', color: '#000', border: 'none', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', boxShadow: '0 8px 24px rgba(201,169,110,0.3)' }}>
             Upgrade Now

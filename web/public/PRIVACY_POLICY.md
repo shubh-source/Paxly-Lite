@@ -1,18 +1,18 @@
-# Privacy Policy for Paxly (Relationship OS)
+# Privacy Policy for Vlynxly (Relationship OS)
 
 **Effective Date:** October 25, 2026  
 **Last Updated:** October 25, 2026  
 **Version:** 3.0.0 (Production Certified)  
 
-Welcome to **Paxly** ("Paxly", "we", "our", or "us"), operated as a dedicated Relationship Operating System designed for privacy, emotional intimacy, and trusted partnership. Your intimate digital world belongs exclusively to you and your partner. Privacy is not merely an optional feature in Paxly—it is the foundational architecture upon which every capability is engineered.
+Welcome to **Vlynxly** ("Vlynxly", "we", "our", or "us"), operated as a dedicated Relationship Operating System designed for privacy, emotional intimacy, and trusted partnership. Your intimate digital world belongs exclusively to you and your partner. Privacy is not merely an optional feature in Vlynxly—it is the foundational architecture upon which every capability is engineered.
 
-This Privacy Policy explains how Paxly collects, protects, processes, and respects your personal information when you use the Paxly mobile applications, web platforms, and associated services (collectively, the "Service").
+This Privacy Policy explains how Vlynxly collects, protects, processes, and respects your personal information when you use the Vlynxly mobile applications, web platforms, and associated services (collectively, the "Service").
 
 ---
 
 ## 1. Regulatory Compliance Framework
 
-Paxly is engineered in strict compliance with leading global data privacy regulations:
+Vlynxly is engineered in strict compliance with leading global data privacy regulations:
 * **Digital Personal Data Protection Act, 2023 (DPDP Act, India)**: Lawful, explicit, transparent processing, accessible consent withdrawal, and dedicated grievance redressal.
 * **Information Technology Act, 2000 & Reasonable Security Practices Rules (India)**: Strict technical and organizational measures to safeguard sensitive personal data.
 * **General Data Protection Regulation (GDPR / UK GDPR)**: Honoring the principles of data minimization, lawful processing, purpose limitation, integrity, confidentiality, and comprehensive Data Subject Rights (Articles 15–22).
@@ -23,7 +23,7 @@ Paxly is engineered in strict compliance with leading global data privacy regula
 ## 2. Foundational Architectural Principles
 
 1. **Zero Ad Targeting & Zero Commercial Data Brokering**: We do **not** sell, rent, monetize, trade, or license your personal data, intimate memories, emotional logs, voice notes, or chat transcripts to third-party advertisers, data brokers, or commercial syndicates.
-2. **End-to-End Cryptography & Client-Side Security**: Intimate messages, voice whispers, and private vault media are safeguarded with client-side cryptographic keys derived on your device (using TweetNaCl and Web Crypto API). Paxly servers cannot view, inspect, or decrypt the contents of your end-to-end encrypted communications.
+2. **End-to-End Cryptography & Client-Side Security**: Intimate messages, voice whispers, and private vault media are safeguarded with client-side cryptographic keys derived on your device (using TweetNaCl and Web Crypto API). Vlynxly servers cannot view, inspect, or decrypt the contents of your end-to-end encrypted communications.
 3. **Dual-Consent Relationship Sovereignty**: Intimate spaces require mutual trust. Actions involving the permanent export or downloading of shared intimate media to external device storage adhere to mutual dual-consent boundaries so neither partner's privacy is compromised without explicit permission.
 4. **Physical Anti-Snooping Shields**: Native screen-privacy shields prevent unauthorized screen recording, third-party screengrabs, and system task-switcher leakage.
 
@@ -57,11 +57,11 @@ Paxly is engineered in strict compliance with leading global data privacy regula
 * **Dual-Consent Export Authorization**: To prevent non-consensual harvesting of private imagery, downloading shared intimate photos or memories to external device galleries requires sending an in-app download request (`vault_download_request`) that must be affirmatively authorized by your partner.
 
 ### 3.5. Aura AI Relationship Companion & Ask-First Crisis Protocol
-Paxly provides **Aura AI** as an empathetic relationship coach and emotional wellness companion.
+Vlynxly provides **Aura AI** as an empathetic relationship coach and emotional wellness companion.
 * **User-Initiated Sessions Only**: Aura operates strictly during user-directed chat sessions or structured counseling interviews. Aura does **not** passively listen to, monitor, or harvest ambient conversations for profiling.
 * **Multi-Provider Fallback Architecture**: Aura utilizes secure API integrations (including Google Gemini and Groq) under zero-data-retention enterprise agreements. Sensitive personal identifiers and internal system prompts are strictly sanitized and masked before transmission.
 * **Ask-First Crisis Safety Protocol**:
-  * In the critical event that Aura detects an imminent self-harm or suicidal crisis signal (`RISK_4`), Paxly provides crisis helpline resources (988, 112, Vandrevala Foundation) and—depending on your configured safety setting—can deliver a generic care notice to your verified partner.
+  * In the critical event that Aura detects an imminent self-harm or suicidal crisis signal (`RISK_4`), Vlynxly provides crisis helpline resources (988, 112, Vandrevala Foundation) and—depending on your configured safety setting—can deliver a generic care notice to your verified partner.
   * **Strict Safety Guarantees**:
     1. **Zero Transcript Disclosure**: Safety alerts *never* include message contents, chat quotes, transcripts, or confidential prompts.
     2. **Generic Notice Only**: Communicates solely that emotional check-in support is recommended (e.g., *"Aura noticed your partner may need emotional care"*).
@@ -73,7 +73,7 @@ Paxly provides **Aura AI** as an empathetic relationship coach and emotional wel
 * Track anniversaries, milestone countdowns, and upcoming celebrations. Automated local reminders are triggered at 30 days, 7 days, 1 day, and on the milestone day.
 
 ### 3.7. Payment & Premium Transactions
-* Purchases for Love Shop gifts or Premium memberships are processed through certified PCI-DSS Level 1 compliant gateways (Razorpay, Stripe). Paxly **never** stores or processes full credit or debit card numbers on our infrastructure.
+* Purchases for Love Shop gifts or Premium memberships are processed through certified PCI-DSS Level 1 compliant gateways (Razorpay, Stripe). Vlynxly **never** stores or processes full credit or debit card numbers on our infrastructure.
 
 ---
 
@@ -109,7 +109,7 @@ Under the DPDP Act 2023, GDPR, and CCPA, you retain full sovereignty over your p
 
 ## 7. Memory Guarantee vs. Account Closure
 
-Paxly understands that relationships evolve:
+Vlynxly understands that relationships evolve:
 * **Eternity Memory Guarantee**: Upon requesting closure, partners can choose to archive shared scrapbooks in a locked, read-only encrypted vault, ensuring cherished relationship milestones remain protected if reconciliation occurs.
 * **Statutory Permanent Erasure**: If complete removal is preferred, both partners may request irreversible erasure, purging all shared records and account identifiers within 30 days.
 
@@ -117,7 +117,7 @@ Paxly understands that relationships evolve:
 
 ## 8. Age Restriction (18+ Only)
 
-Paxly is strictly built for **consenting adults aged 18 years and older** (or the age of legal majority in your country). We do not knowingly collect or solicit personal data from minors under 18. Any account discovered to belong to a minor will be terminated immediately.
+Vlynxly is strictly built for **consenting adults aged 18 years and older** (or the age of legal majority in your country). We do not knowingly collect or solicit personal data from minors under 18. Any account discovered to belong to a minor will be terminated immediately.
 
 ---
 
@@ -125,7 +125,7 @@ Paxly is strictly built for **consenting adults aged 18 years and older** (or th
 
 To exercise your privacy rights, file a grievance, or ask questions regarding data processing, contact our designated Data Protection Officer:
 
-* **Designated Grievance & Data Protection Officer**: Privacy Operations Team, Paxly
+* **Designated Grievance & Data Protection Officer**: Privacy Operations Team, Vlynxly
 * **Direct Email**: `privacy@paxly.app`
 * **Alternate Legal Email**: `legal@paxly.app`
 * **Response Commitment**: All requests are acknowledged within 24 hours and addressed within 7 business days under statutory standards.

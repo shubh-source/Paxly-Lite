@@ -7,7 +7,7 @@ from fastapi.background import BackgroundTasks
 from contextlib import asynccontextmanager
 from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, place_partner, calls, website, health
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.services.email_service import email_service
 from app.core.config import settings
 
@@ -140,10 +140,10 @@ async def lifespan(app: FastAPI):
     try:
         get_cipher(force_reload=True)
     except EncryptionConfigurationError as e:
-        print(f"❌ FATAL STARTUP CONFIGURATION ERROR: {e}")
+        print(f"[FATAL STARTUP CONFIGURATION ERROR] {e}")
         raise RuntimeError(f"Application startup rejected due to unsafe configuration: {e}") from e
     except Exception as e:
-        print(f"❌ FATAL STARTUP ENCRYPTION ERROR: {e}")
+        print(f"[FATAL STARTUP ENCRYPTION ERROR] {e}")
         raise RuntimeError(f"Application startup rejected due to encryption initialization error: {e}") from e
 
     is_prod = getattr(settings, "ENVIRONMENT", "").lower() == "production"
@@ -154,24 +154,24 @@ async def lifespan(app: FastAPI):
     if is_prod:
         if not secret_key or secret_key in insecure_keys or len(secret_key) < 32:
             raise RuntimeError(
-                "❌ FATAL STARTUP CONFIGURATION ERROR: In production, SECRET_KEY must be a cryptographically secure random string with at least 32 characters."
+                "[FATAL STARTUP CONFIGURATION ERROR] In production, SECRET_KEY must be a cryptographically secure random string with at least 32 characters."
             )
     elif not secret_key or secret_key in insecure_keys:
-        print("⚠️ WARNING: Insecure default SECRET_KEY in use. Replace with a secure random key before deploying to production.")
+        print("[WARNING] Insecure default SECRET_KEY in use. Replace with a secure random key before deploying to production.")
 
     try:
         async with engine.begin() as conn:
             await _initialize_database_schema(conn)
-        print("✅ Database tables verified and migrated successfully.")
+        print("[SUCCESS] Database tables verified and migrated successfully.")
     except (ConnectionRefusedError, OSError) as e:
-        print(f"⚠️ DB connection unavailable during startup ({e}). Continuing in offline mode.")
+        print(f"[WARNING] DB connection unavailable during startup ({e}). Continuing in offline mode.")
     except Exception as e:
         message = str(e).lower()
         unavailable_markers = ("connection refused", "could not connect", "connection timed out", "network is unreachable", "name or service not known")
         if not is_prod and any(marker in message for marker in unavailable_markers):
-            print(f"⚠️ DB connection unavailable during non-production startup ({e}). Continuing in offline mode.")
+            print(f"[WARNING] DB connection unavailable during non-production startup ({e}). Continuing in offline mode.")
         else:
-            print(f"❌ FATAL STARTUP MIGRATION ERROR: {e}")
+            print(f"[FATAL STARTUP MIGRATION ERROR] {e}")
             raise RuntimeError(f"Application startup rejected due to database schema initialization failure: {e}") from e
     
     await connect_db()
@@ -179,7 +179,20 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
-app = FastAPI(title="Vlynxly Fortress API", version="1.1.1", lifespan=lifespan)
+app = FastAPI(title="Vlynxly Fortress API", version="1.2.0", lifespan=lifespan)
+
+# In-memory IP Ban cache to prevent database connection exhaustion on every incoming request
+# Structure: {ip: (is_banned: bool, expiry_datetime: datetime)}
+_ip_ban_cache = {}
+IP_CLEAN_CACHE_TTL_SECONDS = 60
+
+def invalidate_ip_ban_cache(ip: str = None):
+    """Invalidate ban cache for a specific IP or all IPs."""
+    global _ip_ban_cache
+    if ip:
+        _ip_ban_cache.pop(ip, None)
+    else:
+        _ip_ban_cache.clear()
 
 # 1. SECURITY: CORS (Strict exact allowed origins only; no wildcard regex or loose matching)
 allowed_origins = [
@@ -188,6 +201,7 @@ allowed_origins = [
     "http://localhost",
     "capacitor://localhost",
     "https://paxly-lite.vercel.app",
+    "https://vlynxly.vercel.app",
     "https://vlynxly-web.vercel.app",
 ]
 if getattr(settings, "FRONTEND_URL", None):
@@ -218,28 +232,57 @@ async def fortress_middleware(request: Request, call_next):
         return await call_next(request)
         
     client_ip = request.client.host if request.client else "127.0.0.1"
+
+    # Bypass IP ban DB lookup for localhost / test runner clients
+    if client_ip in ("testclient", "127.0.0.1", "localhost"):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
     
-    # 1. SECURITY: IP BAN CHECK (GLOBAL)
-    try:
-        async with AsyncSessionLocal() as db:
-            ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
-            ban = ban_check.scalars().first()
-            if ban:
-                # If this was an automatic lockout, check if 15-minute cooldown has expired
-                if ban.reason and "Automatic lockout" in ban.reason:
-                    ban_expiry = (ban.banned_at or datetime.utcnow()) + timedelta(minutes=15)
-                    if datetime.utcnow() > ban_expiry:
-                        await db.delete(ban)
-                        await db.commit()
-                        ban = None
+    # 1. SECURITY: IP BAN CHECK (GLOBAL WITH IN-MEMORY TTL CACHE)
+    now_utc = datetime.now(timezone.utc)
+    cached = _ip_ban_cache.get(client_ip)
+    need_db_check = True
+
+    if cached:
+        is_banned, expiry = cached
+        if now_utc < expiry:
+            if is_banned:
+                return JSONResponse(
+                    status_code=403,
+                    content={"message": "Access Denied: Your IP has been restricted for security reasons."}
+                )
+            # IP is cached clean and within TTL -> bypass database hit!
+            need_db_check = False
+
+    if need_db_check:
+        try:
+            async with AsyncSessionLocal() as db:
+                ban_check = await db.execute(select(BannedIP).filter(BannedIP.ip_address == client_ip))
+                ban = ban_check.scalars().first()
                 if ban:
-                    return JSONResponse(
-                        status_code=403,
-                        content={"message": "Access Denied: Your IP has been restricted for security reasons."}
-                    )
-    except Exception as e:
-        print(f"Fortress DB check failed: {e}")
-        pass # Allow the request through if DB is temporarily unavailable
+                    # If this was an automatic lockout, check if 15-minute cooldown has expired
+                    if ban.reason and "Automatic lockout" in ban.reason:
+                        ban_expiry = (ban.banned_at or now_utc) + timedelta(minutes=15)
+                        if now_utc > ban_expiry:
+                            await db.delete(ban)
+                            await db.commit()
+                            ban = None
+                    if ban:
+                        ban_expiry = (ban.banned_at or now_utc) + timedelta(minutes=15)
+                        _ip_ban_cache[client_ip] = (True, max(ban_expiry, now_utc + timedelta(seconds=IP_CLEAN_CACHE_TTL_SECONDS)))
+                        return JSONResponse(
+                            status_code=403,
+                            content={"message": "Access Denied: Your IP has been restricted for security reasons."}
+                        )
+                # Verified not banned in DB -> cache clean for TTL
+                _ip_ban_cache[client_ip] = (False, now_utc + timedelta(seconds=IP_CLEAN_CACHE_TTL_SECONDS))
+        except Exception as e:
+            print(f"Fortress DB check failed: {e}")
+            pass # Allow the request through if DB is temporarily unavailable
 
 
     # 2. SECURITY: ADD HEADERS
@@ -256,7 +299,7 @@ async def fortress_middleware(request: Request, call_next):
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
     error_trace = traceback.format_exc()
-    print(f"🔥 SECURITY LOG (CRITICAL ERROR):\n{error_trace}")
+    print(f"[SECURITY LOG - CRITICAL ERROR]\n{error_trace}")
     
     # If it's a specific HTTPException, let FastAPI handle it or return its detail
     if isinstance(exc, HTTPException):

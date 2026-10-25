@@ -213,15 +213,30 @@ async def test_app_lifespan_startup_fails_in_production_with_missing_key():
     assert "Application startup rejected due to unsafe configuration" in str(exc_info.value)
 
 @pytest.mark.asyncio
-async def test_app_lifespan_startup_succeeds_with_valid_key():
+async def test_app_lifespan_startup_succeeds_with_valid_key(monkeypatch):
     from app.main import app, lifespan
+    import app.main as main_module
+    from sqlalchemy.ext.asyncio import create_async_engine
+    test_engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    monkeypatch.setattr(main_module, "engine", test_engine)
+
     settings.ENCRYPTION_KEY = Fernet.generate_key().decode()
     settings.SECRET_KEY = "a" * 32
     settings.ENVIRONMENT = "production"
 
+    async def mock_init_schema(conn):
+        pass
+
+    async def mock_connect_db():
+        pass
+
+    monkeypatch.setattr(main_module, "_initialize_database_schema", mock_init_schema)
+    monkeypatch.setattr(main_module, "connect_db", mock_connect_db)
+
     async with lifespan(app):
         # Startup completed successfully
         pass
+    await test_engine.dispose()
 
 def test_ciphertext_detection_structural_checks():
     """Verify is_fernet_ciphertext strictly evaluates length, version, Base64, and AES blocks."""

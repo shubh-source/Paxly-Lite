@@ -23,6 +23,8 @@ async def dates_db_session():
         await conn.run_sync(Base.metadata.create_all)
 
     session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    import app.main as main_module
+    main_module.AsyncSessionLocal = session_factory
     async with session_factory() as session:
         yield session
 
@@ -31,8 +33,15 @@ async def dates_db_session():
     await engine.dispose()
 
 
+from contextlib import asynccontextmanager
+
 @pytest_asyncio.fixture
 async def dates_client(dates_db_session):
+    @asynccontextmanager
+    async def mock_lifespan(app):
+        yield
+
+    app.router.lifespan_context = mock_lifespan
     async def override_get_db():
         yield dates_db_session
 

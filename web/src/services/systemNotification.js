@@ -1,4 +1,4 @@
-// Instant system notifications for Paxly with ServiceWorker + Web Audio chime + Vibration support
+// Instant system notifications for Vlynxly with ServiceWorker + Web Audio chime + Vibration support
 
 export function playPresenceChime() {
   try {

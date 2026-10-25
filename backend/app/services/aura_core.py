@@ -1,12 +1,12 @@
 """
 AURA CORE RUNTIME ENGINE — IMPLEMENTATION BLUEPRINT (VERSION VLYNXLY-AURA-55)
-Unified Cognitive Controller and Multi-Engine Orchestrator for Paxly-Lite / Vlynxly
+Unified Cognitive Controller and Multi-Engine Orchestrator for Vlynxly
 """
 
 import json
 import re
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 
@@ -574,7 +574,7 @@ class AuraCoreController:
             "primary_intent": intent.primary_intent,
             "primary_emotion": emotion.primary_emotion,
             "risk_level": safety.risk_level,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
         
         return state
@@ -589,7 +589,7 @@ class AuraCoreController:
         state.telemetry_events.append({
             "stage": "response_verified",
             "has_special_commands": len(result["dates_to_add"]) > 0,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
         
         return state

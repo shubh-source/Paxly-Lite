@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }) => {
         setUser(parsedUser); 
         isCached = true;
         // 3s artificial delay so the premium splash screen animation can fully complete
-        setTimeout(() => setLoading(false), 3000);
+        setTimeout(() => setLoading(false), 600);
       } catch (e) {}
     }
 

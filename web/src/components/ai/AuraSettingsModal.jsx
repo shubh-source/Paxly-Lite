@@ -752,7 +752,7 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
 
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: 14, borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
                       {[
-                        { key: 'inAppNotifications', label: 'In-app notifications', desc: 'Show toast alerts while using Paxly Lite' },
+                        { key: 'inAppNotifications', label: 'In-app notifications', desc: 'Show toast alerts while using Vlynxly' },
                         { key: 'pushNotifications', label: 'Push notifications', desc: 'Send reminders for upcoming partner dates & anniversaries' },
                         { key: 'securityAlerts', label: 'Security alerts', desc: 'Notify on new device logins or failed lock attempts' },
                         { key: 'trustedContactAlerts', label: 'Partner care alerts', desc: 'Receive caring check-ins if partner experiences distress' },
@@ -960,7 +960,7 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
                         <span style={{ fontSize: '2rem' }}>✨</span>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--accent, #C9A96E)' }}>Aura AI Companion</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--muted, #8E8E96)' }}>Paxly Lite / Vlynxly OS</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--muted, #8E8E96)' }}>Vlynxly OS</div>
                         </div>
                       </div>
 
@@ -975,7 +975,7 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
                           <strong>Privacy Principle:</strong> Zero-Knowledge Couple Separation & E2EE Message Isolation
                         </p>
                         <p style={{ margin: '0' }}>
-                          © 2026 Paxly Lite. All rights reserved.
+                          © 2026 Vlynxly. All rights reserved.
                         </p>
                       </div>
                     </div>

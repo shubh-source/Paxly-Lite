@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import delete, update
@@ -58,7 +58,7 @@ async def toggle_item(item_id: str, data: BucketUpdate, cu: User = Depends(get_c
     res = await db.execute(
         update(BucketItem)
         .filter(BucketItem.id == item_id, BucketItem.couple_space_id == cu.couple_space_id)
-        .values(completed=data.completed, completed_at=datetime.utcnow() if data.completed else None)
+        .values(completed=data.completed, completed_at=datetime.now(timezone.utc) if data.completed else None)
     )
     if res.rowcount == 0:
         raise HTTPException(404, "Bucket item not found or access denied")

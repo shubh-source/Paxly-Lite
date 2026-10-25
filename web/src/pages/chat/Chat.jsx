@@ -18,6 +18,7 @@ import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
 import axios from 'axios';
 import { Icons } from '../../components/ui/Icons';
 import SecureMediaOverlay from '../../components/chat/SecureMediaOverlay';
+import AskAuraModal from '../../components/chat/AskAuraModal';
 
 export default function Chat() {
   const { user } = useAuth();
@@ -79,6 +80,7 @@ export default function Chat() {
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [contextMenuMsg, setContextMenuMsg] = useState(null);
   const [deleteModalMsg, setDeleteModalMsg] = useState(null);
+  const [auraModalMsg, setAuraModalMsg] = useState(null);
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
@@ -2033,11 +2035,15 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         label: 'Pin to Chat',
                         action: () => { setPinnedMsg(contextMenuMsg.msg); setContextMenuMsg(null); }
                       },
-                      ...(!isOwnMsg ? [{
+                      {
                         icon: <span style={{ fontSize: '1.2rem' }}>✨</span>,
                         label: 'Ask Aura',
-                        action: () => { alert('Aura is analyzing this message...'); setContextMenuMsg(null); }
-                      }] : []),
+                        action: () => {
+                          const target = contextMenuMsg.msg;
+                          setContextMenuMsg(null);
+                          setAuraModalMsg(target);
+                        }
+                      },
                       {
                         icon: <Icons.Vault size={18} />,
                         label: 'Save to Vault',
@@ -2193,6 +2199,29 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           onClose={() => {
             setSecureMediaOpen(null);
           }} 
+        />
+      )}
+
+      {/* Ask Aura Modal */}
+      {auraModalMsg && (
+        <AskAuraModal
+          isOpen={Boolean(auraModalMsg)}
+          message={auraModalMsg}
+          partnerName={partner?.name || 'Partner'}
+          userName={user?.name || 'You'}
+          isOwnMsg={Boolean(user?.id) && Boolean(auraModalMsg?.sender_id) && String(auraModalMsg.sender_id) === String(user.id)}
+          onClose={() => setAuraModalMsg(null)}
+          onApplyReply={(replyText) => {
+            setText(replyText);
+            setAuraModalMsg(null);
+            setTimeout(() => {
+              if (inputRef.current) {
+                inputRef.current.focus();
+                inputRef.current.style.height = 'auto';
+                inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
+              }
+            }, 60);
+          }}
         />
       )}
       </div>

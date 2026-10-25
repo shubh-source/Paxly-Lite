@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import desc
@@ -50,7 +50,7 @@ async def get_today_moods(cu: User = Depends(get_current_user), db: AsyncSession
     user_map = {u.id: u.name for u in space_users}
     
     # Get moods for today
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     # Filter by created_at date
     result = await db.execute(
         select(Mood)

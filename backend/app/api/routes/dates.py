@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -14,7 +14,7 @@ from typing import Optional, List
 router = APIRouter(prefix="/dates", tags=["Dates"])
 
 async def _sync_anniversary_reminders(user_id: str, anniversaries: list, db: AsyncSession):
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     today_str = today.isoformat()
 
     recent_res = await db.execute(

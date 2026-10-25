@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import httpx
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 import app.main as main_module
@@ -15,10 +16,12 @@ from app.core.security import create_access_token
 
 @pytest_asyncio.fixture
 async def test_env():
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        db_path = f.name
-
-    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}", echo=False)
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=False
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -47,11 +50,6 @@ async def test_env():
 
     main_module.app.dependency_overrides.clear()
     await engine.dispose()
-    if os.path.exists(db_path):
-        try:
-            os.remove(db_path)
-        except OSError:
-            pass
 
 @pytest.mark.asyncio
 async def test_notes_create_and_get_coupled(test_env):

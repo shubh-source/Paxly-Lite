@@ -28,7 +28,7 @@ def _to_iso_utc(dt: Optional[datetime]) -> Optional[str]:
     return s if s.endswith("Z") else s + "Z"
 
 async def _sync_unlocked_notes(db: AsyncSession, space_id: Optional[str] = None) -> int:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     query = select(Note).filter(
         Note.unlock_at != None,
         Note.unlock_at <= now,
@@ -135,10 +135,10 @@ async def create_note(data: NoteCreate, cu: User = Depends(get_current_user), db
         
     until = None
     if data.share_with_partner and data.display_hours:
-        until = datetime.utcnow() + timedelta(hours=data.display_hours)
+        until = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=data.display_hours)
 
     clean_unlock_at = _to_naive_utc(data.unlock_at)
-    is_future_capsule = bool(clean_unlock_at and clean_unlock_at > datetime.utcnow())
+    is_future_capsule = bool(clean_unlock_at and clean_unlock_at > datetime.now(timezone.utc).replace(tzinfo=None))
 
     encrypted_content = encrypt_data(data.content) if data.content else None
     note_id = str(uuid.uuid4())
@@ -223,7 +223,7 @@ async def get_notes(cu: User = Depends(get_current_user), db: AsyncSession = Dep
         if partner and partner.name:
             partner_name = partner.name
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     out = []
     for note in notes:
         note_unlock = _to_naive_utc(note.unlock_at)
@@ -311,7 +311,7 @@ async def get_dashboard_notes(cu: User = Depends(get_current_user), db: AsyncSes
     except Exception:
         pass
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     result = await db.execute(
         select(Note)
         .filter(
@@ -403,7 +403,7 @@ async def update_note(note_id: str, data: dict, cu: User = Depends(get_current_u
     updates = {k: v for k, v in data.items() if k in allowed}
     if "content" in updates and updates["content"]:
         updates["content"] = encrypt_data(updates["content"])
-    updates["updated_at"] = datetime.utcnow()
+    updates["updated_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
     
     for key, val in updates.items():
         setattr(note, key, val)

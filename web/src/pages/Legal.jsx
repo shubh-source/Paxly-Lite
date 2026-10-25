@@ -43,10 +43,10 @@ export default function Legal({ initialTab }) {
         console.error('Failed to load legal document:', err);
         setContent(
           type === 'privacy'
-            ? '# Privacy Policy for Paxly\n\nPaxly is engineered privacy-first. All messages and media in your sanctuary are end-to-end encrypted. We never sell your personal data or intimate moments to third parties.'
+            ? '# Privacy Policy for Vlynxly\n\nVlynxly is engineered privacy-first. All messages and media in your sanctuary are end-to-end encrypted. We never sell your personal data or intimate moments to third parties.'
             : type === 'cookies'
-            ? '# Cookie & Local Storage Policy for Paxly\n\nPaxly does not use advertising cookies or third-party trackers. We strictly use essential local storage for authentication and client-side encryption.'
-            : '# Terms of Service for Paxly\n\nPaxly is a private space for consenting adult partners. By using the app, you agree to respect partner consent and applicable laws.'
+            ? '# Cookie & Local Storage Policy for Vlynxly\n\nVlynxly does not use advertising cookies or third-party trackers. We strictly use essential local storage for authentication and client-side encryption.'
+            : '# Terms of Service for Vlynxly\n\nVlynxly is a private space for consenting adult partners. By using the app, you agree to respect partner consent and applicable laws.'
         );
         setLoading(false);
       });
@@ -97,7 +97,7 @@ export default function Legal({ initialTab }) {
         </button>
 
         <span className="header-title" style={{ color: 'var(--text)', fontWeight: 700, fontSize: '1.1rem' }}>
-          Paxly Legal Center
+          Vlynxly Legal Center
         </span>
 
         <button
@@ -253,12 +253,12 @@ export default function Legal({ initialTab }) {
         <div style={{ marginTop: 32, textAlign: 'center' }}>
           <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: 0 }}>
             Questions regarding our policies? Contact our legal team at{' '}
-            <a href="mailto:privacy@paxly.app" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
-              privacy@paxly.app
+            <a href="mailto:privacy@vlynxly.com" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+              privacy@vlynxly.com
             </a>
           </p>
           <p style={{ fontSize: '0.7rem', opacity: 0.35, marginTop: 8 }}>
-            Paxly Relationship OS • Verified Compliance 2026
+            Vlynxly Relationship OS • Verified Compliance 2026
           </p>
         </div>
       </div>

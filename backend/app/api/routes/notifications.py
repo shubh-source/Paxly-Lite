@@ -7,7 +7,7 @@ from app.core.security import get_current_user
 from app.core.database import get_db
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -23,13 +23,13 @@ async def subscribe(data: PushSubscription, cu: User = Depends(get_current_user)
     if sub:
         sub.endpoint = data.endpoint
         sub.keys = data.keys
-        sub.updated_at = datetime.utcnow()
+        sub.updated_at = datetime.now(timezone.utc)
     else:
         new_sub = PushSubscriptionModel(
             user_id=cu.id,
             endpoint=data.endpoint,
             keys=data.keys,
-            updated_at=datetime.utcnow()
+            updated_at=datetime.now(timezone.utc)
         )
         db.add(new_sub)
     

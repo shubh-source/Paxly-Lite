@@ -103,10 +103,22 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
             new_ban = BannedIP(ip_address=client_ip, reason=f"Automatic lockout after {failures} failed attempts reaching threshold.")
             db.add(new_ban)
             await db.commit()
+            try:
+                from app.main import _ip_ban_cache
+                _ip_ban_cache[client_ip] = (True, datetime.utcnow() + timedelta(minutes=15))
+            except Exception:
+                pass
             raise HTTPException(status_code=429, detail="Too many failed login attempts. Your IP has been temporarily locked for 15 minutes.")
             
         await db.commit()
         raise HTTPException(status_code=401, detail=f"Invalid email or password. ({failures}/3 attempts used)")
+
+    # Clear ban cache on valid authentication
+    try:
+        from app.main import invalidate_ip_ban_cache
+        invalidate_ip_ban_cache(client_ip)
+    except Exception:
+        pass
 
     if data.public_key and data.public_key != user.public_key:
         await db.execute(update(User).where(User.id == user.id).values(public_key=data.public_key))

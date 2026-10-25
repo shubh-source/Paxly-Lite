@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import * as tf from '@tensorflow/tfjs';
-import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 const DETECTION_INTERVAL_MS = 1500; // 1.5 seconds to save CPU on web
 const CONFIDENCE_THRESHOLD = 0.5;
@@ -40,7 +38,12 @@ export function useCameraThreatDetection({ enabled = true, onPhoneDetected }) {
           videoRef.current.play();
         }
 
-        // Load TFJS model
+        // Dynamically load TFJS model only when threat detection is enabled
+        const [tf, cocoSsd] = await Promise.all([
+          import('@tensorflow/tfjs'),
+          import('@tensorflow-models/coco-ssd')
+        ]);
+        if (!mounted) return;
         await tf.ready();
         const model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
         if (mounted) {

@@ -8,11 +8,11 @@ import { Icons } from '../../components/ui/Icons';
 const TERMS = [
   { 
     heading: '1. Consensual Intimate Sanctuary & 18+ Eligibility', 
-    body: 'Paxly is built exclusively for consenting adults aged 18 and older in a personal or romantic partnership. All shared interactions, messages, and vault media must be mutually consensual. Using the platform for commercial solicitation, non-consensual media, or harassment is strictly prohibited.' 
+    body: 'Vlynxly is built exclusively for consenting adults aged 18 and older in a personal or romantic partnership. All shared interactions, messages, and vault media must be mutually consensual. Using the platform for commercial solicitation, non-consensual media, or harassment is strictly prohibited.' 
   },
   { 
     heading: '2. One-to-One Couple Space Architecture', 
-    body: 'Paxly creates a private sanctuary strictly between two paired partners linked by a mutual pairing code. You are responsible for safeguarding your login master password, App PIN, and device access. Credentials must never be shared with third parties.' 
+    body: 'Vlynxly creates a private sanctuary strictly between two paired partners linked by a mutual pairing code. You are responsible for safeguarding your login master password, App PIN, and device access. Credentials must never be shared with third parties.' 
   },
   { 
     heading: '3. Intimate Chat Rights: Edit, Delete & Ephemeral Media', 
@@ -28,18 +28,18 @@ const TERMS = [
   },
   { 
     heading: '6. Memory Eternity Guarantee & 30-Day Erasure', 
-    body: 'Unlike ephemeral apps, Paxly values shared milestones. Upon account closure, partners can choose between our Eternity Guarantee (archiving past memories safely in the vault) or statutory 30-day irreversible erasure under global privacy standards.' 
+    body: 'Unlike ephemeral apps, Vlynxly values shared milestones. Upon account closure, partners can choose between our Eternity Guarantee (archiving past memories safely in the vault) or statutory 30-day irreversible erasure under global privacy standards.' 
   }
 ];
 
 const PRIVACY = [
   { 
     heading: '1. Zero Ad Targeting & Zero Commercial Data Brokering', 
-    body: 'Paxly is built privacy-first. We collect only the minimum data required to deliver your private couple space. We NEVER sell, rent, monetize, or trade your personal data, chat transcripts, voice notes, or intimate media to advertisers or data brokers.' 
+    body: 'Vlynxly is built privacy-first. We collect only the minimum data required to deliver your private couple space. We NEVER sell, rent, monetize, or trade your personal data, chat transcripts, voice notes, or intimate media to advertisers or data brokers.' 
   },
   { 
     heading: '2. Client-Side Cryptography & Protected Storage', 
-    body: 'All intimate messages, voice whispers, and vault media are protected by client-side cryptographic keys derived on your device using TweetNaCl and Web Crypto API. Paxly servers cannot view, inspect, or decrypt your end-to-end encrypted communications.' 
+    body: 'All intimate messages, voice whispers, and vault media are protected by client-side cryptographic keys derived on your device using TweetNaCl and Web Crypto API. Vlynxly servers cannot view, inspect, or decrypt your end-to-end encrypted communications.' 
   },
   { 
     heading: '3. Fortress PIN, Stealth Disguise & Intruder Selfie', 
@@ -62,7 +62,7 @@ const PRIVACY = [
 const COOKIES = [
   { 
     heading: '1. Zero Advertising or Tracking Cookies', 
-    body: 'Paxly does not use advertising cookies, marketing pixels (such as Google Ads, Meta Pixel, or TikTok), or behavioral tracking beacons. We do not track your activity across external sites.' 
+    body: 'Vlynxly does not use advertising cookies, marketing pixels (such as Google Ads, Meta Pixel, or TikTok), or behavioral tracking beacons. We do not track your activity across external sites.' 
   },
   { 
     heading: '2. Strictly Essential Session Authentication', 
@@ -85,7 +85,7 @@ const COOKIES = [
 const COMPLIANCE = [
   { 
     heading: '1. Digital Personal Data Protection Act, 2023 (India)', 
-    body: 'Compliant with Indian DPDP Act standards, enforcing explicit purpose limitation, accessible consent withdrawal, data principal rights, and appointment of a dedicated Grievance Officer reachable at privacy@paxly.app.' 
+    body: 'Compliant with Indian DPDP Act standards, enforcing explicit purpose limitation, accessible consent withdrawal, data principal rights, and appointment of a dedicated Grievance Officer reachable at privacy@vlynxly.com.' 
   },
   { 
     heading: '2. General Data Protection Regulation (GDPR / UK GDPR)', 
@@ -126,7 +126,7 @@ export default function Settings() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'paxly_history.json';
+      a.download = 'vlynxly_history.json';
       a.click();
     } catch {
       alert('Failed to export data. Please try again.');
@@ -471,7 +471,7 @@ export default function Settings() {
           <Divider />
           <SettingRow 
             icon={<Icons.Info size={20} />} 
-            title="About Paxly" 
+            title="About Vlynxly" 
             desc="Relationship Operating System • Version 3.0 Production Architecture" 
             onClick={() => setSub('about')}
             right={<span style={{ color: 'var(--muted)', display: 'flex', opacity: 0.6 }}><Icons.Back size={18} style={{ transform: 'rotate(180deg)' }} /></span>}
@@ -502,7 +502,7 @@ export default function Settings() {
         {/* Footer */}
         <div style={{ textAlign: 'center', marginTop: 36, marginBottom: 20 }}>
           <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: 0, letterSpacing: '0.5px' }}>
-            Paxly v3.0.0 Certified Production Release
+            Vlynxly v3.0.0 Certified Production Release
           </p>
           <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.25)', marginTop: 6 }}>
             Client-Side Zero-Knowledge Cryptography • Intimacy & Memories Protected Forever
@@ -633,11 +633,11 @@ function SecuritySub({ user, onBack, onOpenLogs, onOpenPassword }) {
       await api.post('/security/pin/set', { pin });
       if (user?.id) {
         const encoder = new TextEncoder();
-        const data = encoder.encode(`paxly_pin_${user.id}_${pin}`);
+        const data = encoder.encode(`vlynxly_pin_${user.id}_${pin}`);
         const hashBuffer = await crypto.subtle.digest('SHA-256', data);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        localStorage.setItem('paxly_pin_hash', hash);
+        localStorage.setItem('vlynxly_pin_hash', hash);
       }
       setPinOk(true);
       setPin('');
@@ -953,7 +953,7 @@ function PrivacySub({ user, setUser, onBack }) {
       const icon = document.querySelector("link[rel~='icon']");
       if (icon) icon.href = "https://www.google.com/favicon.ico"; 
     } else {
-      document.title = "Paxly";
+      document.title = "Vlynxly";
       const icon = document.querySelector("link[rel~='icon']");
       if (icon) icon.href = "/favicon.ico";
     }
@@ -1127,7 +1127,7 @@ function ClosureSub({ onBack, onRequested }) {
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.AlertCircle size={64} color="var(--accent)" /></div>
         <h2 style={{ fontSize: '1.8rem', marginBottom: 12, fontWeight: 800 }}>Closure Request Submitted</h2>
         <p style={{ lineHeight: 1.8, marginBottom: 40, color: 'var(--muted)', fontSize: '0.95rem', maxWidth: 440, margin: '0 auto 36px' }}>
-          A Paxly Relationship Executive will confirm the closure. Your shared memories and joint milestones are safely protected in our encrypted vault and will not be compromised.
+          A Vlynxly Relationship Executive will confirm the closure. Your shared memories and joint milestones are safely protected in our encrypted vault and will not be compromised.
         </p>
         <button className="btn btn-p" onClick={onRequested} style={{ padding: '16px 32px', borderRadius: 16, fontWeight: 700 }}>
           Log Out Pending Review
@@ -1153,7 +1153,7 @@ function ClosureSub({ onBack, onRequested }) {
         </p>
 
         <div className="card" style={{ marginBottom: 32, textAlign: 'left', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(201,169,110,0.2)', padding: 22, borderRadius: 22 }}>
-          <h3 style={{ fontSize: '0.98rem', marginBottom: 14, fontWeight: 700, color: 'var(--accent)' }}>Paxly Memory Guarantee:</h3>
+          <h3 style={{ fontSize: '0.98rem', marginBottom: 14, fontWeight: 700, color: 'var(--accent)' }}>Vlynxly Memory Guarantee:</h3>
           {[
             'Your shared scrapbook is securely archived in the vault', 
             'Neither partner can delete joint history out of sudden anger', 
@@ -1357,16 +1357,16 @@ function AboutSub({ onBack }) {
         <button className="btn btn-g" onClick={onBack} style={{ padding: '8px 16px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
           <Icons.Back size={18} /> Back
         </button>
-        <span className="header-title" style={{ color: 'var(--text)', fontWeight: 700 }}>About Paxly</span>
+        <span className="header-title" style={{ color: 'var(--text)', fontWeight: 700 }}>About Vlynxly</span>
         <div style={{ width: 60 }} />
       </header>
       <div className="content center" style={{ maxWidth: 480, padding: '0 24px', textAlign: 'center', margin: '0 auto' }}>
         <div style={{ width: 88, height: 88, borderRadius: 28, background: 'linear-gradient(135deg, var(--accent), var(--purple, #a855f7))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 24px', boxShadow: '0 15px 35px rgba(0,0,0,0.4)' }}>🔒</div>
-        <h1 style={{ marginBottom: 6, fontSize: '2.2rem', fontWeight: 800 }}>Paxly</h1>
+        <h1 style={{ marginBottom: 6, fontSize: '2.2rem', fontWeight: 800 }}>Vlynxly</h1>
         <p style={{ color: 'var(--accent)', marginBottom: 32, fontWeight: 700, letterSpacing: 2, fontSize: '0.85rem' }}>RELATIONSHIP OPERATING SYSTEM</p>
 
         <div className="card" style={{ marginBottom: 16, textAlign: 'left', width: '100%', background: 'rgba(255,255,255,0.03)', padding: 22, borderRadius: 22, border: '1px solid rgba(255,255,255,0.06)' }}>
-          <h3 style={{ fontWeight: 700, fontSize: '0.98rem', marginBottom: 10, color: 'var(--accent)' }}>What is Paxly?</h3>
+          <h3 style={{ fontWeight: 700, fontSize: '0.98rem', marginBottom: 10, color: 'var(--accent)' }}>What is Vlynxly?</h3>
           <p style={{ lineHeight: 1.8, fontSize: '0.9rem', color: 'var(--muted)', margin: 0 }}>
             A private, end-to-end encrypted sanctuary designed exclusively for couples. No public feeds, no commercial advertisers, no distractions—just you, your partner, and your shared world.
           </p>
@@ -1380,7 +1380,7 @@ function AboutSub({ onBack }) {
           </p>
         </div>
 
-        <p style={{ marginTop: 36, fontSize: '0.75rem', opacity: 0.35 }}>© 2026 Paxly • Intimacy & Memories Protected Forever</p>
+        <p style={{ marginTop: 36, fontSize: '0.75rem', opacity: 0.35 }}>© 2026 Vlynxly • Intimacy & Memories Protected Forever</p>
       </div>
     </div>
   );

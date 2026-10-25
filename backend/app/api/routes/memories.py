@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import delete
@@ -163,7 +163,7 @@ async def save_message_to_vault(req: SaveMessageRequest, cu: User = Depends(get_
     if not msg:
         raise HTTPException(404, "Message not found")
         
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     clean_desc = decrypt_data(msg.text) if msg.text else ""
     
     new_mem = Memory(

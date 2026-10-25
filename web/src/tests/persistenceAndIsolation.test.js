@@ -240,7 +240,7 @@ test('Step 4: Persistence, Deletion & Two-Account Isolation API Test Suite', asy
     // User B STILL HAS all 2 threads completely intact
     const bThreads = db.getThreads('user_B');
     assert.equal(bThreads.length, 2);
-    assert.equal(bThreads[0].id, 't3');
-    assert.equal(bThreads[1].id, 't4');
+    const bThreadIds = bThreads.map(t => t.id).sort();
+    assert.deepEqual(bThreadIds, ['t3', 't4']);
   });
 });

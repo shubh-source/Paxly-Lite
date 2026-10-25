@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import * as tf from '@tensorflow/tfjs';
-import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 export default function SecureViewer({ mediaUrl, messageId, type, onClosed, onCompromised }) {
   const [model, setModel] = useState(null);
@@ -13,20 +11,30 @@ export default function SecureViewer({ mediaUrl, messageId, type, onClosed, onCo
   const detectionRef = useRef(null);
 
   useEffect(() => {
-    // Load AI Model
+    let active = true;
+    // Load AI Model lazily to keep initial bundle size lightweight
     const loadModel = async () => {
       try {
+        const [tf, cocoSsd] = await Promise.all([
+          import('@tensorflow/tfjs'),
+          import('@tensorflow-models/coco-ssd')
+        ]);
+        if (!active) return;
         await tf.ready();
         const m = await cocoSsd.load();
+        if (!active) return;
         setModel(m);
         startCamera();
       } catch (err) {
         console.error("AI Load Fail", err);
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     loadModel();
-    return () => stopCamera();
+    return () => {
+      active = false;
+      stopCamera();
+    };
   }, []);
 
   const startCamera = async () => {
