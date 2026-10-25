@@ -93,17 +93,23 @@ export default function Chat() {
     const currentEmoji = targetMsg.reactions?.[user?.id];
     const newEmoji = forceSet ? emoji : (currentEmoji === emoji ? null : emoji);
 
+    const isOptimistic = Boolean(targetMsg.isOptimistic) || (targetMsg.id && String(targetMsg.id).startsWith('temp_'));
+
     // 1. Optimistic Update (Instant feedback on screen + local cache)
     setMsgs(prev => {
       const updated = prev.map(m => {
-        if (m.id === targetMsg.id) {
+        if (m.id === targetMsg.id || (targetMsg.temp_id && m.temp_id === targetMsg.temp_id)) {
           const nextReactions = { ...(m.reactions || {}) };
           if (newEmoji) {
             nextReactions[user?.id] = newEmoji;
           } else {
             delete nextReactions[user?.id];
           }
-          return { ...m, reactions: nextReactions };
+          return {
+            ...m,
+            reactions: nextReactions,
+            _pendingReaction: isOptimistic ? newEmoji : m._pendingReaction
+          };
         }
         return m;
       });
@@ -111,20 +117,21 @@ export default function Chat() {
       return updated;
     });
 
-    // 2. Deliver via WebSocket
-    if (wsService.isConnected()) {
-      wsService.send({
-        type: 'reaction',
-        message_id: targetMsg.id,
-        emoji: newEmoji
-      });
-    }
-
-    // 3. Always persist to database via REST for 100% guarantee
-    if (newEmoji) {
-      api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
-    } else {
-      api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
+    // 2. Network delivery: send to server if message is confirmed (not temp_)
+    if (!isOptimistic) {
+      if (wsService.isConnected()) {
+        wsService.send({
+          type: 'reaction',
+          message_id: targetMsg.id,
+          emoji: newEmoji
+        });
+      } else {
+        if (newEmoji) {
+          api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
+        } else {
+          api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
+        }
+      }
     }
 
     setContextMenuMsg(null);
@@ -224,7 +231,11 @@ export default function Chat() {
         const decryptedMsgs = [];
         for (const m of sorted) {
           if (m.text && sk && pk) {
-            m.text = decryptMessage(m.text, sk, pk);
+            try {
+              m.text = decryptMessage(m.text, sk, pk);
+            } catch (e) {
+              console.warn("Decrypt error in syncMessages:", e);
+            }
           }
           decryptedMsgs.push(m);
         }
@@ -233,17 +244,49 @@ export default function Chat() {
         decryptedMsgs.forEach(m => msgMap.set(m.id, m));
         
         const now = Date.now();
+        // Only keep optimistic messages that have NOT yet landed in decryptedMsgs
         prev.forEach(m => {
-          if (m.isOptimistic && !msgMap.has(m.id)) {
-            const msgTime = new Date(m.timestamp).getTime();
-            if (now - msgTime < 15000) {
-              msgMap.set(m.id, m);
+          if (!m.isOptimistic) return;
+          const msgTime = new Date(m.timestamp).getTime();
+          // Expire stale optimistic messages after 25s
+          if (now - msgTime > 25000) return;
+
+          // Check if this optimistic message is already present in decryptedMsgs
+          const alreadySynced = decryptedMsgs.some(s => {
+            if (s.id === m.id) return true;
+            if (s.temp_id && (s.temp_id === m.id || s.temp_id === m.temp_id)) return true;
+            if (String(s.sender_id) === String(m.sender_id) && s.message_type === m.message_type) {
+              const timeDiff = Math.abs(new Date(s.timestamp).getTime() - msgTime);
+              if (timeDiff < 45000) {
+                if (m.message_type === 'text') {
+                  return s.text === m.text;
+                }
+                if (s.media_url && m.media_url) {
+                  return s.media_url === m.media_url || s.media_url.includes(m.media_url) || m.media_url.includes(s.media_url);
+                }
+                return true;
+              }
             }
+            return false;
+          });
+
+          // Only keep if NOT already in decryptedMsgs from server
+          if (!alreadySynced && !msgMap.has(m.id)) {
+            msgMap.set(m.id, m);
           }
         });
+
         const merged = Array.from(msgMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
-        if (JSON.stringify(prev) === JSON.stringify(merged)) {
+        // Deep compare to prevent unnecessary re-render triggers
+        if (
+          prev.length === merged.length &&
+          prev.every((pMsg, idx) => 
+            pMsg.id === merged[idx].id &&
+            pMsg.text === merged[idx].text &&
+            JSON.stringify(pMsg.reactions || {}) === JSON.stringify(merged[idx].reactions || {})
+          )
+        ) {
           return prev;
         }
 
@@ -281,11 +324,13 @@ export default function Chat() {
     const offs = [
       wsService.on('connected', () => syncMessages()),
       wsService.on('chat_message', msg => {
-        if (msg.sender_id !== user?.id) {
+        if (String(msg.sender_id) !== String(user?.id)) {
           handlePartnerTyping(false);
         }
         const sk = localStorage.getItem('paxly_sk');
-        const pk = JSON.parse(localStorage.getItem('cached_partner') || '{}')?.public_key;
+        let cachedP = null;
+        try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
+        const pk = partner?.public_key || cachedP?.public_key;
         
         // Ensure msg object has 'id' property (backend sends 'message_id')
         if (msg.message_id && !msg.id) {
@@ -294,29 +339,77 @@ export default function Chat() {
         msg.reactions = msg.reactions || {};
 
         setMsgs(p => {
-          // If this is confirmation for sender's own optimistic message
-          if (msg.sender_id === user?.id) {
-            const optIdx = p.findIndex(m => m.id === msg.temp_id || (m.isOptimistic && m.message_type === msg.message_type && (m.message_type === 'text' ? m.text === msg.text || m.text === (sk && pk ? decryptMessage(msg.text, sk, pk) : msg.text) : true)));
-            if (optIdx !== -1) {
-              const newMsgs = [...p];
-              newMsgs[optIdx] = {
-                ...msg,
-                text: newMsgs[optIdx].text, // preserve plaintext
-                reactions: Object.keys(msg.reactions).length > 0 ? msg.reactions : (p[optIdx].reactions || {}),
-                isOptimistic: false
-              };
-              return newMsgs;
-            }
-            if (p.some(m => m.id === msg.id)) return p;
-          }
-
-          // If from partner, decrypt text if needed
+          const isOwn = String(msg.sender_id) === String(user?.id);
+          
+          let decryptedText = msg.text;
           if (msg.text && sk && pk) {
-             msg.text = decryptMessage(msg.text, sk, pk);
+            try {
+              decryptedText = decryptMessage(msg.text, sk, pk);
+            } catch (e) {
+              console.warn("Failed to decrypt incoming text:", e);
+            }
           }
-          if (p.some(m => m.id === msg.id)) return p;
 
-          return [...p, msg];
+          // Check if this incoming message matches any optimistic message
+          const optIdx = p.findIndex(m => {
+            if (!m.isOptimistic) return false;
+            if (msg.temp_id && (m.id === msg.temp_id || m.temp_id === msg.temp_id)) return true;
+            if (isOwn) {
+              if (m.message_type !== msg.message_type) return false;
+              if (m.message_type === 'text') {
+                return m.text === decryptedText || m.text === msg.text;
+              }
+              if (msg.media_url && m.media_url) {
+                return m.media_url === msg.media_url || m.media_url.includes(msg.media_url) || msg.media_url.includes(m.media_url);
+              }
+              const diff = Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp || Date.now()).getTime());
+              return diff < 30000;
+            }
+            return false;
+          });
+
+          if (optIdx !== -1) {
+            const newMsgs = [...p];
+            const optMsg = newMsgs[optIdx];
+            newMsgs[optIdx] = {
+              ...msg,
+              temp_id: optMsg.temp_id || msg.temp_id,
+              text: optMsg.text || decryptedText, // preserve already decrypted/plaintext
+              media_url: optMsg.media_url || msg.media_url, // keep local objectUrl if present
+              reactions: Object.keys(msg.reactions || {}).length > 0 ? msg.reactions : (optMsg.reactions || {}),
+              isOptimistic: false
+            };
+
+            // Deduplicate: remove any other duplicate of msg.id if present
+            const deduplicated = newMsgs.filter((m, idx) => idx === optIdx || m.id !== msg.id);
+
+            // If user reacted while message was optimistic, send that reaction to backend with confirmed msg.id
+            if (optMsg._pendingReaction) {
+              if (wsService.isConnected()) {
+                wsService.send({
+                  type: 'reaction',
+                  message_id: msg.id,
+                  emoji: optMsg._pendingReaction
+                });
+              } else {
+                api.post(`/chat/messages/${msg.id}/react`, { emoji: optMsg._pendingReaction }).catch(() => {});
+              }
+            }
+
+            return deduplicated;
+          }
+
+          // If no optimistic match, check if msg.id is already present
+          if (p.some(m => m.id === msg.id)) {
+            return p;
+          }
+
+          const finalMsg = {
+            ...msg,
+            text: isOwn ? (msg.text || decryptedText) : decryptedText,
+            isOptimistic: false
+          };
+          return [...p, finalMsg];
         });
       }),
       wsService.on('typing', d => { if (d.user_id !== user?.id) handlePartnerTyping(d.is_typing); }),
@@ -329,9 +422,11 @@ export default function Chat() {
         }
       }),
       wsService.on('reaction', d => {
-        setMsgs(p => p.map(m => {
-          if (m.id !== d.message_id) return m;
-          let nextReactions = { ...(m.reactions || {}) };
+        setMsgs(p => {
+          const target = p.find(m => m.id === d.message_id);
+          if (!target) return p;
+
+          let nextReactions = { ...(target.reactions || {}) };
           if (d.reactions) {
             nextReactions = d.reactions;
           } else if (d.emoji) {
@@ -339,8 +434,20 @@ export default function Chat() {
           } else {
             delete nextReactions[d.user_id];
           }
-          return { ...m, reactions: nextReactions };
-        }));
+
+          // Avoid re-renders if reaction state is already identical (e.g. from local optimistic reaction)
+          const curr = target.reactions || {};
+          const nextKeys = Object.keys(nextReactions);
+          const currKeys = Object.keys(curr);
+          if (
+            nextKeys.length === currKeys.length &&
+            nextKeys.every(k => nextReactions[k] === curr[k])
+          ) {
+            return p;
+          }
+
+          return p.map(m => m.id === d.message_id ? { ...m, reactions: nextReactions } : m);
+        });
       }),
       wsService.on('message_deleted', d => {
         setMsgs(p => p.filter(m => m.id !== d.message_id));
@@ -395,6 +502,7 @@ export default function Chat() {
     ];
     return () => {
       clearInterval(syncInterval);
+      if (tapTimeout.current) clearTimeout(tapTimeout.current);
       window.removeEventListener('focus', onFocusSync);
       document.removeEventListener('visibilitychange', onFocusSync);
       offs.forEach(f => f());
@@ -521,9 +629,10 @@ export default function Chat() {
     wsService.send({ type: 'presence_state', state: 'peeking', mood: selfMood });
     
     const rawText = text.trim();
-    const tempId = `temp_${Date.now()}`;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const tempMsg = {
       id: tempId,
+      temp_id: tempId,
       sender_id: user?.id,
       text: rawText,
       message_type: 'text',
@@ -560,7 +669,13 @@ export default function Chat() {
         reply_to_id: replyingTo?.id || null,
         temp_id: tempId
       }).then(res => {
-        setMsgs(prev => prev.map(m => (m.id === tempId ? { ...res.data, text: rawText, isOptimistic: false } : m)));
+        setMsgs(prev => {
+          const exists = prev.some(m => m.id === res.data.id);
+          if (exists) {
+            return prev.filter(m => m.id !== tempId);
+          }
+          return prev.map(m => (m.id === tempId ? { ...res.data, temp_id: tempId, text: rawText, isOptimistic: false } : m));
+        });
       }).catch(err => {
         console.error("REST message delivery fallback error:", err);
       });
@@ -733,14 +848,17 @@ export default function Chat() {
       if (sk && pk) {
          payloadText = encryptMessage(payloadText, sk, pk);
       }
-      wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
-      api.post('/chat/messages', {
-        text: payloadText,
-        message_type: 'audio',
-        media_url: media_url,
-        is_once_view: false,
-        view_limit: 0
-      }).catch(e => console.error("REST preview voice save error:", e));
+      if (wsService.isConnected()) {
+        wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
+      } else {
+        api.post('/chat/messages', {
+          text: payloadText,
+          message_type: 'audio',
+          media_url: media_url,
+          is_once_view: false,
+          view_limit: 0
+        }).catch(e => console.error("REST preview voice save error:", e));
+      }
     } catch (err) {}
     setAudioPreviewBlob(null);
     setAudioPreviewUrl(null);
@@ -775,8 +893,10 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
     // OPTIMISTIC UPDATE
     const objectUrl = URL.createObjectURL(f);
     const isVideo = f.type?.startsWith('video');
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const tempMsg = {
-      id: `temp_${Date.now()}`,
+      id: tempId,
+      temp_id: tempId,
       sender_id: user?.id,
       text: '',
       message_type: isVideo ? 'video' : 'image',
@@ -824,7 +944,13 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
           reply_to_id: replyingTo?.id || null,
           temp_id: tempMsg.id
         }).then(res => {
-          setMsgs(prev => prev.map(m => (m.id === tempMsg.id ? { ...res.data, isOptimistic: false, media_url: tempMsg.media_url } : m)));
+          setMsgs(prev => {
+            const exists = prev.some(m => m.id === res.data.id);
+            if (exists) {
+              return prev.filter(m => m.id !== tempMsg.id);
+            }
+            return prev.map(m => (m.id === tempMsg.id ? { ...res.data, temp_id: tempMsg.id, isOptimistic: false, media_url: tempMsg.media_url } : m));
+          });
         }).catch(e => console.error("REST media save error:", e));
       }
       setReplyingTo(null);
@@ -934,6 +1060,10 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
         @keyframes recPulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(255,90,60,0.5); }
           50%     { box-shadow: 0 0 0 8px rgba(255,90,60,0);  }
+        }
+        @keyframes popIn {
+          0% { transform: scale(0.6); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
         }
         @keyframes spin { 100% { transform: rotate(360deg); } }
         .spin { animation: spin 1s linear infinite; }
@@ -1358,13 +1488,14 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
             return (
               <div
-                key={msg.id}
+                key={msg.temp_id || msg.id}
                 id={`msg-${msg.id}`}
                 className="chat-msg"
                 onMouseEnter={() => setHoveredMsgId(msg.id)}
                 onMouseLeave={() => setHoveredMsgId(null)}
                 style={{
-                  marginBottom: hasReactions ? 24 : 10,
+                  marginBottom: hasReactions ? 20 : 8,
+                  transition: 'margin-bottom 0.18s ease-out',
                   display:'flex', gap:7,
                   justifyContent: me ? 'flex-end' : 'flex-start',
                   animationDelay: `${Math.min(i * 0.025, 0.25)}s`,
@@ -1578,12 +1709,12 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         }}
                         style={{
                           position: 'absolute',
-                          bottom: -11,
+                          bottom: -10,
                           right: me ? 6 : 'auto',
                           left: me ? 'auto' : 6,
                           background: '#1c1c22',
                           borderRadius: 20,
-                          padding: '2px 7px',
+                          padding: '2px 8px',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1594,7 +1725,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           cursor: 'pointer',
                           lineHeight: '1.2',
                           height: '24px',
-                          boxSizing: 'border-box'
+                          boxSizing: 'border-box',
+                          userSelect: 'none',
+                          animation: 'popIn 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                         }}>
                         {Object.entries(msg.reactions).filter(([_, emo]) => Boolean(emo)).map(([uid, emo], idx) => (
                           <span key={uid || idx} style={{ fontSize: '0.95rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: 'translateY(-0.5px)' }}>{emo}</span>
@@ -1608,7 +1741,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    marginTop: hasReactions ? 14 : 4,
+                    marginTop: hasReactions ? 10 : 3,
+                    transition: 'margin-top 0.18s ease-out',
                     fontSize: '0.68rem',
                     color: me ? (activeTheme.accent || '#E3BE86') : 'var(--muted)',
                     fontWeight: 500
@@ -1985,7 +2119,10 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       display: 'inline-block',
                       userSelect: 'none'
                     }}
-                    onClick={() => handleEmojiSelect(contextMenuMsg.msg, emoji)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEmojiSelect(contextMenuMsg.msg, emoji);
+                    }}
                     onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
                     onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                   >{emoji}</span>
