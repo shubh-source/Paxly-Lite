@@ -214,6 +214,7 @@ function AnimatedRoutes() {
         <Route path="/legal"         element={<Legal />} />
         <Route path="/privacy"       element={<Legal initialTab="privacy" />} />
         <Route path="/terms"         element={<Legal initialTab="terms" />} />
+        <Route path="/cookies"       element={<Legal initialTab="cookies" />} />
         <Route path="/admin"         element={<Guard><AdminPanel /></Guard>} />
         <Route path="/icons"         element={<IconShowcase />} />
 

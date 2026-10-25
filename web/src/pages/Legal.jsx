@@ -7,24 +7,29 @@ export default function Legal({ initialTab }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Determine initial tab from props or query param ?tab=privacy|terms
+  // Determine initial tab from props or query param ?tab=privacy|terms|cookies
   const getInitialTab = () => {
     if (initialTab) return initialTab;
     const params = new URLSearchParams(location.search);
     const qTab = params.get('tab');
-    if (qTab === 'terms' || qTab === 'privacy') return qTab;
+    if (qTab === 'terms' || qTab === 'privacy' || qTab === 'cookies') return qTab;
     if (location.pathname.includes('/terms')) return 'terms';
+    if (location.pathname.includes('/cookies')) return 'cookies';
     return 'privacy';
   };
 
-  const [type, setType] = useState(getInitialTab); // 'privacy' | 'terms'
+  const [type, setType] = useState(getInitialTab); // 'privacy' | 'terms' | 'cookies'
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    const file = type === 'privacy' ? '/PRIVACY_POLICY.md' : '/TERMS_OF_SERVICE.md';
+    const file = type === 'privacy' 
+      ? '/PRIVACY_POLICY.md' 
+      : type === 'cookies' 
+      ? '/COOKIE_POLICY.md' 
+      : '/TERMS_OF_SERVICE.md';
     fetch(file)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -39,6 +44,8 @@ export default function Legal({ initialTab }) {
         setContent(
           type === 'privacy'
             ? '# Privacy Policy for Paxly\n\nPaxly is engineered privacy-first. All messages and media in your sanctuary are end-to-end encrypted. We never sell your personal data or intimate moments to third parties.'
+            : type === 'cookies'
+            ? '# Cookie & Local Storage Policy for Paxly\n\nPaxly does not use advertising cookies or third-party trackers. We strictly use essential local storage for authentication and client-side encryption.'
             : '# Terms of Service for Paxly\n\nPaxly is a private space for consenting adult partners. By using the app, you agree to respect partner consent and applicable laws.'
         );
         setLoading(false);
@@ -124,24 +131,25 @@ export default function Legal({ initialTab }) {
           marginBottom: 20,
           border: '1px solid rgba(255,255,255,0.07)',
           boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          gap: 6
         }}>
           <button
             onClick={() => setType('privacy')}
             style={{
               flex: 1,
-              padding: '12px 16px',
+              padding: '11px 12px',
               borderRadius: 14,
               border: 'none',
               background: type === 'privacy' ? 'var(--accent, #c9a96e)' : 'transparent',
               color: type === 'privacy' ? '#000' : 'var(--muted)',
               fontWeight: 700,
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               cursor: 'pointer',
               transition: 'all 0.25s ease',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 8,
+              gap: 6,
             }}
           >
             <Icons.Shield size={16} /> Privacy Policy
@@ -150,22 +158,43 @@ export default function Legal({ initialTab }) {
             onClick={() => setType('terms')}
             style={{
               flex: 1,
-              padding: '12px 16px',
+              padding: '11px 12px',
               borderRadius: 14,
               border: 'none',
               background: type === 'terms' ? 'var(--accent, #c9a96e)' : 'transparent',
               color: type === 'terms' ? '#000' : 'var(--muted)',
               fontWeight: 700,
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               cursor: 'pointer',
               transition: 'all 0.25s ease',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 8,
+              gap: 6,
             }}
           >
             <Icons.FileText size={16} /> Terms of Service
+          </button>
+          <button
+            onClick={() => setType('cookies')}
+            style={{
+              flex: 1,
+              padding: '11px 12px',
+              borderRadius: 14,
+              border: 'none',
+              background: type === 'cookies' ? 'var(--accent, #c9a96e)' : 'transparent',
+              color: type === 'cookies' ? '#000' : 'var(--muted)',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.25s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
+          >
+            <Icons.Lock size={16} /> Cookie Policy
           </button>
         </div>
 
@@ -183,11 +212,17 @@ export default function Legal({ initialTab }) {
           <Icons.Shield size={24} color="var(--accent)" />
           <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
             <strong style={{ color: 'var(--text)' }}>
-              {type === 'privacy' ? 'Privacy First Guarantee' : 'Consensual Intimate Sanctuary'}
+              {type === 'privacy' 
+                ? 'Privacy First Guarantee' 
+                : type === 'cookies'
+                ? 'Zero Tracking & Ad-Free Storage'
+                : 'Consensual Intimate Sanctuary'}
             </strong>
             <p style={{ margin: '2px 0 0', lineHeight: 1.4 }}>
               {type === 'privacy'
-                ? 'End-to-End Encrypted communications • Zero ad sales • Verified partner-only alerts with no message leaks.'
+                ? 'End-to-End Encrypted communications • Zero ad sales • Verified partner alerts with no transcript leaks.'
+                : type === 'cookies'
+                ? 'No marketing cookies or commercial pixels • Strictly essential JWT sessions & client cryptographic keys.'
                 : '18+ adult relationships • Dual-consent storage • Zero tolerance for abuse or non-consensual media.'}
             </p>
           </div>

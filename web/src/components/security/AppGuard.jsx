@@ -15,7 +15,7 @@ export default function AppGuard({ children }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  const publicPaths = ['/welcome', '/login', '/signup', '/forgot-password', '/reset-password', '/forgot-pin', '/setup-lock', '/terms', '/privacy', '/legal'];
+  const publicPaths = ['/welcome', '/login', '/signup', '/forgot-password', '/reset-password', '/forgot-pin', '/setup-lock', '/terms', '/privacy', '/cookies', '/legal'];
   const isPublicRoute = publicPaths.some(p => pathname.startsWith(p));
   const showLock = !loading && !!user?.has_pin && isLocked && !isPublicRoute;
 
