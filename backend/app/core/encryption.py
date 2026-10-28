@@ -300,8 +300,8 @@ def decrypt_data(data: str, strict: bool = False) -> str:
 
     if suspected_cipher:
         logger.error("Ciphertext decryption failed across all configured keys.")
-        if strict or is_production:
+        if strict:
             raise DecryptionError("Ciphertext payload could not be decrypted with configured keys.")
 
-    # Return legitimate legacy unencrypted plaintext safely
+    # Return legitimate legacy unencrypted plaintext safely (or fallback raw ciphertext)
     return data

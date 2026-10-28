@@ -319,6 +319,7 @@ export default function Chat() {
       });
       setLoadingHistory(false);
     } catch (err) {
+      console.warn("syncMessages error:", err);
       setLoadingHistory(false);
     }
   };
@@ -331,16 +332,21 @@ export default function Chat() {
       wsService.connect(token, immediateSpaceId);
     }
 
-    getSpace().then(d => {
-      setPartner(d.partner);
-      localStorage.setItem('cached_partner', JSON.stringify(d.partner));
-      setSpace(d.space);
-      localStorage.setItem('cached_space', JSON.stringify(d));
-      if (token && d?.space?.id && !wsService.isConnected()) {
-        wsService.connect(token, d.space.id);
-      }
-      syncMessages(d.partner?.public_key);
-    });
+    getSpace()
+      .then(d => {
+        setPartner(d.partner);
+        localStorage.setItem('cached_partner', JSON.stringify(d.partner));
+        setSpace(d.space);
+        localStorage.setItem('cached_space', JSON.stringify(d));
+        if (token && d?.space?.id && !wsService.isConnected()) {
+          wsService.connect(token, d.space.id);
+        }
+        syncMessages(d.partner?.public_key);
+      })
+      .catch(err => {
+        console.warn("getSpace failed on mount, attempting direct syncMessages:", err);
+        syncMessages();
+      });
 
     // Auto-sync polling every 5 seconds (safety net)
     const syncInterval = setInterval(() => {
@@ -1376,12 +1382,12 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             }}>
               {partner?.avatar_url
                 ? <img src={partner.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                : (partner?.name?.[0]?.toUpperCase() || 'S')}
+                : (partner?.name?.[0]?.toUpperCase() || 'P')}
             </div>
 
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap: 1 }}>
               <span style={{ fontWeight:700, fontSize:'1rem', color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {partner?.name || 'Sneha'}
+                {partner?.name || 'Partner'}
               </span>
               <span style={{ fontSize:'0.68rem', color: activeTheme.accent || '#C9A96E', opacity: 0.8, letterSpacing: '0.3px' }}>
                 {typing ? 'typing...' : partnerOnline ? 'online' : 'tap to change theme'}
@@ -1583,7 +1589,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   }}>
                     {partner?.avatar_url
                       ? <img src={partner.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                      : partner?.name?.[0]?.toUpperCase()}
+                      : (partner?.name?.[0]?.toUpperCase() || 'P')}
                   </div>
                 )}
 

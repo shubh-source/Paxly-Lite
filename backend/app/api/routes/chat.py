@@ -22,6 +22,14 @@ def _to_iso_utc(dt: Optional[datetime]) -> Optional[str]:
         return s[:-6] + "Z"
     return s if s.endswith("Z") else s + "Z"
 
+def safe_decrypt_msg(text: Optional[str]) -> str:
+    if not text:
+        return ""
+    try:
+        return decrypt_data(text, strict=False)
+    except Exception:
+        return text
+
 def ensure_space(cu: User):
     if not cu.couple_space_id:
         raise HTTPException(403, "No couple space. Connect with partner first.")
@@ -38,7 +46,7 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
         "sender_id": m.sender_id,
         "sender_name": sender_name,
         "message_type": m.message_type or "text",
-        "text": decrypt_data(m.text or ""),
+        "text": safe_decrypt_msg(m.text or ""),
         "media_url": m.media_url if show_media else None,
         "reactions": m.reactions or {},
         "is_once_view": m.is_once_view,
@@ -406,7 +414,7 @@ async def get_chat_space(cu: User = Depends(get_current_user), db: AsyncSession 
         },
         "partner": {
             "id": partner.id if partner else None,
-            "name": partner.name if partner else "Unknown",
+            "name": partner.name if partner else "Partner",
             "avatar_url": getattr(partner, "avatar_url", None),
             "public_key": getattr(partner, "public_key", None)
         }
