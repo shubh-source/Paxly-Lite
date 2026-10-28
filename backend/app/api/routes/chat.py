@@ -436,20 +436,32 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     space_id = space.id
     partner_id = partner.id if partner else cu.partner_id
 
-    res = await db.execute(select(Message).filter(Message.id == message_id))
+    # Enforce couple space isolation & row locking for concurrency protection
+    stmt = (
+        select(Message)
+        .filter(
+            Message.id == message_id,
+            Message.couple_space_id == space_id
+        )
+    )
+    try:
+        stmt = stmt.with_for_update()
+    except Exception:
+        pass
+    res = await db.execute(stmt)
     msg = res.scalars().first()
-    if not msg: raise HTTPException(404, "Message not found.")
+    if not msg:
+        raise HTTPException(404, "Message not found in your couple space.")
     
     from sqlalchemy.orm.attributes import flag_modified
     new_reactions = dict(safe_parse_reactions(msg.reactions))
     new_reactions[cu.id] = data.emoji
     msg.reactions = new_reactions
-    msg.couple_space_id = space_id
     flag_modified(msg, "reactions")
     await db.execute(
         update(Message)
         .where(Message.id == message_id)
-        .values(reactions=new_reactions, couple_space_id=space_id)
+        .values(reactions=new_reactions)
     )
     await db.commit()
 
@@ -476,9 +488,22 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     space_id = space.id
     partner_id = partner.id if partner else cu.partner_id
 
-    res = await db.execute(select(Message).filter(Message.id == message_id))
+    # Enforce couple space isolation & row locking for concurrency protection
+    stmt = (
+        select(Message)
+        .filter(
+            Message.id == message_id,
+            Message.couple_space_id == space_id
+        )
+    )
+    try:
+        stmt = stmt.with_for_update()
+    except Exception:
+        pass
+    res = await db.execute(stmt)
     msg = res.scalars().first()
-    if not msg: raise HTTPException(404, "Message not found.")
+    if not msg:
+        raise HTTPException(404, "Message not found in your couple space.")
     
     from sqlalchemy.orm.attributes import flag_modified
     new_reactions = dict(safe_parse_reactions(msg.reactions))

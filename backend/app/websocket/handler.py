@@ -185,9 +185,19 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id:
                         try:
                             async with AsyncSessionLocal() as db:
-                                res = await db.execute(
-                                    select(Message).filter(Message.id == message_id)
+                                # Enforce couple space isolation & row locking for concurrency protection
+                                stmt = (
+                                    select(Message)
+                                    .filter(
+                                        Message.id == message_id,
+                                        Message.couple_space_id == space_id
+                                    )
                                 )
+                                try:
+                                    stmt = stmt.with_for_update()
+                                except Exception:
+                                    pass
+                                res = await db.execute(stmt)
                                 msg = res.scalars().first()
                                 if msg:
                                     from app.api.routes.chat import safe_parse_reactions
@@ -200,13 +210,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                         new_reactions.pop(user_id, None)
                                     msg.reactions = new_reactions
                                     flag_modified(msg, "reactions")
-                                    # Ensure message belongs to canonical space
-                                    if not msg.couple_space_id or msg.couple_space_id != space_id:
-                                        msg.couple_space_id = space_id
                                     await db.execute(
                                         update(Message)
                                         .where(Message.id == message_id)
-                                        .values(reactions=new_reactions, couple_space_id=space_id)
+                                        .values(reactions=new_reactions)
                                     )
                                     await db.commit()
 

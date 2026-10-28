@@ -149,7 +149,10 @@ export default function Chat() {
       return updated;
     });
 
-    // 2. Network delivery: send to server if message is confirmed (not temp_)
+    // 2. Single Authoritative Network Delivery:
+    // If WebSocket is connected, deliver via WebSocket only (sub-10ms latency).
+    // If WebSocket is disconnected, fallback to REST API.
+    // Never send both simultaneously to avoid race conditions and duplicate writes.
     if (!isOptimistic) {
       if (wsService.isConnected()) {
         wsService.send({
@@ -157,26 +160,26 @@ export default function Chat() {
           message_id: targetMsg.id,
           emoji: newEmoji
         });
-      }
-      // Dual-channel guaranteed persistence to database + confirmed sync
-      if (newEmoji) {
-        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji })
-          .then(res => {
-            if (res?.data?.reactions) {
-              const conf = parseSafeReactions(res.data.reactions);
-              setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
-            }
-          })
-          .catch(() => {});
       } else {
-        api.delete(`/chat/messages/${targetMsg.id}/react`)
-          .then(res => {
-            if (res?.data?.reactions) {
-              const conf = parseSafeReactions(res.data.reactions);
-              setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
-            }
-          })
-          .catch(() => {});
+        if (newEmoji) {
+          api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji })
+            .then(res => {
+              if (res?.data?.reactions) {
+                const conf = parseSafeReactions(res.data.reactions);
+                setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
+              }
+            })
+            .catch(() => {});
+        } else {
+          api.delete(`/chat/messages/${targetMsg.id}/react`)
+            .then(res => {
+              if (res?.data?.reactions) {
+                const conf = parseSafeReactions(res.data.reactions);
+                setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
+              }
+            })
+            .catch(() => {});
+        }
       }
     }
 

@@ -22,13 +22,15 @@ from sqlalchemy.pool import NullPool
 # create_async_engine with Supabase-compatible settings:
 # - statement_cache_size=0 required for Supabase transaction-mode pooler
 # - NullPool prevents SQLAlchemy from pooling connections that PgBouncer is already pooling
-connect_args = {
-    "statement_cache_size": 0,
-    "prepared_statement_cache_size": 0,
-    "command_timeout": 60,
-}
-if _ssl_ctx is not None:
-    connect_args["ssl"] = _ssl_ctx
+connect_args = {}
+if DATABASE_URL.startswith("postgresql"):
+    connect_args = {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        "command_timeout": 60,
+    }
+    if _ssl_ctx is not None:
+        connect_args["ssl"] = _ssl_ctx
 
 engine = create_async_engine(
     DATABASE_URL,
