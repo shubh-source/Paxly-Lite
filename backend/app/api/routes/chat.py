@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from datetime import datetime
+from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete, update
+from sqlalchemy import delete, update, func, or_
 from app.models.schemas import ReactionAdd, MessageOut, MessageEdit
 from app.models.orm import User, Message, CoupleSpace
 from app.core.security import get_current_user
@@ -30,10 +31,151 @@ def safe_decrypt_msg(text: Optional[str]) -> str:
     except Exception:
         return text
 
-def ensure_space(cu: User):
-    if not cu.couple_space_id:
-        raise HTTPException(403, "No couple space. Connect with partner first.")
-    return cu.couple_space_id
+def ensure_space(cu: User) -> str:
+    return cu.couple_space_id or f"space_{cu.id}"
+
+async def resolve_and_sync_space(cu: User, db: AsyncSession) -> Tuple[CoupleSpace, Optional[User]]:
+    """
+    Self-healing space and partner resolver:
+    1. Identifies partner through direct link (cu.partner_id), inverse link (User.partner_id == cu.id),
+       CoupleSpace co-membership, or pending invitation.
+    2. Identifies all candidate CoupleSpaces and selects the canonical space (preferring spaces with messages).
+    3. Auto-aligns both users to the canonical space and establishes bidirectional partner_id links.
+    4. Guarantees that users never get orphaned into an empty space while messages exist in another.
+    """
+    partner: Optional[User] = None
+
+    # 1. Direct partner lookup
+    if cu.partner_id:
+        p_res = await db.execute(select(User).filter(User.id == cu.partner_id))
+        partner = p_res.scalars().first()
+
+    # 2. Inverse partner lookup (partner points to cu)
+    if not partner:
+        inv_res = await db.execute(select(User).filter(User.partner_id == cu.id))
+        partner = inv_res.scalars().first()
+        if partner:
+            cu.partner_id = partner.id
+
+    # 3. Check any CoupleSpace containing cu.id with another user
+    if not partner:
+        spaces_with_cu = (await db.execute(
+            select(CoupleSpace).filter(
+                or_(CoupleSpace.user1_id == cu.id, CoupleSpace.user2_id == cu.id)
+            )
+        )).scalars().all()
+        for sp_cand in spaces_with_cu:
+            other_id = sp_cand.user2_id if sp_cand.user1_id == cu.id else sp_cand.user1_id
+            if other_id and other_id != cu.id:
+                p_cand_res = await db.execute(select(User).filter(User.id == other_id))
+                p_cand = p_cand_res.scalars().first()
+                if p_cand:
+                    partner = p_cand
+                    cu.partner_id = partner.id
+                    break
+
+    # 4. Check pending link
+    if not partner and cu.pending_link and isinstance(cu.pending_link, dict) and cu.pending_link.get("target_id"):
+        target_id = cu.pending_link.get("target_id")
+        p_cand_res = await db.execute(select(User).filter(User.id == target_id))
+        p_cand = p_cand_res.scalars().first()
+        if p_cand:
+            partner = p_cand
+            cu.partner_id = partner.id
+
+    # 5. Gather candidate spaces
+    candidate_space_ids = set()
+    if cu.couple_space_id:
+        candidate_space_ids.add(cu.couple_space_id)
+    if partner and partner.couple_space_id:
+        candidate_space_ids.add(partner.couple_space_id)
+
+    user_ids = [cu.id]
+    if partner:
+        user_ids.append(partner.id)
+
+    known_spaces_res = await db.execute(
+        select(CoupleSpace).filter(
+            or_(CoupleSpace.user1_id.in_(user_ids), CoupleSpace.user2_id.in_(user_ids))
+        )
+    )
+    for sp in known_spaces_res.scalars().all():
+        candidate_space_ids.add(sp.id)
+
+    best_space: Optional[CoupleSpace] = None
+    best_score = -1
+
+    for s_id in candidate_space_ids:
+        sp_res = await db.execute(select(CoupleSpace).filter(CoupleSpace.id == s_id))
+        sp_obj = sp_res.scalars().first()
+        if not sp_obj:
+            continue
+
+        cnt_res = await db.execute(select(func.count(Message.id)).filter(Message.couple_space_id == s_id))
+        msg_count = cnt_res.scalar() or 0
+
+        # Score space: each message is 100 points, both users linked is 10 points
+        is_both = bool(partner and {sp_obj.user1_id, sp_obj.user2_id} == {cu.id, partner.id})
+        score = msg_count * 100 + (10 if is_both else 0)
+
+        if score > best_score:
+            best_score = score
+            best_space = sp_obj
+
+    # 6. Fallback if no candidate space exists
+    if not best_space:
+        new_space_id = str(uuid.uuid4())
+        best_space = CoupleSpace(
+            id=new_space_id,
+            user1_id=cu.id,
+            user2_id=partner.id if partner else None,
+            created_at=datetime.utcnow(),
+            theme_id="classic",
+            allow_media_save=True
+        )
+        db.add(best_space)
+        await db.flush()
+
+    # 7. Auto-heal DB state
+    db_changed = False
+    if cu.couple_space_id != best_space.id:
+        cu.couple_space_id = best_space.id
+        db_changed = True
+
+    if partner:
+        if partner.couple_space_id != best_space.id:
+            partner.couple_space_id = best_space.id
+            db_changed = True
+        if partner.partner_id != cu.id:
+            partner.partner_id = cu.id
+            db_changed = True
+        if cu.partner_id != partner.id:
+            cu.partner_id = partner.id
+            db_changed = True
+
+        if best_space.user1_id != cu.id and best_space.user2_id != cu.id:
+            if not best_space.user1_id:
+                best_space.user1_id = cu.id
+                db_changed = True
+            elif not best_space.user2_id:
+                best_space.user2_id = cu.id
+                db_changed = True
+
+        if best_space.user1_id != partner.id and best_space.user2_id != partner.id:
+            if not best_space.user2_id:
+                best_space.user2_id = partner.id
+                db_changed = True
+            elif not best_space.user1_id:
+                best_space.user1_id = partner.id
+                db_changed = True
+
+    if db_changed:
+        await db.commit()
+        await db.refresh(cu)
+        if partner:
+            await db.refresh(partner)
+
+    return best_space, partner
 
 def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
     # Security check: if once_view and views exhausted, hide media_url
@@ -74,7 +216,8 @@ class MessageCreate(BaseModel):
 
 @router.post("/messages")
 async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     raw_text = data.text or ""
     encrypted_text = encrypt_data(raw_text)
     
@@ -140,10 +283,8 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
 
 @router.get("/messages")
 async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
-    
-    space_res = await db.execute(select(CoupleSpace).filter(CoupleSpace.id == space_id))
-    space = space_res.scalars().first()
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     allow_download = space.allow_media_save if space else True
 
     result = await db.execute(
@@ -172,7 +313,7 @@ async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_cu
 
 @router.post("/upload-media")
 async def upload_media(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    ensure_space(cu)
+    await resolve_and_sync_space(cu, db)
     filename_str = file.filename if file.filename else "upload.jpg"
     ext = filename_str.split(".")[-1].lower() if "." in filename_str else "jpg"
     if ext in ["blob", "bin", "enc", "octet-stream", ""]:
@@ -212,7 +353,8 @@ async def secure_event(message_id: str, action: str, cu: User = Depends(get_curr
     - 'view': Increments views_used. Deletes media if limit reached.
     - 'compromise': Marks as compromised (AI detected phone).
     """
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
@@ -251,7 +393,8 @@ async def secure_event(message_id: str, action: str, cu: User = Depends(get_curr
 
 @router.post("/messages/{message_id}/react")
 async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
@@ -279,7 +422,8 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
 
 @router.delete("/messages/{message_id}/react")
 async def remove_reaction(message_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
@@ -313,7 +457,8 @@ async def edit_message(
     cu: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     res = await db.execute(
         select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
     )
@@ -362,7 +507,8 @@ async def edit_message(
 
 @router.delete("/messages/{message_id}")
 async def delete_message(message_id: str, for_everyone: bool = True, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
@@ -395,20 +541,12 @@ async def delete_message(message_id: str, for_everyone: bool = True, cu: User = 
 
 @router.get("/space")
 async def get_chat_space(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
-    res = await db.execute(select(CoupleSpace).filter(CoupleSpace.id == space_id))
-    space = res.scalars().first()
-    if not space:
-        raise HTTPException(404, "Space not found")
-        
-    partner_id = space.user1_id if space.user1_id != cu.id else space.user2_id
-    pres = await db.execute(select(User).filter(User.id == partner_id))
-    partner = pres.scalars().first()
+    space, partner = await resolve_and_sync_space(cu, db)
     
     return {
         "space": {
             "id": space.id,
-            "theme_id": getattr(space, "theme_id", "classic"),
+            "theme_id": getattr(space, "theme_id", "classic") or "classic",
             "chat_wallpaper": getattr(space, "chat_wallpaper", None),
             "allow_media_save": space.allow_media_save
         },
@@ -422,7 +560,8 @@ async def get_chat_space(cu: User = Depends(get_current_user), db: AsyncSession 
 
 @router.patch("/space/theme")
 async def update_theme(data: dict, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     theme_id = data.get("theme_id", "classic")
     await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(theme_id=theme_id, chat_wallpaper=None))
     await db.commit()
@@ -433,7 +572,8 @@ async def update_wallpaper(file: UploadFile = File(...), cu: User = Depends(get_
     if not cu.is_premium:
         raise HTTPException(402, "Custom backgrounds require a Vlynxly Premium subscription.")
     
-    space_id = ensure_space(cu)
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
     ext = file.filename.split(".")[-1].lower()
     import uuid
     filename = f"wp_{space_id}_{uuid.uuid4().hex[:8]}.{ext}"

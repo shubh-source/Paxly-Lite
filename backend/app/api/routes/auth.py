@@ -156,7 +156,12 @@ async def update_financials(data: FinancialUpdate, cu: User = Depends(get_curren
     return {"message": "Financial identity secured and updated."}
 
 @router.get("/me", response_model=UserOut)
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        from app.api.routes.chat import resolve_and_sync_space
+        await resolve_and_sync_space(current_user, db)
+    except Exception:
+        pass
     return user_to_out(current_user)
 
 class PasswordChange(BaseModel):

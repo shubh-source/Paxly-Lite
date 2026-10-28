@@ -48,11 +48,16 @@ class WSService {
       return;
     }
     
-    // Save for reconnections
+    const spaceChanged = this.coupleSpaceId && this.coupleSpaceId !== coupleSpaceId;
     this.token = token;
     this.coupleSpaceId = coupleSpaceId;
 
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (spaceChanged && this.ws) {
+      console.log('🔄 Couple space updated, reconnecting WebSocket to new space:', coupleSpaceId);
+      this._intentionalClose = true;
+      try { this.ws.close(); } catch {}
+      this.ws = null;
+    } else if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
     

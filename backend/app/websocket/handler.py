@@ -50,15 +50,19 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         async with AsyncSessionLocal() as db:
             user = await get_user_from_token(token, db)
-            if not user or not user.couple_space_id:
+            if not user:
                 await websocket.close(code=4001, reason="Unauthorized")
                 return
 
-            space_id = user.couple_space_id
+            from app.api.routes.chat import resolve_and_sync_space
+            space, partner = await resolve_and_sync_space(user, db)
+            space_id = space.id
             user_id = user.id
             user_name = user.name
-            partner_id = user.partner_id
-            if partner_id:
+            partner_id = partner.id if partner else user.partner_id
+            if partner and partner.name:
+                partner_name = partner.name
+            elif partner_id:
                 p_res = await db.execute(select(User).filter(User.id == partner_id))
                 p_user = p_res.scalars().first()
                 if p_user and p_user.name:

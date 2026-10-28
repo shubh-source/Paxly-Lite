@@ -338,7 +338,7 @@ export default function Chat() {
         localStorage.setItem('cached_partner', JSON.stringify(d.partner));
         setSpace(d.space);
         localStorage.setItem('cached_space', JSON.stringify(d));
-        if (token && d?.space?.id && !wsService.isConnected()) {
+        if (token && d?.space?.id) {
           wsService.connect(token, d.space.id);
         }
         syncMessages(d.partner?.public_key);
