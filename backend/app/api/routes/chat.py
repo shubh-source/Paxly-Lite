@@ -14,6 +14,14 @@ from app.core.storage import storage
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
+def _to_iso_utc(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    s = dt.isoformat()
+    if s.endswith("+00:00"):
+        return s[:-6] + "Z"
+    return s if s.endswith("Z") else s + "Z"
+
 def ensure_space(cu: User):
     if not cu.couple_space_id:
         raise HTTPException(403, "No couple space. Connect with partner first.")
@@ -39,9 +47,9 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
         "is_compromised": m.is_compromised,
         "reply_to_id": m.reply_to_id,
         "allow_download": allow_download if not m.is_once_view else False,
-        "timestamp": m.timestamp.isoformat() + "Z",
+        "timestamp": _to_iso_utc(m.timestamp),
         "is_edited": bool(getattr(m, "is_edited", False)),
-        "edited_at": m.edited_at.isoformat() + "Z" if getattr(m, "edited_at", None) else None,
+        "edited_at": _to_iso_utc(getattr(m, "edited_at", None)),
     }
 
 from pydantic import BaseModel
@@ -108,7 +116,7 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
         "view_limit": msg.view_limit,
         "views_used": msg.views_used,
         "reply_to_id": msg.reply_to_id,
-        "timestamp": msg.timestamp.isoformat() + "Z"
+        "timestamp": _to_iso_utc(msg.timestamp)
     }
     
     # Broadcast to couple space via WebSocket manager so partner receives instantly!
@@ -333,7 +341,7 @@ async def edit_message(
             "sender_id": cu.id,
             "text": clean_text,
             "is_edited": True,
-            "edited_at": msg.edited_at.isoformat() + "Z"
+            "edited_at": _to_iso_utc(msg.edited_at)
         })
     except Exception as e:
         print(f"WS Broadcast error on message_edited: {e}")

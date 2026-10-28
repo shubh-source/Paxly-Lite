@@ -128,9 +128,14 @@ class WSService {
       this.emit('disconnected', {});
       // Do NOT reconnect if:
       // - intentionally closed
-      // - 4001 = no couple space yet (user not linked with partner)
       // - 4003 = forbidden
-      if (!this._intentionalClose && e.code !== 4001 && e.code !== 4003 && e.code !== 1008) {
+      // - 1008 = policy violation
+      if (!this._intentionalClose && e.code !== 4003 && e.code !== 1008) {
+        // If 4001: retry up to 5 times if user has coupleSpaceId (could be server cold start / reconnect race)
+        if (e.code === 4001 && (!this.coupleSpaceId || this.reconnectAttempts >= 5)) {
+          console.log('WebSocket: 4001 skipping retry (no couple space or limit reached)');
+          return;
+        }
         // Fast adaptive retry: starts at 500ms
         const delay = Math.min(500 * Math.pow(1.5, this.reconnectAttempts), 5000);
         this.reconnectAttempts++;
@@ -157,7 +162,14 @@ class WSService {
 
   send(data) {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+      try {
+        this.ws.send(JSON.stringify(data));
+      } catch (err) {
+        console.error('WS send error:', err);
+        if (data?.type !== 'auth') {
+          this.queue.push(data);
+        }
+      }
     } else {
       // Queue message and try to reconnect if not connected
       if (data?.type !== 'auth') {

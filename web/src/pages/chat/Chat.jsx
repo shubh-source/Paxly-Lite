@@ -20,6 +20,25 @@ import { Icons } from '../../components/ui/Icons';
 import SecureMediaOverlay from '../../components/chat/SecureMediaOverlay';
 import AskAuraModal from '../../components/chat/AskAuraModal';
 
+export const parseSafeDate = (val) => {
+  if (!val) return new Date();
+  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
+  if (typeof val === 'number') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  if (typeof val === 'string') {
+    let clean = val.trim();
+    if (clean.endsWith('+00:00Z')) clean = clean.slice(0, -1);
+    else if (clean.endsWith('+00:00') && !clean.includes('Z')) clean = clean.slice(0, -6) + 'Z';
+    const d = new Date(clean);
+    if (!isNaN(d.getTime())) return d;
+    const d2 = new Date(clean.replace(' ', 'T'));
+    if (!isNaN(d2.getTime())) return d2;
+  }
+  return new Date();
+};
+
 export default function Chat() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -186,7 +205,7 @@ export default function Chat() {
 
   const lastTapTime = useRef(0);
   const tapTimeout = useRef(null);
-  const daysTogether = space?.created_at ? Math.max(1, Math.floor((Date.now() - new Date(space.created_at)) / (1000 * 60 * 60 * 24))) : 0;
+  const daysTogether = space?.created_at ? Math.max(1, Math.floor((Date.now() - parseSafeDate(space.created_at).getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
   // Save requests
   const [saveRequest, setSaveRequest]   = useState(null);
@@ -225,7 +244,7 @@ export default function Chat() {
         return;
       }
 
-      const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const sorted = [...data].sort((a, b) => parseSafeDate(a.timestamp).getTime() - parseSafeDate(b.timestamp).getTime());
       
       setMsgs(prev => {
         const decryptedMsgs = [];
@@ -244,39 +263,44 @@ export default function Chat() {
         decryptedMsgs.forEach(m => msgMap.set(m.id, m));
         
         const now = Date.now();
-        // Only keep optimistic messages that have NOT yet landed in decryptedMsgs
         prev.forEach(m => {
-          if (!m.isOptimistic) return;
-          const msgTime = new Date(m.timestamp).getTime();
-          // Expire stale optimistic messages after 25s
-          if (now - msgTime > 25000) return;
+          const msgTime = parseSafeDate(m.timestamp).getTime();
 
-          // Check if this optimistic message is already present in decryptedMsgs
-          const alreadySynced = decryptedMsgs.some(s => {
-            if (s.id === m.id) return true;
-            if (s.temp_id && (s.temp_id === m.id || s.temp_id === m.temp_id)) return true;
-            if (String(s.sender_id) === String(m.sender_id) && s.message_type === m.message_type) {
-              const timeDiff = Math.abs(new Date(s.timestamp).getTime() - msgTime);
-              if (timeDiff < 45000) {
-                if (m.message_type === 'text') {
-                  return s.text === m.text;
-                }
-                if (s.media_url && m.media_url) {
-                  return s.media_url === m.media_url || s.media_url.includes(m.media_url) || m.media_url.includes(s.media_url);
-                }
-                return true;
+          if (m.isOptimistic) {
+            // Expire truly stale optimistic messages only after 90 seconds
+            if (now - msgTime > 90000) return;
+
+            // Strict check: has this specific message landed in decryptedMsgs?
+            const alreadySynced = decryptedMsgs.some(s => {
+              if (s.id === m.id) return true;
+              if (s.temp_id && (s.temp_id === m.id || s.temp_id === m.temp_id)) return true;
+              return false;
+            });
+
+            // Keep optimistic message on screen until confirmed by exact temp_id/id
+            if (!alreadySynced && !msgMap.has(m.id)) {
+              msgMap.set(m.id, m);
+            }
+          } else {
+            // Retain recent confirmed messages (< 2 minutes old) in case server query lag hasn't caught up
+            if (!msgMap.has(m.id)) {
+              if (now - msgTime < 120000) {
+                msgMap.set(m.id, m);
+              }
+            } else {
+              // Preserve any pending local reactions or plaintext if server hasn't updated yet
+              const serverMsg = msgMap.get(m.id);
+              if (m.text && !serverMsg.text) serverMsg.text = m.text;
+              if (m._pendingReaction && !serverMsg.reactions?.[user?.id]) {
+                serverMsg.reactions = { ...(serverMsg.reactions || {}), [user?.id]: m._pendingReaction };
               }
             }
-            return false;
-          });
-
-          // Only keep if NOT already in decryptedMsgs from server
-          if (!alreadySynced && !msgMap.has(m.id)) {
-            msgMap.set(m.id, m);
           }
         });
 
-        const merged = Array.from(msgMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const merged = Array.from(msgMap.values()).sort((a, b) => 
+          parseSafeDate(a.timestamp).getTime() - parseSafeDate(b.timestamp).getTime()
+        );
         
         // Deep compare to prevent unnecessary re-render triggers
         if (
@@ -301,6 +325,12 @@ export default function Chat() {
 
   useEffect(() => {
     const token = localStorage.getItem('ros_token');
+    const cachedSpace = JSON.parse(localStorage.getItem('cached_space') || '{}');
+    const immediateSpaceId = space?.id || cachedSpace?.space?.id || user?.couple_space_id;
+    if (token && immediateSpaceId && !wsService.isConnected()) {
+      wsService.connect(token, immediateSpaceId);
+    }
+
     getSpace().then(d => {
       setPartner(d.partner);
       localStorage.setItem('cached_partner', JSON.stringify(d.partner));
@@ -362,7 +392,7 @@ export default function Chat() {
               if (msg.media_url && m.media_url) {
                 return m.media_url === msg.media_url || m.media_url.includes(msg.media_url) || msg.media_url.includes(m.media_url);
               }
-              const diff = Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp || Date.now()).getTime());
+              const diff = Math.abs(parseSafeDate(m.timestamp).getTime() - parseSafeDate(msg.timestamp || Date.now()).getTime());
               return diff < 30000;
             }
             return false;
@@ -660,9 +690,10 @@ export default function Chat() {
        payloadText = encryptMessage(rawText, sk, pk);
     }
 
-    if (wsService.isConnected()) {
-      wsService.sendMessage(payloadText, 'text', null, false, 1, replyingTo?.id, tempId);
-    } else {
+    let delivered = false;
+    const sendViaRest = () => {
+      if (delivered) return;
+      delivered = true;
       api.post('/chat/messages', {
         text: payloadText,
         message_type: 'text',
@@ -679,6 +710,23 @@ export default function Chat() {
       }).catch(err => {
         console.error("REST message delivery fallback error:", err);
       });
+    };
+
+    if (wsService.isConnected()) {
+      wsService.sendMessage(payloadText, 'text', null, false, 1, replyingTo?.id, tempId);
+      // Safety net: if WebSocket confirmation does not arrive within 2.5s, fallback to REST
+      setTimeout(() => {
+        setMsgs(current => {
+          const opt = current.find(m => m.id === tempId && m.isOptimistic);
+          if (opt && !delivered) {
+            console.warn("⚠️ WebSocket send unconfirmed after 2.5s, sending REST fallback for", tempId);
+            sendViaRest();
+          }
+          return current;
+        });
+      }, 2500);
+    } else {
+      sendViaRest();
       // Try to re-establish WebSocket connection immediately
       const token = localStorage.getItem('ros_token');
       const cachedSpace = JSON.parse(localStorage.getItem('cached_space') || '{}');
@@ -743,11 +791,6 @@ export default function Chat() {
             setAudioPreviewUrl(URL.createObjectURL(blob));
             setRecordState('preview');
           } else if (action === 'send') {
-            if (!wsService.ws || wsService.ws.readyState !== WebSocket.OPEN) {
-              alert("Chat is reconnecting... Cannot send voice note right now.");
-              setRecordState('idle');
-              return;
-            }
             setRecordState('idle');
             setSending(true);
             const { encryptedBlob, symmetricKey } = await encryptMediaBlob(blob);
@@ -932,9 +975,10 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
          payloadText = encryptMessage(payloadText, sk, pk);
       }
 
-      if (wsService.isConnected()) {
-        wsService.sendMessage(payloadText, type, finalUrl, isOnceView, limit, replyingTo?.id, tempMsg.id);
-      } else {
+      let mediaDelivered = false;
+      const sendMediaViaRest = () => {
+        if (mediaDelivered) return;
+        mediaDelivered = true;
         api.post('/chat/messages', {
           text: payloadText,
           message_type: type,
@@ -952,6 +996,22 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
             return prev.map(m => (m.id === tempMsg.id ? { ...res.data, temp_id: tempMsg.id, isOptimistic: false, media_url: tempMsg.media_url } : m));
           });
         }).catch(e => console.error("REST media save error:", e));
+      };
+
+      if (wsService.isConnected()) {
+        wsService.sendMessage(payloadText, type, finalUrl, isOnceView, limit, replyingTo?.id, tempMsg.id);
+        setTimeout(() => {
+          setMsgs(current => {
+            const opt = current.find(m => m.id === tempMsg.id && m.isOptimistic);
+            if (opt && !mediaDelivered) {
+              console.warn("⚠️ WebSocket media send unconfirmed after 3s, sending REST fallback for", tempMsg.id);
+              sendMediaViaRest();
+            }
+            return current;
+          });
+        }, 3000);
+      } else {
+        sendMediaViaRest();
       }
       setReplyingTo(null);
     } catch (err) {
@@ -1010,7 +1070,14 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
   };
 
   const isMe      = m => m.sender_id === user?.id;
-  const ts        = m => m.timestamp ? format(new Date(m.timestamp), 'h:mm a') : '';
+  const ts        = m => {
+    if (!m?.timestamp) return '';
+    try {
+      return format(parseSafeDate(m.timestamp), 'h:mm a');
+    } catch {
+      return '';
+    }
+  };
   const fixUrl    = url => {
     if (!url) return url;
     if (url.includes('localhost') || url.includes('127.0.0.1'))
@@ -1764,7 +1831,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           letterSpacing: '0.2px',
                           lineHeight: 1.3
                         }}
-                        title={msg.edited_at ? `Edited at ${new Date(msg.edited_at).toLocaleTimeString()}` : 'Edited message'}
+                        title={msg.edited_at ? `Edited at ${parseSafeDate(msg.edited_at).toLocaleTimeString()}` : 'Edited message'}
                       >
                         <Icons.Edit size={10} />
                         Edited
@@ -2271,7 +2338,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             setMsgs(prev => {
               if (prev.some(m => m.id === targetId)) return prev;
               const next = [...prev, target];
-              return next.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+              return next.sort((a, b) => parseSafeDate(a.timestamp).getTime() - parseSafeDate(b.timestamp).getTime());
             });
             alert(err.response?.data?.detail || (forEveryone ? 'Failed to delete for everyone' : 'Failed to delete for me'));
           }
