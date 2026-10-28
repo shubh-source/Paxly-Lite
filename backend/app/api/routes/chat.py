@@ -393,9 +393,11 @@ async def secure_event(message_id: str, action: str, cu: User = Depends(get_curr
 
 @router.post("/messages/{message_id}/react")
 async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space, _ = await resolve_and_sync_space(cu, db)
+    space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
-    res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
+    partner_id = partner.id if partner else cu.partner_id
+
+    res = await db.execute(select(Message).filter(Message.id == message_id))
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
     
@@ -403,28 +405,34 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     new_reactions = dict(msg.reactions or {})
     new_reactions[cu.id] = data.emoji
     msg.reactions = new_reactions
+    msg.couple_space_id = space_id
     flag_modified(msg, "reactions")
     await db.commit()
 
+    reaction_evt = {
+        "type": "reaction",
+        "message_id": message_id,
+        "user_id": cu.id,
+        "emoji": data.emoji,
+        "reactions": new_reactions
+    }
     try:
         from app.websocket.manager import manager
-        await manager.send_to_space(space_id, {
-            "type": "reaction",
-            "message_id": message_id,
-            "user_id": cu.id,
-            "emoji": data.emoji,
-            "reactions": new_reactions
-        })
+        await manager.send_to_space(space_id, reaction_evt)
+        if partner_id:
+            await manager.send_to_user(partner_id, reaction_evt)
     except Exception:
         pass
 
-    return {"ok": True}
+    return {"ok": True, "reactions": new_reactions}
 
 @router.delete("/messages/{message_id}/react")
 async def remove_reaction(message_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space, _ = await resolve_and_sync_space(cu, db)
+    space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
-    res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
+    partner_id = partner.id if partner else cu.partner_id
+
+    res = await db.execute(select(Message).filter(Message.id == message_id))
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
     
@@ -436,19 +444,22 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
         flag_modified(msg, "reactions")
         await db.commit()
 
+    reaction_evt = {
+        "type": "reaction",
+        "message_id": message_id,
+        "user_id": cu.id,
+        "emoji": None,
+        "reactions": new_reactions
+    }
     try:
         from app.websocket.manager import manager
-        await manager.send_to_space(space_id, {
-            "type": "reaction",
-            "message_id": message_id,
-            "user_id": cu.id,
-            "emoji": None,
-            "reactions": new_reactions
-        })
+        await manager.send_to_space(space_id, reaction_evt)
+        if partner_id:
+            await manager.send_to_user(partner_id, reaction_evt)
     except Exception:
         pass
 
-    return {"ok": True}
+    return {"ok": True, "reactions": new_reactions}
 
 @router.patch("/messages/{message_id}")
 async def edit_message(

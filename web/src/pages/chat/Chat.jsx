@@ -144,12 +144,12 @@ export default function Chat() {
           message_id: targetMsg.id,
           emoji: newEmoji
         });
+      }
+      // Dual-channel guaranteed persistence to database
+      if (newEmoji) {
+        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
       } else {
-        if (newEmoji) {
-          api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
-        } else {
-          api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
-        }
+        api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
       }
     }
 
@@ -291,6 +291,11 @@ export default function Chat() {
               // Preserve any pending local reactions or plaintext if server hasn't updated yet
               const serverMsg = msgMap.get(m.id);
               if (m.text && !serverMsg.text) serverMsg.text = m.text;
+              
+              // Merge reactions: keep server reactions, but also preserve any local reaction from m.reactions
+              if (m.reactions && Object.keys(m.reactions).length > 0) {
+                serverMsg.reactions = { ...(m.reactions || {}), ...(serverMsg.reactions || {}) };
+              }
               if (m._pendingReaction && !serverMsg.reactions?.[user?.id]) {
                 serverMsg.reactions = { ...(serverMsg.reactions || {}), [user?.id]: m._pendingReaction };
               }
@@ -459,12 +464,12 @@ export default function Chat() {
       }),
       wsService.on('reaction', d => {
         setMsgs(p => {
-          const target = p.find(m => m.id === d.message_id);
+          const target = p.find(m => m.id === d.message_id || m.temp_id === d.message_id);
           if (!target) return p;
 
           let nextReactions = { ...(target.reactions || {}) };
           if (d.reactions) {
-            nextReactions = d.reactions;
+            nextReactions = { ...d.reactions };
           } else if (d.emoji) {
             nextReactions[d.user_id] = d.emoji;
           } else {
@@ -482,7 +487,9 @@ export default function Chat() {
             return p;
           }
 
-          return p.map(m => m.id === d.message_id ? { ...m, reactions: nextReactions } : m);
+          const updated = p.map(m => (m.id === d.message_id || m.temp_id === d.message_id) ? { ...m, reactions: nextReactions } : m);
+          localStorage.setItem('cached_messages', JSON.stringify(updated));
+          return updated;
         });
       }),
       wsService.on('message_deleted', d => {

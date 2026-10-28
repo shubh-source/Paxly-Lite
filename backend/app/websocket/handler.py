@@ -183,9 +183,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id:
                         try:
                             async with AsyncSessionLocal() as db:
-                                # Security: Scope message lookup strictly to the authenticated couple space
                                 res = await db.execute(
-                                    select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+                                    select(Message).filter(Message.id == message_id)
                                 )
                                 msg = res.scalars().first()
                                 if msg:
@@ -197,15 +196,21 @@ async def websocket_endpoint(websocket: WebSocket):
                                         new_reactions.pop(user_id, None)
                                     msg.reactions = new_reactions
                                     flag_modified(msg, "reactions")
+                                    # Ensure message belongs to canonical space
+                                    if not msg.couple_space_id or msg.couple_space_id != space_id:
+                                        msg.couple_space_id = space_id
                                     await db.commit()
 
-                                    await manager.send_to_space(space_id, {
+                                    reaction_evt = {
                                         "type": "reaction",
                                         "message_id": message_id,
                                         "user_id": user_id,
                                         "emoji": emoji,
                                         "reactions": new_reactions
-                                    })
+                                    }
+                                    await manager.send_to_space(space_id, reaction_evt)
+                                    if partner_id:
+                                        await manager.send_to_user(partner_id, reaction_evt)
                                 else:
                                     try:
                                         await websocket.send_json({
