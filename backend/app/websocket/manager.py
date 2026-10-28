@@ -61,19 +61,21 @@ class ConnectionManager:
             self.disconnect(space_id, uid, ws)
 
     async def send_to_user(self, user_id: str, message: dict):
-        """Send message to all active devices of a specific user."""
-        space_id = self.user_space.get(user_id)
-        if not space_id or space_id not in self.spaces:
-            return
-        sockets = self.spaces.get(space_id, {}).get(user_id, set())
+        """Send message to all active devices of a specific user across any space."""
+        target_sockets = set()
+        for s_id, users in list(self.spaces.items()):
+            if user_id in users:
+                target_sockets.update(users[user_id])
+                
         dead = []
-        for ws in list(sockets):
+        for ws in list(target_sockets):
             try:
                 await ws.send_json(message)
             except Exception:
                 dead.append((user_id, ws))
         for uid, ws in dead:
-            self.disconnect(space_id, uid, ws)
+            for s_id in list(self.spaces.keys()):
+                self.disconnect(s_id, uid, ws)
 
     def is_partner_online(self, space_id: str, user_id: str) -> bool:
         users = self.spaces.get(space_id, {})

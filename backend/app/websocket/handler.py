@@ -127,8 +127,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         "timestamp": now_ts.isoformat().replace("+00:00", "Z")
                     }
                 
-                    # 🚀 INSTANT BROADCAST TO SPACE (<10ms WebSocket latency)
+                    # 🚀 INSTANT BROADCAST TO SPACE (<10ms WebSocket latency) + direct to partner
                     await manager.send_to_space(space_id, broadcast_data)
+                    if partner_id:
+                        await manager.send_to_user(partner_id, broadcast_data)
 
                     # Persist to database
                     async with AsyncSessionLocal() as db:
@@ -188,8 +190,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                 )
                                 msg = res.scalars().first()
                                 if msg:
+                                    from app.api.routes.chat import safe_parse_reactions
                                     from sqlalchemy.orm.attributes import flag_modified
-                                    new_reactions = dict(msg.reactions or {})
+                                    from sqlalchemy import update
+                                    new_reactions = dict(safe_parse_reactions(msg.reactions))
                                     if emoji:
                                         new_reactions[user_id] = emoji
                                     else:
@@ -199,6 +203,11 @@ async def websocket_endpoint(websocket: WebSocket):
                                     # Ensure message belongs to canonical space
                                     if not msg.couple_space_id or msg.couple_space_id != space_id:
                                         msg.couple_space_id = space_id
+                                    await db.execute(
+                                        update(Message)
+                                        .where(Message.id == message_id)
+                                        .values(reactions=new_reactions, couple_space_id=space_id)
+                                    )
                                     await db.commit()
 
                                     reaction_evt = {

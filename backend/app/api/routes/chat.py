@@ -136,8 +136,23 @@ async def resolve_and_sync_space(cu: User, db: AsyncSession) -> Tuple[CoupleSpac
         db.add(best_space)
         await db.flush()
 
-    # 7. Auto-heal DB state
+    # 7. Auto-heal DB state & unify messages into canonical best_space
     db_changed = False
+    try:
+        all_cands = list(candidate_space_ids)
+        if all_cands or user_ids:
+            cand_filter = [Message.sender_id.in_(user_ids)]
+            if all_cands:
+                cand_filter.append(Message.couple_space_id.in_(all_cands))
+            await db.execute(
+                update(Message)
+                .where(or_(*cand_filter))
+                .values(couple_space_id=best_space.id)
+            )
+            db_changed = True
+    except Exception as e:
+        print(f"Space message unification warning: {e}")
+
     if cu.couple_space_id != best_space.id:
         cu.couple_space_id = best_space.id
         db_changed = True
@@ -177,6 +192,21 @@ async def resolve_and_sync_space(cu: User, db: AsyncSession) -> Tuple[CoupleSpac
 
     return best_space, partner
 
+def safe_parse_reactions(val) -> dict:
+    if not val:
+        return {}
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        try:
+            import json
+            parsed = json.loads(val)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+    return {}
+
 def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
     # Security check: if once_view and views exhausted, hide media_url
     show_media = True
@@ -190,7 +220,7 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
         "message_type": m.message_type or "text",
         "text": safe_decrypt_msg(m.text or ""),
         "media_url": m.media_url if show_media else None,
-        "reactions": m.reactions or {},
+        "reactions": safe_parse_reactions(m.reactions),
         "is_once_view": m.is_once_view,
         "view_limit": m.view_limit,
         "views_used": m.views_used,
@@ -216,8 +246,9 @@ class MessageCreate(BaseModel):
 
 @router.post("/messages")
 async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space, _ = await resolve_and_sync_space(cu, db)
+    space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
+    partner_id = partner.id if partner else cu.partner_id
     raw_text = data.text or ""
     encrypted_text = encrypt_data(raw_text)
     
@@ -270,10 +301,12 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
         "timestamp": _to_iso_utc(msg.timestamp)
     }
     
-    # Broadcast to couple space via WebSocket manager so partner receives instantly!
+    # Broadcast to couple space and directly to partner via WebSocket manager
     try:
         from app.websocket.manager import manager
         await manager.send_to_space(space_id, broadcast_data)
+        if partner_id:
+            await manager.send_to_user(partner_id, broadcast_data)
     except Exception as e:
         print(f"WS Broadcast error: {e}")
         
@@ -282,14 +315,20 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
     return res
 
 @router.get("/messages")
-async def get_messages(skip: int = 0, limit: int = 50, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space, _ = await resolve_and_sync_space(cu, db)
+async def get_messages(skip: int = 0, limit: int = 100, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
     allow_download = space.allow_media_save if space else True
 
+    user_ids = [cu.id]
+    if partner:
+        user_ids.append(partner.id)
+    elif cu.partner_id:
+        user_ids.append(cu.partner_id)
+
     result = await db.execute(
         select(Message)
-        .filter(Message.couple_space_id == space_id)
+        .filter(or_(Message.couple_space_id == space_id, Message.sender_id.in_(user_ids)))
         .order_by(Message.timestamp.desc())
         .offset(skip)
         .limit(limit)
@@ -402,11 +441,16 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     if not msg: raise HTTPException(404, "Message not found.")
     
     from sqlalchemy.orm.attributes import flag_modified
-    new_reactions = dict(msg.reactions or {})
+    new_reactions = dict(safe_parse_reactions(msg.reactions))
     new_reactions[cu.id] = data.emoji
     msg.reactions = new_reactions
     msg.couple_space_id = space_id
     flag_modified(msg, "reactions")
+    await db.execute(
+        update(Message)
+        .where(Message.id == message_id)
+        .values(reactions=new_reactions, couple_space_id=space_id)
+    )
     await db.commit()
 
     reaction_evt = {
@@ -437,11 +481,16 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     if not msg: raise HTTPException(404, "Message not found.")
     
     from sqlalchemy.orm.attributes import flag_modified
-    new_reactions = dict(msg.reactions or {})
+    new_reactions = dict(safe_parse_reactions(msg.reactions))
     if cu.id in new_reactions:
         del new_reactions[cu.id]
         msg.reactions = new_reactions
         flag_modified(msg, "reactions")
+        await db.execute(
+            update(Message)
+            .where(Message.id == message_id)
+            .values(reactions=new_reactions)
+        )
         await db.commit()
 
     reaction_evt = {

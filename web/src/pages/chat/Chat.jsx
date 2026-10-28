@@ -39,6 +39,18 @@ export const parseSafeDate = (val) => {
   return new Date();
 };
 
+export const parseSafeReactions = (val) => {
+  if (!val) return {};
+  if (typeof val === 'object' && !Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  return {};
+};
+
 export default function Chat() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -109,7 +121,8 @@ export default function Chat() {
 
   const handleEmojiSelect = (targetMsg, emoji, forceSet = false) => {
     if (!targetMsg || !emoji) return;
-    const currentEmoji = targetMsg.reactions?.[user?.id];
+    const currentReactions = parseSafeReactions(targetMsg.reactions);
+    const currentEmoji = currentReactions?.[user?.id];
     const newEmoji = forceSet ? emoji : (currentEmoji === emoji ? null : emoji);
 
     const isOptimistic = Boolean(targetMsg.isOptimistic) || (targetMsg.id && String(targetMsg.id).startsWith('temp_'));
@@ -118,7 +131,7 @@ export default function Chat() {
     setMsgs(prev => {
       const updated = prev.map(m => {
         if (m.id === targetMsg.id || (targetMsg.temp_id && m.temp_id === targetMsg.temp_id)) {
-          const nextReactions = { ...(m.reactions || {}) };
+          const nextReactions = { ...parseSafeReactions(m.reactions) };
           if (newEmoji) {
             nextReactions[user?.id] = newEmoji;
           } else {
@@ -145,11 +158,25 @@ export default function Chat() {
           emoji: newEmoji
         });
       }
-      // Dual-channel guaranteed persistence to database
+      // Dual-channel guaranteed persistence to database + confirmed sync
       if (newEmoji) {
-        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji }).catch(() => {});
+        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji })
+          .then(res => {
+            if (res?.data?.reactions) {
+              const conf = parseSafeReactions(res.data.reactions);
+              setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
+            }
+          })
+          .catch(() => {});
       } else {
-        api.delete(`/chat/messages/${targetMsg.id}/react`).catch(() => {});
+        api.delete(`/chat/messages/${targetMsg.id}/react`)
+          .then(res => {
+            if (res?.data?.reactions) {
+              const conf = parseSafeReactions(res.data.reactions);
+              setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
+            }
+          })
+          .catch(() => {});
       }
     }
 
@@ -249,6 +276,7 @@ export default function Chat() {
       setMsgs(prev => {
         const decryptedMsgs = [];
         for (const m of sorted) {
+          m.reactions = parseSafeReactions(m.reactions);
           if (m.text && sk && pk) {
             try {
               m.text = decryptMessage(m.text, sk, pk);
@@ -293,11 +321,11 @@ export default function Chat() {
               if (m.text && !serverMsg.text) serverMsg.text = m.text;
               
               // Merge reactions: keep server reactions, but also preserve any local reaction from m.reactions
-              if (m.reactions && Object.keys(m.reactions).length > 0) {
-                serverMsg.reactions = { ...(m.reactions || {}), ...(serverMsg.reactions || {}) };
-              }
+              const mReactions = parseSafeReactions(m.reactions);
+              const sReactions = parseSafeReactions(serverMsg.reactions);
+              serverMsg.reactions = { ...mReactions, ...sReactions };
               if (m._pendingReaction && !serverMsg.reactions?.[user?.id]) {
-                serverMsg.reactions = { ...(serverMsg.reactions || {}), [user?.id]: m._pendingReaction };
+                serverMsg.reactions = { ...serverMsg.reactions, [user?.id]: m._pendingReaction };
               }
             }
           }
@@ -377,7 +405,7 @@ export default function Chat() {
         if (msg.message_id && !msg.id) {
           msg.id = msg.message_id;
         }
-        msg.reactions = msg.reactions || {};
+        msg.reactions = parseSafeReactions(msg.reactions);
 
         setMsgs(p => {
           const isOwn = String(msg.sender_id) === String(user?.id);
@@ -417,7 +445,7 @@ export default function Chat() {
               temp_id: optMsg.temp_id || msg.temp_id,
               text: optMsg.text || decryptedText, // preserve already decrypted/plaintext
               media_url: optMsg.media_url || msg.media_url, // keep local objectUrl if present
-              reactions: Object.keys(msg.reactions || {}).length > 0 ? msg.reactions : (optMsg.reactions || {}),
+              reactions: Object.keys(parseSafeReactions(msg.reactions)).length > 0 ? parseSafeReactions(msg.reactions) : parseSafeReactions(optMsg.reactions),
               isOptimistic: false
             };
 
@@ -463,13 +491,14 @@ export default function Chat() {
         }
       }),
       wsService.on('reaction', d => {
+        const incomingReactions = parseSafeReactions(d.reactions);
         setMsgs(p => {
           const target = p.find(m => m.id === d.message_id || m.temp_id === d.message_id);
           if (!target) return p;
 
-          let nextReactions = { ...(target.reactions || {}) };
+          let nextReactions = { ...parseSafeReactions(target.reactions) };
           if (d.reactions) {
-            nextReactions = { ...d.reactions };
+            nextReactions = { ...incomingReactions };
           } else if (d.emoji) {
             nextReactions[d.user_id] = d.emoji;
           } else {
@@ -477,7 +506,7 @@ export default function Chat() {
           }
 
           // Avoid re-renders if reaction state is already identical (e.g. from local optimistic reaction)
-          const curr = target.reactions || {};
+          const curr = parseSafeReactions(target.reactions);
           const nextKeys = Object.keys(nextReactions);
           const currKeys = Object.keys(curr);
           if (
@@ -1564,7 +1593,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             // For texts, if it starts with E2EE_KEY:, we don't display it.
             const displayMsgText = (msg.message_type === 'text' || !msg.message_type) && (!msg.text?.startsWith('E2EE_KEY:'));
 
-            const hasReactions  = msg.reactions && Object.values(msg.reactions).filter(Boolean).length > 0;
+            const safeReactions = parseSafeReactions(msg.reactions);
+            const hasReactions  = Object.values(safeReactions).filter(Boolean).length > 0;
 
             return (
               <div
@@ -1809,7 +1839,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           userSelect: 'none',
                           animation: 'popIn 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                         }}>
-                        {Object.entries(msg.reactions).filter(([_, emo]) => Boolean(emo)).map(([uid, emo], idx) => (
+                        {Object.entries(safeReactions).filter(([_, emo]) => Boolean(emo)).map(([uid, emo], idx) => (
                           <span key={uid || idx} style={{ fontSize: '0.95rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: 'translateY(-0.5px)' }}>{emo}</span>
                         ))}
                       </div>
