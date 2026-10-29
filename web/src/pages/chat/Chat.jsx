@@ -149,10 +149,9 @@ export default function Chat() {
       return updated;
     });
 
-    // 2. Single Authoritative Network Delivery:
-    // If WebSocket is connected, deliver via WebSocket only (sub-10ms latency).
-    // If WebSocket is disconnected, fallback to REST API.
-    // Never send both simultaneously to avoid race conditions and duplicate writes.
+    // 2. Guaranteed Delivery:
+    // Send via WebSocket for instant sub-10ms delivery to partner,
+    // AND call REST API to guarantee database ACID persistence and confirmed response!
     if (!isOptimistic) {
       if (wsService.isConnected()) {
         wsService.send({
@@ -160,26 +159,25 @@ export default function Chat() {
           message_id: targetMsg.id,
           emoji: newEmoji
         });
+      }
+      if (newEmoji) {
+        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji })
+          .then(res => {
+            if (res?.data?.reactions) {
+              const conf = parseSafeReactions(res.data.reactions);
+              setMsgs(p => p.map(m => (String(m.id) === String(targetMsg.id) || (m.temp_id && targetMsg.temp_id && String(m.temp_id) === String(targetMsg.temp_id))) ? { ...m, reactions: conf } : m));
+            }
+          })
+          .catch(err => console.warn("REST reaction notice:", err?.message));
       } else {
-        if (newEmoji) {
-          api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji })
-            .then(res => {
-              if (res?.data?.reactions) {
-                const conf = parseSafeReactions(res.data.reactions);
-                setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
-              }
-            })
-            .catch(() => {});
-        } else {
-          api.delete(`/chat/messages/${targetMsg.id}/react`)
-            .then(res => {
-              if (res?.data?.reactions) {
-                const conf = parseSafeReactions(res.data.reactions);
-                setMsgs(p => p.map(m => m.id === targetMsg.id ? { ...m, reactions: conf } : m));
-              }
-            })
-            .catch(() => {});
-        }
+        api.delete(`/chat/messages/${targetMsg.id}/react`)
+          .then(res => {
+            if (res?.data?.reactions) {
+              const conf = parseSafeReactions(res.data.reactions);
+              setMsgs(p => p.map(m => (String(m.id) === String(targetMsg.id) || (m.temp_id && targetMsg.temp_id && String(m.temp_id) === String(targetMsg.temp_id))) ? { ...m, reactions: conf } : m));
+            }
+          })
+          .catch(err => console.warn("REST reaction delete notice:", err?.message));
       }
     }
 
@@ -494,13 +492,14 @@ export default function Chat() {
         }
       }),
       wsService.on('reaction', d => {
+        if (!d || !d.message_id) return;
         const incomingReactions = parseSafeReactions(d.reactions);
         setMsgs(p => {
-          const target = p.find(m => m.id === d.message_id || m.temp_id === d.message_id);
+          const target = p.find(m => String(m.id) === String(d.message_id) || (m.temp_id && String(m.temp_id) === String(d.message_id)));
           if (!target) return p;
 
           let nextReactions = { ...parseSafeReactions(target.reactions) };
-          if (d.reactions) {
+          if (d.reactions !== undefined && d.reactions !== null) {
             nextReactions = { ...incomingReactions };
           } else if (d.emoji) {
             nextReactions[d.user_id] = d.emoji;
@@ -519,15 +518,17 @@ export default function Chat() {
             return p;
           }
 
-          const updated = p.map(m => (m.id === d.message_id || m.temp_id === d.message_id) ? { ...m, reactions: nextReactions } : m);
+          const updated = p.map(m => (String(m.id) === String(d.message_id) || (m.temp_id && String(m.temp_id) === String(d.message_id))) ? { ...m, reactions: nextReactions } : m);
           localStorage.setItem('cached_messages', JSON.stringify(updated));
           return updated;
         });
       }),
       wsService.on('message_deleted', d => {
-        setMsgs(p => p.filter(m => m.id !== d.message_id));
+        if (!d || !d.message_id) return;
+        setMsgs(p => p.filter(m => String(m.id) !== String(d.message_id) && (!m.temp_id || String(m.temp_id) !== String(d.message_id))));
       }),
       wsService.on('message_edited', d => {
+        if (!d || !d.message_id) return;
         const sk = localStorage.getItem('paxly_sk');
         let cachedP = null;
         try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
@@ -541,7 +542,7 @@ export default function Chat() {
           }
         }
         setMsgs(p => p.map(m => {
-          if (m.id !== d.message_id) return m;
+          if (String(m.id) !== String(d.message_id) && (!m.temp_id || String(m.temp_id) !== String(d.message_id))) return m;
           return {
             ...m,
             text: newText,

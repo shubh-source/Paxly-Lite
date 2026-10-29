@@ -1,6 +1,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.future import select
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
 from app.core.config import settings
@@ -40,7 +41,7 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close(code=4001, reason="Unauthorized")
             return
             
-    except Exception:
+    except Exception as e:
         await websocket.close(code=4001, reason="Invalid auth format")
         return
 
@@ -185,37 +186,55 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id:
                         try:
                             async with AsyncSessionLocal() as db:
-                                # Enforce couple space isolation & row locking for concurrency protection
+                                user_ids = [user_id]
+                                if partner_id:
+                                    user_ids.append(partner_id)
+                                # Enforce couple space isolation & concurrency protection
                                 stmt = (
                                     select(Message)
                                     .filter(
                                         Message.id == message_id,
-                                        Message.couple_space_id == space_id
+                                        or_(
+                                            Message.couple_space_id == space_id,
+                                            Message.sender_id.in_(user_ids)
+                                        )
                                     )
                                 )
-                                try:
-                                    stmt = stmt.with_for_update()
-                                except Exception:
-                                    pass
                                 res = await db.execute(stmt)
                                 msg = res.scalars().first()
                                 if msg:
+                                    from sqlalchemy import text
                                     from app.api.routes.chat import safe_parse_reactions
-                                    from sqlalchemy.orm.attributes import flag_modified
-                                    from sqlalchemy import update
-                                    new_reactions = dict(safe_parse_reactions(msg.reactions))
+                                    bind = db.get_bind()
+                                    is_pg = bind and getattr(bind.dialect, "name", "").lower() in ("postgresql", "postgres")
+
                                     if emoji:
-                                        new_reactions[user_id] = emoji
+                                        if is_pg:
+                                            patch_json = json.dumps({user_id: emoji})
+                                            await db.execute(
+                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb, couple_space_id = :space_id WHERE id = :msg_id"),
+                                                {"patch": patch_json, "space_id": space_id, "msg_id": message_id}
+                                            )
+                                        else:
+                                            await db.execute(
+                                                text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"', :emoji), couple_space_id = :space_id WHERE id = :msg_id"),
+                                                {"emoji": emoji, "space_id": space_id, "msg_id": message_id}
+                                            )
                                     else:
-                                        new_reactions.pop(user_id, None)
-                                    msg.reactions = new_reactions
-                                    flag_modified(msg, "reactions")
-                                    await db.execute(
-                                        update(Message)
-                                        .where(Message.id == message_id)
-                                        .values(reactions=new_reactions)
-                                    )
+                                        if is_pg:
+                                            await db.execute(
+                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id"),
+                                                {"uid": user_id, "msg_id": message_id}
+                                            )
+                                        else:
+                                            await db.execute(
+                                                text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"') WHERE id = :msg_id"),
+                                                {"msg_id": message_id}
+                                            )
                                     await db.commit()
+
+                                    r_res = await db.execute(select(Message.reactions).filter(Message.id == message_id))
+                                    new_reactions = safe_parse_reactions(r_res.scalar())
 
                                     reaction_evt = {
                                         "type": "reaction",
@@ -244,12 +263,22 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id and raw_text:
                         try:
                             async with AsyncSessionLocal() as db:
+                                user_ids = [user_id]
+                                if partner_id:
+                                    user_ids.append(partner_id)
                                 res = await db.execute(
-                                    select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+                                    select(Message).filter(
+                                        Message.id == message_id,
+                                        or_(
+                                            Message.couple_space_id == space_id,
+                                            Message.sender_id.in_(user_ids)
+                                        )
+                                    )
                                 )
                                 msg = res.scalars().first()
                                 if msg and msg.sender_id == user_id and not msg.is_once_view and (not msg.message_type or msg.message_type == "text"):
                                     msg.text = encrypt_data(raw_text)
+                                    msg.couple_space_id = space_id
                                     msg.is_edited = True
                                     msg.edited_at = datetime.now(timezone.utc)
                                     await db.commit()
@@ -270,8 +299,17 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id:
                         try:
                             async with AsyncSessionLocal() as db:
+                                user_ids = [user_id]
+                                if partner_id:
+                                    user_ids.append(partner_id)
                                 res = await db.execute(
-                                    select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+                                    select(Message).filter(
+                                        Message.id == message_id,
+                                        or_(
+                                            Message.couple_space_id == space_id,
+                                            Message.sender_id.in_(user_ids)
+                                        )
+                                    )
                                 )
                                 msg = res.scalars().first()
                                 if msg:

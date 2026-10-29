@@ -10,7 +10,7 @@ from app.core.security import get_current_user
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.encryption import encrypt_data, decrypt_data
-import os, uuid, shutil
+import os, uuid, shutil, json
 from app.core.storage import storage
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -199,7 +199,6 @@ def safe_parse_reactions(val) -> dict:
         return val
     if isinstance(val, str):
         try:
-            import json
             parsed = json.loads(val)
             if isinstance(parsed, dict):
                 return parsed
@@ -436,34 +435,49 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     space_id = space.id
     partner_id = partner.id if partner else cu.partner_id
 
-    # Enforce couple space isolation & row locking for concurrency protection
+    user_ids = [cu.id]
+    if partner:
+        user_ids.append(partner.id)
+    elif cu.partner_id:
+        user_ids.append(cu.partner_id)
+
+    # Enforce couple space isolation
     stmt = (
         select(Message)
         .filter(
             Message.id == message_id,
-            Message.couple_space_id == space_id
+            or_(
+                Message.couple_space_id == space_id,
+                Message.sender_id.in_(user_ids)
+            )
         )
     )
-    try:
-        stmt = stmt.with_for_update()
-    except Exception:
-        pass
     res = await db.execute(stmt)
     msg = res.scalars().first()
     if not msg:
         raise HTTPException(404, "Message not found in your couple space.")
     
-    from sqlalchemy.orm.attributes import flag_modified
-    new_reactions = dict(safe_parse_reactions(msg.reactions))
-    new_reactions[cu.id] = data.emoji
-    msg.reactions = new_reactions
-    flag_modified(msg, "reactions")
-    await db.execute(
-        update(Message)
-        .where(Message.id == message_id)
-        .values(reactions=new_reactions)
-    )
+    # Atomic database-level JSON update
+    from sqlalchemy import text
+    bind = db.get_bind()
+    is_pg = bind and getattr(bind.dialect, "name", "").lower() in ("postgresql", "postgres")
+
+    if is_pg:
+        patch_json = json.dumps({cu.id: data.emoji})
+        await db.execute(
+            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb, couple_space_id = :space_id WHERE id = :msg_id"),
+            {"patch": patch_json, "space_id": space_id, "msg_id": message_id}
+        )
+    else:
+        await db.execute(
+            text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"', :emoji), couple_space_id = :space_id WHERE id = :msg_id"),
+            {"emoji": data.emoji, "space_id": space_id, "msg_id": message_id}
+        )
     await db.commit()
+
+    # Re-fetch confirmed persisted reactions directly from DB
+    r_res = await db.execute(select(Message.reactions).filter(Message.id == message_id))
+    new_reactions = safe_parse_reactions(r_res.scalar())
 
     reaction_evt = {
         "type": "reaction",
@@ -477,8 +491,8 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
         await manager.send_to_space(space_id, reaction_evt)
         if partner_id:
             await manager.send_to_user(partner_id, reaction_evt)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"WS Broadcast error: {e}")
 
     return {"ok": True, "reactions": new_reactions}
 
@@ -488,35 +502,48 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     space_id = space.id
     partner_id = partner.id if partner else cu.partner_id
 
-    # Enforce couple space isolation & row locking for concurrency protection
+    user_ids = [cu.id]
+    if partner:
+        user_ids.append(partner.id)
+    elif cu.partner_id:
+        user_ids.append(cu.partner_id)
+
+    # Enforce couple space isolation
     stmt = (
         select(Message)
         .filter(
             Message.id == message_id,
-            Message.couple_space_id == space_id
+            or_(
+                Message.couple_space_id == space_id,
+                Message.sender_id.in_(user_ids)
+            )
         )
     )
-    try:
-        stmt = stmt.with_for_update()
-    except Exception:
-        pass
     res = await db.execute(stmt)
     msg = res.scalars().first()
     if not msg:
         raise HTTPException(404, "Message not found in your couple space.")
     
-    from sqlalchemy.orm.attributes import flag_modified
-    new_reactions = dict(safe_parse_reactions(msg.reactions))
-    if cu.id in new_reactions:
-        del new_reactions[cu.id]
-        msg.reactions = new_reactions
-        flag_modified(msg, "reactions")
+    # Atomic database-level JSON key removal
+    from sqlalchemy import text
+    bind = db.get_bind()
+    is_pg = bind and getattr(bind.dialect, "name", "").lower() in ("postgresql", "postgres")
+
+    if is_pg:
         await db.execute(
-            update(Message)
-            .where(Message.id == message_id)
-            .values(reactions=new_reactions)
+            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id"),
+            {"uid": cu.id, "msg_id": message_id}
         )
-        await db.commit()
+    else:
+        await db.execute(
+            text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"') WHERE id = :msg_id"),
+            {"msg_id": message_id}
+        )
+    await db.commit()
+
+    # Re-fetch confirmed persisted reactions directly from DB
+    r_res = await db.execute(select(Message.reactions).filter(Message.id == message_id))
+    new_reactions = safe_parse_reactions(r_res.scalar())
 
     reaction_evt = {
         "type": "reaction",
@@ -530,8 +557,8 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
         await manager.send_to_space(space_id, reaction_evt)
         if partner_id:
             await manager.send_to_user(partner_id, reaction_evt)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"WS Broadcast error: {e}")
 
     return {"ok": True, "reactions": new_reactions}
 
@@ -542,10 +569,22 @@ async def edit_message(
     cu: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    space, _ = await resolve_and_sync_space(cu, db)
+    space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
+    user_ids = [cu.id]
+    if partner:
+        user_ids.append(partner.id)
+    elif cu.partner_id:
+        user_ids.append(cu.partner_id)
+
     res = await db.execute(
-        select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id)
+        select(Message).filter(
+            Message.id == message_id,
+            or_(
+                Message.couple_space_id == space_id,
+                Message.sender_id.in_(user_ids)
+            )
+        )
     )
     msg = res.scalars().first()
     if not msg:
@@ -565,6 +604,7 @@ async def edit_message(
         raise HTTPException(400, "Message text cannot be empty.")
     
     msg.text = encrypt_data(clean_text)
+    msg.couple_space_id = space_id
     msg.is_edited = True
     msg.edited_at = datetime.utcnow()
     
@@ -592,9 +632,23 @@ async def edit_message(
 
 @router.delete("/messages/{message_id}")
 async def delete_message(message_id: str, for_everyone: bool = True, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space, _ = await resolve_and_sync_space(cu, db)
+    space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
-    res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
+    user_ids = [cu.id]
+    if partner:
+        user_ids.append(partner.id)
+    elif cu.partner_id:
+        user_ids.append(cu.partner_id)
+
+    res = await db.execute(
+        select(Message).filter(
+            Message.id == message_id,
+            or_(
+                Message.couple_space_id == space_id,
+                Message.sender_id.in_(user_ids)
+            )
+        )
+    )
     msg = res.scalars().first()
     if not msg: raise HTTPException(404, "Message not found.")
     
