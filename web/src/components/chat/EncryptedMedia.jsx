@@ -3,28 +3,59 @@ import { decryptMediaBlob } from '../../services/crypto';
 import { Icons } from '../ui/Icons';
 
 export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }) {
-  const [localSrc, setLocalSrc] = useState(encryptionKey ? null : src);
-  const [loading, setLoading] = useState(!!encryptionKey);
+  const [localSrc, setLocalSrc] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (encryptionKey && src) {
-      setLoading(true);
-      fetch(src)
-        .then(res => res.blob())
-        .then(blob => decryptMediaBlob(blob, encryptionKey))
-        .then(decryptedBlob => {
-          const url = URL.createObjectURL(decryptedBlob);
-          setLocalSrc(url);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error("Media decryption failed:", err);
-          setLocalSrc(src); // Fallback to raw src if decryption fails
-          setLoading(false);
-        });
-    } else {
-      setLocalSrc(src);
+    if (!src) {
+      setLocalSrc(null);
+      setLoading(false);
+      return;
     }
+
+    if (src.startsWith('blob:') || src.startsWith('data:')) {
+      setLocalSrc(src);
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    let objectUrl = null;
+
+    setLoading(true);
+    const token = localStorage.getItem('ros_token');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    fetch(src, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blob => {
+        if (encryptionKey) {
+          return decryptMediaBlob(blob, encryptionKey);
+        }
+        return blob;
+      })
+      .then(finalBlob => {
+        if (!isMounted) return;
+        objectUrl = URL.createObjectURL(finalBlob);
+        setLocalSrc(objectUrl);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (!isMounted) return;
+        console.error("Media load failed:", err);
+        setLocalSrc(src);
+        setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
   }, [src, encryptionKey]);
 
   if (loading) {

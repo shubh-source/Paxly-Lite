@@ -120,8 +120,11 @@ export const getSpace = () =>
   api.get('/chat/space', { params: { _t: Date.now() } }).then(r => r.data);
 
 // Chat
-export const getMessages = (skip = 0, limit = 50) =>
-  api.get('/chat/messages', { params: { skip, limit, _t: Date.now() } }).then(r => r.data);
+export const getMessages = (skip = 0, limit = 50, before = null) => {
+  const params = { skip, limit, _t: Date.now() };
+  if (before) params.before = before;
+  return api.get('/chat/messages', { params }).then(r => r.data);
+};
 
 export const uploadMedia = (file, customName = null) => {
   const form = new FormData();

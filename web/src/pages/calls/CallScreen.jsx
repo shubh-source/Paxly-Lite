@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { wsService } from '../../services/websocket';
+import { getScopedCachedPartner, getScopedCachedSpace, setScopedCachedPartner } from '../../services/chatCache';
 import api, { getSpace } from '../../services/api';
 import { Icons } from '../../components/ui/Icons';
 import { useAuth } from '../../context/AuthContext';
@@ -25,12 +26,13 @@ export default function CallScreen() {
   // Instant Partner Cache Retrieval (Zero Delay / No Question Mark)
   const getInitialPartner = () => {
     try {
-      const cached = localStorage.getItem('cached_partner');
-      if (cached) return JSON.parse(cached);
-      const cachedSpace = localStorage.getItem('cached_space');
-      if (cachedSpace) {
-        const parsed = JSON.parse(cachedSpace);
-        if (parsed?.partner) return parsed.partner;
+      if (user?.id && user?.couple_space_id) {
+        const cached = getScopedCachedPartner(user.id, user.couple_space_id);
+        if (cached) return cached;
+      }
+      if (user?.id) {
+        const cachedSpace = getScopedCachedSpace(user.id);
+        if (cachedSpace?.partner) return cachedSpace.partner;
       }
     } catch {}
     return { name: 'Sneha' };
@@ -63,7 +65,9 @@ export default function CallScreen() {
     getSpace().then(d => {
       if (d?.partner) {
         setPartner(d.partner);
-        localStorage.setItem('cached_partner', JSON.stringify(d.partner));
+        if (user?.id && (d.id || user?.couple_space_id)) {
+          setScopedCachedPartner(user.id, d.id || user.couple_space_id, d.partner);
+        }
       }
     });
 

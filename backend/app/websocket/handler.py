@@ -9,7 +9,9 @@ from app.core.database import AsyncSessionLocal
 from app.models.orm import User, Message, CallLog, Note
 from app.websocket.manager import manager
 from app.core.encryption import encrypt_data, decrypt_data
-import json, uuid
+import json, uuid, logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["WebSocket"])
 
@@ -111,6 +113,116 @@ async def websocket_endpoint(websocket: WebSocket):
                     v_limit = payload.get("view_limit", 1)
                     reply_id = payload.get("reply_to_id")
 
+                    # Scope reply reference strictly to the current couple space
+                    if reply_id:
+                        async with AsyncSessionLocal() as db_reply_check:
+                            rep_res = await db_reply_check.execute(
+                                select(Message.id).filter(
+                                    Message.id == reply_id,
+                                    Message.couple_space_id == space_id
+                                )
+                            )
+                            if not rep_res.scalar():
+                                try:
+                                    await websocket.send_json({
+                                        "type": "chat_message_error",
+                                        "temp_id": temp_id,
+                                        "message": "Message not found in your couple space."
+                                    })
+                                except Exception:
+                                    pass
+                                continue
+
+                    # Deduplication: If already processed (e.g., via REST fallback), echo existing
+                    if temp_id:
+                        cached_msg = manager.get_processed_message(space_id, temp_id)
+                        if cached_msg:
+                            try:
+                                await websocket.send_json(cached_msg)
+                            except Exception:
+                                pass
+                            continue
+
+                        # Check database in case REST persisted it or cache missed
+                        async with AsyncSessionLocal() as db:
+                            res = await db.execute(
+                                select(Message).filter(
+                                    Message.couple_space_id == space_id,
+                                    Message.temp_id == temp_id
+                                )
+                            )
+                            existing_msg = res.scalars().first()
+                            if existing_msg:
+                                from app.api.routes.chat import safe_parse_reactions
+                                text_val = existing_msg.text or ""
+                                try:
+                                    text_val = decrypt_data(text_val)
+                                except Exception:
+                                    pass
+                                broadcast_data = {
+                                    "type": "chat_message",
+                                    "id": str(existing_msg.id),
+                                    "temp_id": temp_id,
+                                    "sender_id": existing_msg.sender_id,
+                                    "sender_name": existing_msg.sender_name,
+                                    "message_type": existing_msg.message_type or "text",
+                                    "text": text_val,
+                                    "media_url": existing_msg.media_url,
+                                    "reactions": safe_parse_reactions(existing_msg.reactions),
+                                    "is_once_view": existing_msg.is_once_view,
+                                    "view_limit": existing_msg.view_limit,
+                                    "views_used": existing_msg.views_used,
+                                    "reply_to_id": existing_msg.reply_to_id,
+                                    "timestamp": existing_msg.timestamp.isoformat().replace("+00:00", "Z") if existing_msg.timestamp else now_ts.isoformat().replace("+00:00", "Z")
+                                }
+                                manager.record_processed_message(space_id, temp_id, broadcast_data)
+                                try:
+                                    await websocket.send_json(broadcast_data)
+                                except Exception:
+                                    pass
+                                continue
+
+                    # Persist to database inside a transaction and commit BEFORE broadcasting
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            msg = Message(
+                                id=msg_id, couple_space_id=space_id, sender_id=user_id,
+                                sender_name=user_name,
+                                message_type=msg_type, text=encrypted_text,
+                                media_url=media_url, is_once_view=is_once,
+                                view_limit=v_limit, timestamp=now_ts,
+                                reply_to_id=reply_id,
+                                temp_id=temp_id
+                            )
+                            # Auto-save audio to voice notes
+                            if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
+                                from app.models.orm import VoiceNote
+                                vn = VoiceNote(
+                                    id=str(uuid.uuid4()),
+                                    couple_space_id=space_id,
+                                    sender_id=user_id,
+                                    url=msg.media_url,
+                                    filename="voice_note.webm",
+                                    custom_name="Chat Whisper",
+                                    size=0,
+                                    created_at=now_ts
+                                )
+                                db.add(vn)
+
+                            db.add(msg)
+                            await db.commit()
+                    except Exception as db_err:
+                        logger.error(f"Failed to persist chat message: {db_err}")
+                        try:
+                            await websocket.send_json({
+                                "type": "chat_message_error",
+                                "temp_id": temp_id,
+                                "message": "Failed to persist message to database"
+                            })
+                        except Exception:
+                            pass
+                        continue
+
                     broadcast_data = {
                         "type": "chat_message", 
                         "id": msg_id, 
@@ -127,38 +239,15 @@ async def websocket_endpoint(websocket: WebSocket):
                         "reply_to_id": reply_id,
                         "timestamp": now_ts.isoformat().replace("+00:00", "Z")
                     }
-                
-                    # 🚀 INSTANT BROADCAST TO SPACE (<10ms WebSocket latency) + direct to partner
-                    await manager.send_to_space(space_id, broadcast_data)
-                    if partner_id:
-                        await manager.send_to_user(partner_id, broadcast_data)
 
-                    # Persist to database
-                    async with AsyncSessionLocal() as db:
-                        msg = Message(
-                            id=msg_id, couple_space_id=space_id, sender_id=user_id,
-                            message_type=msg_type, text=encrypted_text,
-                            media_url=media_url, is_once_view=is_once,
-                            view_limit=v_limit, timestamp=now_ts,
-                            reply_to_id=reply_id
-                        )
-                        # Auto-save audio to voice notes
-                        if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
-                            from app.models.orm import VoiceNote
-                            vn = VoiceNote(
-                                id=str(uuid.uuid4()),
-                                couple_space_id=space_id,
-                                sender_id=user_id,
-                                url=msg.media_url,
-                                filename="voice_note.webm",
-                                custom_name="Chat Whisper",
-                                size=0,
-                                created_at=now_ts
-                            )
-                            db.add(vn)
-                
-                        db.add(msg)
-                        await db.commit()
+                    if temp_id:
+                        manager.record_processed_message(space_id, temp_id, broadcast_data)
+
+                    # Confirmed broadcast to space
+                    await manager.send_to_space(space_id, broadcast_data)
+                    partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
+                    if partner_id and not partner_sockets_in_space:
+                        await manager.send_to_user(partner_id, broadcast_data)
 
                 elif p_type == "ping":
                     try:
@@ -186,18 +275,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id:
                         try:
                             async with AsyncSessionLocal() as db:
-                                user_ids = [user_id]
-                                if partner_id:
-                                    user_ids.append(partner_id)
                                 # Enforce couple space isolation & concurrency protection
                                 stmt = (
                                     select(Message)
                                     .filter(
                                         Message.id == message_id,
-                                        or_(
-                                            Message.couple_space_id == space_id,
-                                            Message.sender_id.in_(user_ids)
-                                        )
+                                        Message.couple_space_id == space_id
                                     )
                                 )
                                 res = await db.execute(stmt)
@@ -212,28 +295,33 @@ async def websocket_endpoint(websocket: WebSocket):
                                         if is_pg:
                                             patch_json = json.dumps({user_id: emoji})
                                             await db.execute(
-                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb, couple_space_id = :space_id WHERE id = :msg_id"),
+                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb WHERE id = :msg_id AND couple_space_id = :space_id"),
                                                 {"patch": patch_json, "space_id": space_id, "msg_id": message_id}
                                             )
                                         else:
                                             await db.execute(
-                                                text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"', :emoji), couple_space_id = :space_id WHERE id = :msg_id"),
+                                                text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"', :emoji) WHERE id = :msg_id AND couple_space_id = :space_id"),
                                                 {"emoji": emoji, "space_id": space_id, "msg_id": message_id}
                                             )
                                     else:
                                         if is_pg:
                                             await db.execute(
-                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id"),
-                                                {"uid": user_id, "msg_id": message_id}
+                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id AND couple_space_id = :space_id"),
+                                                {"uid": user_id, "msg_id": message_id, "space_id": space_id}
                                             )
                                         else:
                                             await db.execute(
-                                                text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"') WHERE id = :msg_id"),
-                                                {"msg_id": message_id}
+                                                text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"') WHERE id = :msg_id AND couple_space_id = :space_id"),
+                                                {"msg_id": message_id, "space_id": space_id}
                                             )
                                     await db.commit()
 
-                                    r_res = await db.execute(select(Message.reactions).filter(Message.id == message_id))
+                                    r_res = await db.execute(
+                                        select(Message.reactions).filter(
+                                            Message.id == message_id,
+                                            Message.couple_space_id == space_id
+                                        )
+                                    )
                                     new_reactions = safe_parse_reactions(r_res.scalar())
 
                                     reaction_evt = {
@@ -244,7 +332,8 @@ async def websocket_endpoint(websocket: WebSocket):
                                         "reactions": new_reactions
                                     }
                                     await manager.send_to_space(space_id, reaction_evt)
-                                    if partner_id:
+                                    partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
+                                    if partner_id and not partner_sockets_in_space:
                                         await manager.send_to_user(partner_id, reaction_evt)
                                 else:
                                     try:
@@ -256,6 +345,13 @@ async def websocket_endpoint(websocket: WebSocket):
                                         pass
                         except Exception as e:
                             print(f"Reaction DB Error: {e}")
+                            try:
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "message": "Failed to update reaction"
+                                })
+                            except Exception:
+                                pass
 
                 elif p_type in ["message_edit", "message_edited"]:
                     message_id = payload.get("message_id")
@@ -263,22 +359,47 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id and raw_text:
                         try:
                             async with AsyncSessionLocal() as db:
-                                user_ids = [user_id]
-                                if partner_id:
-                                    user_ids.append(partner_id)
                                 res = await db.execute(
                                     select(Message).filter(
                                         Message.id == message_id,
-                                        or_(
-                                            Message.couple_space_id == space_id,
-                                            Message.sender_id.in_(user_ids)
-                                        )
+                                        Message.couple_space_id == space_id
                                     )
                                 )
                                 msg = res.scalars().first()
-                                if msg and msg.sender_id == user_id and not msg.is_once_view and (not msg.message_type or msg.message_type == "text"):
+                                if not msg:
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "error",
+                                            "message": "Message not found in your couple space."
+                                        })
+                                    except Exception:
+                                        pass
+                                elif msg.sender_id != user_id:
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "error",
+                                            "message": "You can only edit your own messages."
+                                        })
+                                    except Exception:
+                                        pass
+                                elif msg.is_once_view:
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "error",
+                                            "message": "View-once messages cannot be edited."
+                                        })
+                                    except Exception:
+                                        pass
+                                elif msg.message_type and msg.message_type != "text":
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "error",
+                                            "message": "Only text messages can be edited."
+                                        })
+                                    except Exception:
+                                        pass
+                                else:
                                     msg.text = encrypt_data(raw_text)
-                                    msg.couple_space_id = space_id
                                     msg.is_edited = True
                                     msg.edited_at = datetime.now(timezone.utc)
                                     await db.commit()
@@ -299,36 +420,68 @@ async def websocket_endpoint(websocket: WebSocket):
                     if message_id:
                         try:
                             async with AsyncSessionLocal() as db:
-                                user_ids = [user_id]
-                                if partner_id:
-                                    user_ids.append(partner_id)
                                 res = await db.execute(
                                     select(Message).filter(
                                         Message.id == message_id,
-                                        or_(
-                                            Message.couple_space_id == space_id,
-                                            Message.sender_id.in_(user_ids)
-                                        )
+                                        Message.couple_space_id == space_id
                                     )
                                 )
                                 msg = res.scalars().first()
-                                if msg:
-                                    if for_everyone:
-                                        if msg.sender_id == user_id:
-                                            await db.delete(msg)
-                                            await db.commit()
-                                            await manager.send_to_space(space_id, {
-                                                "type": "message_deleted",
-                                                "message_id": message_id
+                                if not msg:
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "error",
+                                            "message": "Message not found in your couple space."
+                                        })
+                                    except Exception:
+                                        pass
+                                elif for_everyone:
+                                    if msg.sender_id != user_id:
+                                        try:
+                                            await websocket.send_json({
+                                                "type": "error",
+                                                "message": "You can only delete your own messages for everyone."
                                             })
+                                        except Exception:
+                                            pass
                                     else:
-                                        from sqlalchemy.orm.attributes import flag_modified
-                                        deleted_list = list(msg.deleted_for or [])
-                                        if user_id not in deleted_list:
-                                            deleted_list.append(user_id)
-                                            msg.deleted_for = deleted_list
-                                            flag_modified(msg, "deleted_for")
-                                            await db.commit()
+                                        media_url_to_clean = msg.media_url
+                                        await db.delete(msg)
+                                        await db.commit()
+
+                                        if media_url_to_clean:
+                                            from app.core.media_lifecycle import cleanup_message_media_if_unshared
+                                            await cleanup_message_media_if_unshared(
+                                                db, media_url_to_clean, exclude_message_id=message_id, space_id=space_id
+                                            )
+
+                                        await manager.send_to_space(space_id, {
+                                            "type": "message_deleted",
+                                            "message_id": message_id
+                                        })
+                                else:
+                                    from sqlalchemy.orm.attributes import flag_modified
+                                    deleted_list = list(msg.deleted_for or [])
+                                    if user_id not in deleted_list:
+                                        deleted_list.append(user_id)
+                                        msg.deleted_for = deleted_list
+                                        flag_modified(msg, "deleted_for")
+
+                                    all_participants = {user_id}
+                                    if partner_id:
+                                        all_participants.add(partner_id)
+
+                                    if all_participants.issubset(set(deleted_list)):
+                                        media_url_to_clean = msg.media_url
+                                        await db.delete(msg)
+                                        await db.commit()
+                                        if media_url_to_clean:
+                                            from app.core.media_lifecycle import cleanup_message_media_if_unshared
+                                            await cleanup_message_media_if_unshared(
+                                                db, media_url_to_clean, exclude_message_id=message_id, space_id=space_id
+                                            )
+                                    else:
+                                        await db.commit()
                         except Exception as e:
                             print(f"WS Delete Error: {e}")
 
@@ -347,10 +500,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     allowed = payload.get("allowed", False)
                     request_id = payload.get("request_id")
                     msg_id = payload.get("message_id")
+                    media_url = payload.get("media_url")
                 
                     payload["partner_name"] = user_name
-                    await manager.send_to_user(request_id, payload)
-                
+
                     if allowed and msg_id:
                         async with AsyncSessionLocal() as db:
                             # Security: Scope media lookup strictly to the authenticated couple space
@@ -359,6 +512,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             )
                             msg = res.scalars().first()
                             if msg and msg.media_url:
+                                if not media_url:
+                                    payload["media_url"] = msg.media_url
                                 from app.models.orm import Memory
                                 mem = Memory(
                                     id=str(uuid.uuid4()),
@@ -372,6 +527,8 @@ async def websocket_endpoint(websocket: WebSocket):
                                 )
                                 db.add(mem)
                                 await db.commit()
+
+                    await manager.send_to_user(request_id, payload)
 
                 elif p_type == "vault_download_request":
                     payload["from"] = user_name

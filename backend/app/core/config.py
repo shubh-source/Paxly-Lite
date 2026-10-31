@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
     SUPABASE_BUCKET: str = "vlynxly-media"
 
+    # WebSocket Worker Topology & Broker (CHAT-014)
+    REDIS_URL: Optional[str] = None
+    WEB_CONCURRENCY: int = 1
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
 settings = Settings()

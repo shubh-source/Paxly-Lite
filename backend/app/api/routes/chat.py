@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.encryption import encrypt_data, decrypt_data
 import os, uuid, shutil, json
 from app.core.storage import storage
+from app.core.media_lifecycle import cleanup_message_media_if_unshared
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -124,7 +125,7 @@ async def resolve_and_sync_space(cu: User, db: AsyncSession) -> Tuple[CoupleSpac
 
     # 6. Fallback if no candidate space exists
     if not best_space:
-        new_space_id = str(uuid.uuid4())
+        new_space_id = cu.couple_space_id or (partner.couple_space_id if partner else None) or str(uuid.uuid4())
         best_space = CoupleSpace(
             id=new_space_id,
             user1_id=cu.id,
@@ -136,22 +137,8 @@ async def resolve_and_sync_space(cu: User, db: AsyncSession) -> Tuple[CoupleSpac
         db.add(best_space)
         await db.flush()
 
-    # 7. Auto-heal DB state & unify messages into canonical best_space
+    # 7. Auto-heal DB state
     db_changed = False
-    try:
-        all_cands = list(candidate_space_ids)
-        if all_cands or user_ids:
-            cand_filter = [Message.sender_id.in_(user_ids)]
-            if all_cands:
-                cand_filter.append(Message.couple_space_id.in_(all_cands))
-            await db.execute(
-                update(Message)
-                .where(or_(*cand_filter))
-                .values(couple_space_id=best_space.id)
-            )
-            db_changed = True
-    except Exception as e:
-        print(f"Space message unification warning: {e}")
 
     if cu.couple_space_id != best_space.id:
         cu.couple_space_id = best_space.id
@@ -214,6 +201,7 @@ def fmt_msg(m: Message, sender_name: str, allow_download: bool = True) -> dict:
     
     return {
         "id": str(m.id),
+        "temp_id": getattr(m, "temp_id", None),
         "sender_id": m.sender_id,
         "sender_name": sender_name,
         "message_type": m.message_type or "text",
@@ -248,6 +236,45 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
     space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
     partner_id = partner.id if partner else cu.partner_id
+
+    # Deduplication: If already processed via WebSocket, return existing cached record
+    if data.temp_id:
+        from app.websocket.manager import manager
+        cached = manager.get_processed_message(space_id, data.temp_id)
+        if cached:
+            if isinstance(cached, dict) and "temp_id" not in cached:
+                cached = {**cached, "temp_id": data.temp_id}
+            return cached
+
+        # Durable DB Deduplication: check database for existing message with this temp_id
+        existing_res = await db.execute(
+            select(Message).filter(
+                Message.couple_space_id == space_id,
+                Message.temp_id == data.temp_id
+            )
+        )
+        existing = existing_res.scalars().first()
+        if existing:
+            sender_name = cu.name if existing.sender_id == cu.id else (partner.name if partner else "Partner")
+            existing_dict = fmt_msg(existing, sender_name, True)
+            if "temp_id" not in existing_dict or not existing_dict["temp_id"]:
+                existing_dict["temp_id"] = data.temp_id
+            manager.record_processed_message(space_id, data.temp_id, existing_dict)
+            return existing_dict
+
+    # Validate reply reference belongs strictly to this couple space
+    valid_reply_id = None
+    if data.reply_to_id:
+        reply_res = await db.execute(
+            select(Message.id).filter(
+                Message.id == data.reply_to_id,
+                Message.couple_space_id == space_id
+            )
+        )
+        if not reply_res.scalar():
+            raise HTTPException(404, "Message not found in your couple space.")
+        valid_reply_id = data.reply_to_id
+
     raw_text = data.text or ""
     encrypted_text = encrypt_data(raw_text)
     
@@ -255,13 +282,15 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
         id=str(uuid.uuid4()),
         couple_space_id=space_id,
         sender_id=cu.id,
+        sender_name=cu.name,
         message_type=data.message_type or "text",
         text=encrypted_text,
         media_url=data.media_url,
         is_once_view=data.is_once_view,
         view_limit=data.view_limit,
         timestamp=datetime.utcnow(),
-        reply_to_id=data.reply_to_id
+        reply_to_id=valid_reply_id,
+        temp_id=data.temp_id
     )
     
     # Auto-save audio to voice notes
@@ -300,40 +329,72 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
         "timestamp": _to_iso_utc(msg.timestamp)
     }
     
-    # Broadcast to couple space and directly to partner via WebSocket manager
+    # Broadcast to couple space and to partner (if not already in space)
     try:
         from app.websocket.manager import manager
         await manager.send_to_space(space_id, broadcast_data)
-        if partner_id:
+        partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
+        if partner_id and not partner_sockets_in_space:
             await manager.send_to_user(partner_id, broadcast_data)
     except Exception as e:
         print(f"WS Broadcast error: {e}")
         
     res = fmt_msg(msg, cu.name, True)
     res["temp_id"] = data.temp_id
+
+    if data.temp_id:
+        try:
+            from app.websocket.manager import manager
+            manager.record_processed_message(space_id, data.temp_id, res)
+        except Exception:
+            pass
+
     return res
 
 @router.get("/messages")
-async def get_messages(skip: int = 0, limit: int = 100, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_messages(
+    skip: int = 0,
+    limit: int = 50,
+    before: Optional[str] = None,
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     space, partner = await resolve_and_sync_space(cu, db)
     space_id = space.id
     allow_download = space.allow_media_save if space else True
 
-    user_ids = [cu.id]
-    if partner:
-        user_ids.append(partner.id)
-    elif cu.partner_id:
-        user_ids.append(cu.partner_id)
+    # Limit capped between 1 and 100 to prevent unbounded memory allocation (CHAT-012)
+    limit = max(1, min(limit, 100))
 
-    result = await db.execute(
-        select(Message)
-        .filter(or_(Message.couple_space_id == space_id, Message.sender_id.in_(user_ids)))
-        .order_by(Message.timestamp.desc())
-        .offset(skip)
-        .limit(limit)
-    )
-    msgs = result.scalars().all()
-    msgs = list(msgs)
+    query = select(Message).filter(Message.couple_space_id == space_id)
+
+    if before:
+        before_dt = None
+        # Check if 'before' is an existing message ID within the user's couple space
+        cursor_res = await db.execute(
+            select(Message).filter(Message.id == before, Message.couple_space_id == space_id)
+        )
+        cursor_msg = cursor_res.scalars().first()
+        if cursor_msg and cursor_msg.timestamp:
+            before_dt = cursor_msg.timestamp
+        else:
+            try:
+                # Try parsing as ISO 8601 string
+                clean_before = before.replace("Z", "+00:00")
+                before_dt = datetime.fromisoformat(clean_before)
+            except Exception:
+                before_dt = None
+
+        if before_dt:
+            query = query.filter(Message.timestamp < before_dt)
+        else:
+            query = query.offset(skip)
+    else:
+        query = query.offset(skip)
+
+    query = query.order_by(Message.timestamp.desc()).limit(limit)
+    result = await db.execute(query)
+    msgs = list(result.scalars().all())
     msgs.reverse()
 
     users_cache = {}
@@ -351,83 +412,74 @@ async def get_messages(skip: int = 0, limit: int = 100, cu: User = Depends(get_c
 
 @router.post("/upload-media")
 async def upload_media(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    await resolve_and_sync_space(cu, db)
-    filename_str = file.filename if file.filename else "upload.jpg"
-    ext = filename_str.split(".")[-1].lower() if "." in filename_str else "jpg"
-    if ext in ["blob", "bin", "enc", "octet-stream", ""]:
-        ext = "jpg"
-    if ext not in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mp3", "m4a", "ogg", "webm", "heic", "mov"]:
-        raise HTTPException(400, f"File type {ext} not allowed.")
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id if space else (cu.couple_space_id or f"solo_{cu.id}")
     
     limit_mb = settings.MAX_FILE_SIZE_MB if cu.is_premium else 5
     max_bytes = limit_mb * 1024 * 1024
-    chunk_size = 512 * 1024  # 512 KB
-    chunks = []
-    total_size = 0
-    while True:
-        chunk = await file.read(chunk_size)
-        if not chunk:
-            break
-        total_size += len(chunk)
-        if total_size > max_bytes:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Free users limit: 5MB, Premium limit: {settings.MAX_FILE_SIZE_MB}MB."
-            )
-        chunks.append(chunk)
+    target_dir = os.path.join(settings.MEDIA_DIR, "chat")
 
-    if total_size == 0:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-    
-    content = b"".join(chunks)
-    filename = f"{uuid.uuid4()}.{ext}"
-    url = await storage.upload_file(content, filename, "chat")
+    from app.core.file_security import stream_and_validate_upload
+    filename, _ = await stream_and_validate_upload(
+        file=file,
+        space_id=space_id,
+        max_bytes=max_bytes,
+        target_dir=target_dir
+    )
+
+    url = f"{settings.BACKEND_URL}/media/chat/{filename}"
     return {"media_url": url, "filename": filename}
 
 @router.post("/messages/{message_id}/secure-event")
-async def secure_event(message_id: str, action: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def secure_event(message_id: str, action: str = "view", cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """
     Handles secure media events:
     - 'view': Increments views_used. Deletes media if limit reached.
-    - 'compromise': Marks as compromised (AI detected phone).
+    - 'compromise': Marks as compromised (AI detected phone or capture attempt).
     """
     space, _ = await resolve_and_sync_space(cu, db)
     space_id = space.id
     res = await db.execute(select(Message).filter(Message.id == message_id, Message.couple_space_id == space_id))
     msg = res.scalars().first()
-    if not msg: raise HTTPException(404, "Message not found.")
+    if not msg: raise HTTPException(404, "Message not found in your couple space.")
 
+    media_url_to_clean = None
     if action == "view":
         # Only increment if the viewer is NOT the sender
         if msg.sender_id != cu.id:
             msg.views_used += 1
             if msg.views_used >= msg.view_limit:
-                # Delete from storage
-                if msg.media_url:
-                    try:
-                        filename = msg.media_url.split("/")[-1]
-                        await storage.delete_file(filename, "chat")
-                    except Exception as e:
-                        print(f"Failed to delete {msg.media_url}: {e}")
+                media_url_to_clean = msg.media_url
                 # True Server-Side Ephemeral: Wipe content from database
                 msg.text = None
                 msg.media_url = None
 
     elif action == "compromise":
         msg.is_compromised = True
-        # Immediately delete from storage
-        if msg.media_url:
-            try:
-                filename = msg.media_url.split("/")[-1]
-                await storage.delete_file(filename, "chat")
-            except Exception as e:
-                print(f"Failed to delete {msg.media_url}: {e}")
+        media_url_to_clean = msg.media_url
         # Wipe content from database
         msg.text = None
         msg.media_url = None
 
     await db.commit()
-    return {"ok": True, "views_used": msg.views_used}
+
+    if media_url_to_clean:
+        await cleanup_message_media_if_unshared(
+            db, media_url_to_clean, exclude_message_id=message_id, space_id=space_id
+        )
+
+    return {"ok": True, "views_used": msg.views_used, "is_compromised": msg.is_compromised}
+
+@router.post("/messages/{message_id}/status")
+async def secure_message_status(
+    message_id: str,
+    action: Optional[str] = None,
+    payload: Optional[dict] = None,
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    act = action or (payload.get("action") if payload else None) or "view"
+    return await secure_event(message_id=message_id, action=act, cu=cu, db=db)
 
 @router.post("/messages/{message_id}/react")
 async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -446,10 +498,7 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
         select(Message)
         .filter(
             Message.id == message_id,
-            or_(
-                Message.couple_space_id == space_id,
-                Message.sender_id.in_(user_ids)
-            )
+            Message.couple_space_id == space_id
         )
     )
     res = await db.execute(stmt)
@@ -465,18 +514,23 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     if is_pg:
         patch_json = json.dumps({cu.id: data.emoji})
         await db.execute(
-            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb, couple_space_id = :space_id WHERE id = :msg_id"),
+            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb WHERE id = :msg_id AND couple_space_id = :space_id"),
             {"patch": patch_json, "space_id": space_id, "msg_id": message_id}
         )
     else:
         await db.execute(
-            text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"', :emoji), couple_space_id = :space_id WHERE id = :msg_id"),
+            text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"', :emoji) WHERE id = :msg_id AND couple_space_id = :space_id"),
             {"emoji": data.emoji, "space_id": space_id, "msg_id": message_id}
         )
     await db.commit()
 
     # Re-fetch confirmed persisted reactions directly from DB
-    r_res = await db.execute(select(Message.reactions).filter(Message.id == message_id))
+    r_res = await db.execute(
+        select(Message.reactions).filter(
+            Message.id == message_id,
+            Message.couple_space_id == space_id
+        )
+    )
     new_reactions = safe_parse_reactions(r_res.scalar())
 
     reaction_evt = {
@@ -489,7 +543,8 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     try:
         from app.websocket.manager import manager
         await manager.send_to_space(space_id, reaction_evt)
-        if partner_id:
+        partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
+        if partner_id and not partner_sockets_in_space:
             await manager.send_to_user(partner_id, reaction_evt)
     except Exception as e:
         print(f"WS Broadcast error: {e}")
@@ -513,10 +568,7 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
         select(Message)
         .filter(
             Message.id == message_id,
-            or_(
-                Message.couple_space_id == space_id,
-                Message.sender_id.in_(user_ids)
-            )
+            Message.couple_space_id == space_id
         )
     )
     res = await db.execute(stmt)
@@ -531,18 +583,23 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
 
     if is_pg:
         await db.execute(
-            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id"),
-            {"uid": cu.id, "msg_id": message_id}
+            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id AND couple_space_id = :space_id"),
+            {"uid": cu.id, "msg_id": message_id, "space_id": space_id}
         )
     else:
         await db.execute(
-            text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"') WHERE id = :msg_id"),
-            {"msg_id": message_id}
+            text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"') WHERE id = :msg_id AND couple_space_id = :space_id"),
+            {"msg_id": message_id, "space_id": space_id}
         )
     await db.commit()
 
     # Re-fetch confirmed persisted reactions directly from DB
-    r_res = await db.execute(select(Message.reactions).filter(Message.id == message_id))
+    r_res = await db.execute(
+        select(Message.reactions).filter(
+            Message.id == message_id,
+            Message.couple_space_id == space_id
+        )
+    )
     new_reactions = safe_parse_reactions(r_res.scalar())
 
     reaction_evt = {
@@ -555,7 +612,8 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     try:
         from app.websocket.manager import manager
         await manager.send_to_space(space_id, reaction_evt)
-        if partner_id:
+        partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
+        if partner_id and not partner_sockets_in_space:
             await manager.send_to_user(partner_id, reaction_evt)
     except Exception as e:
         print(f"WS Broadcast error: {e}")
@@ -580,15 +638,12 @@ async def edit_message(
     res = await db.execute(
         select(Message).filter(
             Message.id == message_id,
-            or_(
-                Message.couple_space_id == space_id,
-                Message.sender_id.in_(user_ids)
-            )
+            Message.couple_space_id == space_id
         )
     )
     msg = res.scalars().first()
     if not msg:
-        raise HTTPException(404, "Message not found.")
+        raise HTTPException(404, "Message not found in your couple space.")
     
     if msg.sender_id != cu.id:
         raise HTTPException(403, "You can only edit your own messages.")
@@ -604,7 +659,6 @@ async def edit_message(
         raise HTTPException(400, "Message text cannot be empty.")
     
     msg.text = encrypt_data(clean_text)
-    msg.couple_space_id = space_id
     msg.is_edited = True
     msg.edited_at = datetime.utcnow()
     
@@ -643,20 +697,24 @@ async def delete_message(message_id: str, for_everyone: bool = True, cu: User = 
     res = await db.execute(
         select(Message).filter(
             Message.id == message_id,
-            or_(
-                Message.couple_space_id == space_id,
-                Message.sender_id.in_(user_ids)
-            )
+            Message.couple_space_id == space_id
         )
     )
     msg = res.scalars().first()
-    if not msg: raise HTTPException(404, "Message not found.")
+    if not msg: raise HTTPException(404, "Message not found in your couple space.")
     
     if for_everyone:
         if msg.sender_id != cu.id: raise HTTPException(403, "You can only delete your own messages for everyone.")
+        media_url_to_clean = msg.media_url
         await db.delete(msg)
         await db.commit()
-        
+
+        # Clean up underlying media only if no other entity references it
+        if media_url_to_clean:
+            await cleanup_message_media_if_unshared(
+                db, media_url_to_clean, exclude_message_id=message_id, space_id=space_id
+            )
+
         # Send WebSocket event to space so all active tabs/devices remove message
         try:
             from app.websocket.manager import manager
@@ -667,13 +725,31 @@ async def delete_message(message_id: str, for_everyone: bool = True, cu: User = 
         except Exception as e:
             print(f"WS Broadcast error on message_deleted: {e}")
     else:
-        # Delete for me only
+        # Delete for me only (preserves partner copy and partner media)
         from sqlalchemy.orm.attributes import flag_modified
         deleted_list = list(msg.deleted_for or [])
         if cu.id not in deleted_list:
             deleted_list.append(cu.id)
             msg.deleted_for = deleted_list
             flag_modified(msg, "deleted_for")
+
+        # Check if all participants in the couple space have deleted this message
+        all_participants = {cu.id}
+        if partner:
+            all_participants.add(partner.id)
+        elif cu.partner_id:
+            all_participants.add(cu.partner_id)
+
+        if all_participants.issubset(set(deleted_list)):
+            # Both partners deleted the message -> purge message and clean up unreferenced media
+            media_url_to_clean = msg.media_url
+            await db.delete(msg)
+            await db.commit()
+            if media_url_to_clean:
+                await cleanup_message_media_if_unshared(
+                    db, media_url_to_clean, exclude_message_id=message_id, space_id=space_id
+                )
+        else:
             await db.commit()
             
     return {"ok": True}

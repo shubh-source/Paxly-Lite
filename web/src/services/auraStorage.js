@@ -138,13 +138,19 @@ export function getAuraThreadsStorageKey(userId) {
 
 export const getThreadsStorageKey = getAuraThreadsStorageKey;
 
+import { cleanupLegacyGlobalChatKeys } from './chatCache.js';
+
 export function clearUserBrowserStorage() {
   if (typeof localStorage === 'undefined') return;
+  cleanupLegacyGlobalChatKeys();
   const fixedKeys = [
     'ros_token',
     'ros_user',
     'cached_space',
     'cached_partner',
+    'cached_messages',
+    'chat_draft',
+    'paxly_sk',
     'cached_notifications',
     'cached_memories',
     'cached_voicenotes',

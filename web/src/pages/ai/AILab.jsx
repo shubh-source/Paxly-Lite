@@ -4,6 +4,7 @@ import { startAISession, sendAIInterviewMessage, finishAIInterview, getActiveAIS
 import { useAuth } from '../../context/AuthContext';
 import { Icons } from '../../components/ui/Icons';
 import PremiumUpgrade from '../../components/premium/PremiumUpgrade';
+import { getScopedCachedMessages } from '../../services/chatCache';
 
 const PHASES = [
   { id: 'start', label: 'Setup', icon: '⚙️' },
@@ -66,8 +67,7 @@ export default function AILab() {
     setLoading(true);
     setPhase('analyzing');
     try {
-      const cached = localStorage.getItem('cached_messages');
-      const cachedMsgs = cached ? JSON.parse(cached) : [];
+      const cachedMsgs = getScopedCachedMessages(user?.id, user?.couple_space_id);
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
       

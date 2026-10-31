@@ -4,7 +4,21 @@ import { useAuth } from '../../context/AuthContext';
 import { wsService } from '../../services/websocket';
 import api, { getMessages, getSpace, uploadMedia } from '../../services/api';
 import { format } from 'date-fns';
-import { encryptMessage, decryptMessage, encryptMediaBlob } from '../../services/crypto';
+import { encryptMessage, decryptMessage, encryptMediaBlob, decryptMediaBlob } from '../../services/crypto';
+import {
+  getScopedCachedMessages,
+  setScopedCachedMessages,
+  getScopedCachedPartner,
+  setScopedCachedPartner,
+  getScopedCachedSpace,
+  setScopedCachedSpace,
+  getScopedChatDraft,
+  setScopedChatDraft,
+  cleanupLegacyGlobalChatKeys,
+  safeGetItem,
+  safeSetItem,
+  safeRemoveItem
+} from '../../services/chatCache';
 import EncryptedMedia from '../../components/chat/EncryptedMedia';
 import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
@@ -39,6 +53,14 @@ export const parseSafeDate = (val) => {
   return new Date();
 };
 
+export const fixUrl = url => {
+  if (!url) return url;
+  if (url.includes('localhost') || url.includes('127.0.0.1'))
+    try { return (import.meta.env.VITE_API_URL || '') + new URL(url).pathname; } catch {}
+  if (url.startsWith('/')) return (import.meta.env.VITE_API_URL || '') + url;
+  return url;
+};
+
 export const parseSafeReactions = (val) => {
   if (!val) return {};
   if (typeof val === 'object' && !Array.isArray(val)) return val;
@@ -54,18 +76,21 @@ export const parseSafeReactions = (val) => {
 export default function Chat() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const currentUserId = user?.id || null;
+  const currentSpaceId = user?.couple_space_id || null;
+  const activeAccountKeyRef = useRef(null);
+  const pendingSaveMsgRef = useRef(null);
+
   const [msgs, setMsgs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cached_messages')) || []; } catch { return []; }
+    return getScopedCachedMessages(user?.id, user?.couple_space_id);
   });
   const [loadingHistory, setLoadingHistory] = useState(() => {
-    try { 
-      const cached = JSON.parse(localStorage.getItem('cached_messages'));
-      return !cached || cached.length === 0;
-    } catch { return true; }
+    const cached = getScopedCachedMessages(user?.id, user?.couple_space_id);
+    return !cached || cached.length === 0;
   });
-  const [text, setText] = useState(() => localStorage.getItem('chat_draft') || '');
+  const [text, setText] = useState(() => getScopedChatDraft(user?.id, user?.couple_space_id));
   const [partner, setPartner] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cached_partner')) || null; } catch { return null; }
+    return getScopedCachedPartner(user?.id, user?.couple_space_id);
   });
   const [typing, setTyping]           = useState(false);
   const [pinnedMsg, setPinnedMsg]     = useState(null);
@@ -94,8 +119,56 @@ export default function Chat() {
 
   // Presence / theme
   const [space, setSpace] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cached_space'))?.space || null; } catch { return null; }
+    return getScopedCachedSpace(user?.id)?.space || null;
   });
+
+  // Account / space isolation & cache synchronization (CHAT-007)
+  useEffect(() => {
+    cleanupLegacyGlobalChatKeys();
+    if (!currentUserId || !currentSpaceId) {
+      if (activeAccountKeyRef.current !== null) {
+        activeAccountKeyRef.current = null;
+        setMsgs([]);
+        setPartner(null);
+        setSpace(null);
+        setText('');
+        setLoadingHistory(true);
+      }
+      return;
+    }
+
+    // Clear any active gesture timers on space/account transition (CHAT-011)
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    if (tapTimeout.current) {
+      clearTimeout(tapTimeout.current);
+      tapTimeout.current = null;
+    }
+    setContextMenuMsg(null);
+
+    const newKey = `${currentUserId}_${currentSpaceId}`;
+    if (activeAccountKeyRef.current !== newKey) {
+      activeAccountKeyRef.current = newKey;
+      setHasMore(true);
+      setLoadOlderError(null);
+      setLoadingOlder(false);
+      loadingOlderRef.current = false;
+      const scopedMsgs = getScopedCachedMessages(currentUserId, currentSpaceId);
+      setMsgs(scopedMsgs);
+      setLoadingHistory(scopedMsgs.length === 0);
+      setPartner(getScopedCachedPartner(currentUserId, currentSpaceId));
+      setSpace(getScopedCachedSpace(currentUserId)?.space || null);
+      setText(getScopedChatDraft(currentUserId, currentSpaceId));
+    }
+  }, [currentUserId, currentSpaceId]);
+
+  const getPartnerPublicKey = () => {
+    if (partner?.public_key) return partner.public_key;
+    const cachedP = getScopedCachedPartner(currentUserId, currentSpaceId);
+    return cachedP?.public_key || null;
+  };
   const [showThemePicker, setShowThemePicker]   = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [partnerPresence, setPartnerPresence]   = useState('idle');
@@ -104,6 +177,12 @@ export default function Chat() {
   const [showingStudio, setShowingStudio]       = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
   
+  // History Pagination (CHAT-012)
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadOlderError, setLoadOlderError] = useState(null);
+  const loadingOlderRef = useRef(false);
+
   // Gestures & Reactions
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMsg, setEditingMsg] = useState(null);
@@ -115,9 +194,12 @@ export default function Chat() {
 
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const touchStartPos = useRef({ x: 0, y: 0 });
   const longPressTimer = useRef(null);
+  const isLongPressTriggered = useRef(false);
   const [swipingMsgId, setSwipingMsgId] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
+  const pendingSendsRef = useRef(new Map());
 
   const handleEmojiSelect = (targetMsg, emoji, forceSet = false) => {
     if (!targetMsg || !emoji) return;
@@ -145,13 +227,15 @@ export default function Chat() {
         }
         return m;
       });
-      localStorage.setItem('cached_messages', JSON.stringify(updated));
+      if (currentUserId && currentSpaceId) {
+        setScopedCachedMessages(currentUserId, currentSpaceId, updated);
+      }
       return updated;
     });
 
-    // 2. Guaranteed Delivery:
-    // Send via WebSocket for instant sub-10ms delivery to partner,
-    // AND call REST API to guarantee database ACID persistence and confirmed response!
+    // 2. Authoritative Single-Path Delivery:
+    // When WebSocket is connected, use the WebSocket reaction command ONLY.
+    // Use REST only as a deliberate disconnected fallback to eliminate competing writes.
     if (!isOptimistic) {
       if (wsService.isConnected()) {
         wsService.send({
@@ -159,25 +243,26 @@ export default function Chat() {
           message_id: targetMsg.id,
           emoji: newEmoji
         });
-      }
-      if (newEmoji) {
-        api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji })
-          .then(res => {
-            if (res?.data?.reactions) {
-              const conf = parseSafeReactions(res.data.reactions);
-              setMsgs(p => p.map(m => (String(m.id) === String(targetMsg.id) || (m.temp_id && targetMsg.temp_id && String(m.temp_id) === String(targetMsg.temp_id))) ? { ...m, reactions: conf } : m));
-            }
-          })
-          .catch(err => console.warn("REST reaction notice:", err?.message));
       } else {
-        api.delete(`/chat/messages/${targetMsg.id}/react`)
-          .then(res => {
-            if (res?.data?.reactions) {
-              const conf = parseSafeReactions(res.data.reactions);
-              setMsgs(p => p.map(m => (String(m.id) === String(targetMsg.id) || (m.temp_id && targetMsg.temp_id && String(m.temp_id) === String(targetMsg.temp_id))) ? { ...m, reactions: conf } : m));
-            }
-          })
-          .catch(err => console.warn("REST reaction delete notice:", err?.message));
+        if (newEmoji) {
+          api.post(`/chat/messages/${targetMsg.id}/react`, { emoji: newEmoji })
+            .then(res => {
+              if (res?.data?.reactions) {
+                const conf = parseSafeReactions(res.data.reactions);
+                setMsgs(p => p.map(m => (String(m.id) === String(targetMsg.id) || (m.temp_id && targetMsg.temp_id && String(m.temp_id) === String(targetMsg.temp_id))) ? { ...m, reactions: conf } : m));
+              }
+            })
+            .catch(err => console.warn("REST reaction notice:", err?.message));
+        } else {
+          api.delete(`/chat/messages/${targetMsg.id}/react`)
+            .then(res => {
+              if (res?.data?.reactions) {
+                const conf = parseSafeReactions(res.data.reactions);
+                setMsgs(p => p.map(m => (String(m.id) === String(targetMsg.id) || (m.temp_id && targetMsg.temp_id && String(m.temp_id) === String(targetMsg.temp_id))) ? { ...m, reactions: conf } : m));
+              }
+            })
+            .catch(err => console.warn("REST reaction delete notice:", err?.message));
+        }
       }
     }
 
@@ -186,31 +271,43 @@ export default function Chat() {
 
   const handleMsgTouchStart = (e, msg) => {
     const touch = e.touches[0];
+    if (!touch) return;
     touchStartX.current = touch.clientX;
     touchStartY.current = touch.clientY;
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    isLongPressTriggered.current = false;
     setSwipingMsgId(msg.id);
 
-    // Long press (400ms) opens options menu on mobile
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    // Deliberate long press (500ms threshold) opens options menu on mobile (CHAT-011)
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
     longPressTimer.current = setTimeout(() => {
+      isLongPressTriggered.current = true;
       setContextMenuMsg({ msg, x: touch.clientX, y: touch.clientY, type: "options" });
-    }, 400);
+    }, 500);
   };
 
   const handleMsgTouchMove = (e) => {
     if (!swipingMsgId) return;
     const touch = e.touches[0];
+    if (!touch) return;
     const diffX = touch.clientX - touchStartX.current;
     const diffY = touch.clientY - touchStartY.current;
 
-    // If user moves finger, cancel long press
-    if ((Math.abs(diffX) > 10 || Math.abs(diffY) > 10) && longPressTimer.current) {
+    // Movement > 8px in any direction cancels deliberate long press immediately
+    if ((Math.abs(diffX) > 8 || Math.abs(diffY) > 8) && longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
 
-    if (diffX > 0 && diffX < 80) { // Max 80px swipe right
+    // Only swipe right if horizontal movement dominates vertical movement (prevent accidental swipe while scrolling)
+    if (diffX > 0 && diffX < 80 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
       setSwipeOffset(diffX);
+    } else if (Math.abs(diffY) > 10) {
+      // User is scrolling vertically
+      setSwipeOffset(0);
     }
   };
 
@@ -224,6 +321,26 @@ export default function Chat() {
     }
     setSwipingMsgId(null);
     setSwipeOffset(0);
+
+    if (isLongPressTriggered.current) {
+      // Prevent synthetic click event from firing after touch release
+      if (e && typeof e.preventDefault === 'function' && e.cancelable) {
+        e.preventDefault();
+      }
+      setTimeout(() => {
+        isLongPressTriggered.current = false;
+      }, 350);
+    }
+  };
+
+  const handleMsgTouchCancel = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    setSwipingMsgId(null);
+    setSwipeOffset(0);
+    isLongPressTriggered.current = false;
   };
 
   const handleContextMenu = (e, msg) => {
@@ -261,15 +378,16 @@ export default function Chat() {
   /* ── data + websocket + auto-sync engine ─────────────────── */
   const syncMessages = async (forcePk = null) => {
     try {
-      const sk = localStorage.getItem('paxly_sk');
-      let cachedP = null;
-      try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
-      const pk = forcePk || partner?.public_key || cachedP?.public_key;
+      const sk = safeGetItem('paxly_sk');
+      const pk = forcePk || getPartnerPublicKey();
       
-      const data = await getMessages(0, 100);
+      const data = await getMessages(0, 50);
       if (!Array.isArray(data)) {
         setLoadingHistory(false);
         return;
+      }
+      if (data.length < 50) {
+        setHasMore(false);
       }
 
       const sorted = [...data].sort((a, b) => parseSafeDate(a.timestamp).getTime() - parseSafeDate(b.timestamp).getTime());
@@ -295,7 +413,12 @@ export default function Chat() {
         prev.forEach(m => {
           const msgTime = parseSafeDate(m.timestamp).getTime();
 
-          if (m.isOptimistic) {
+          if (m.failed) {
+            // Retain failed messages so user can see failure and retry
+            if (!msgMap.has(m.id)) {
+              msgMap.set(m.id, m);
+            }
+          } else if (m.isOptimistic) {
             // Expire truly stale optimistic messages only after 90 seconds
             if (now - msgTime > 90000) return;
 
@@ -303,6 +426,12 @@ export default function Chat() {
             const alreadySynced = decryptedMsgs.some(s => {
               if (s.id === m.id) return true;
               if (s.temp_id && (s.temp_id === m.id || s.temp_id === m.temp_id)) return true;
+              if (String(s.sender_id) === String(user?.id) && s.message_type === m.message_type) {
+                if (s.message_type === 'text' && (s.text === m.text || s.text === m.rawText)) {
+                  const diff = Math.abs(parseSafeDate(m.timestamp).getTime() - parseSafeDate(s.timestamp).getTime());
+                  return diff < 60000;
+                }
+              }
               return false;
             });
 
@@ -311,9 +440,12 @@ export default function Chat() {
               msgMap.set(m.id, m);
             }
           } else {
-            // Retain recent confirmed messages (< 2 minutes old) in case server query lag hasn't caught up
+            // Retain older historical messages outside the sync window (loaded via pagination, CHAT-012),
+            // or recent confirmed messages (< 2 minutes old) in case server query lag hasn't caught up
             if (!msgMap.has(m.id)) {
-              if (now - msgTime < 120000) {
+              const oldestSyncedTime = decryptedMsgs.length > 0 ? parseSafeDate(decryptedMsgs[0].timestamp).getTime() : 0;
+              const isOlderThanSyncWindow = oldestSyncedTime > 0 && msgTime < oldestSyncedTime;
+              if (isOlderThanSyncWindow || now - msgTime < 120000) {
                 msgMap.set(m.id, m);
               }
             } else {
@@ -348,7 +480,9 @@ export default function Chat() {
           return prev;
         }
 
-        localStorage.setItem('cached_messages', JSON.stringify(merged));
+        if (currentUserId && currentSpaceId) {
+          setScopedCachedMessages(currentUserId, currentSpaceId, merged);
+        }
         return merged;
       });
       setLoadingHistory(false);
@@ -358,9 +492,83 @@ export default function Chat() {
     }
   };
 
+  const loadOlderMessages = async () => {
+    if (loadingOlderRef.current || !hasMore) return;
+    
+    // Find the oldest confirmed message currently in state to paginate backward (CHAT-012)
+    const confirmed = msgs.filter(m => !m.isOptimistic && !m.failed);
+    const oldestMsg = confirmed[0];
+    if (!oldestMsg) {
+      setHasMore(false);
+      return;
+    }
+
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    setLoadOlderError(null);
+
+    try {
+      const sk = safeGetItem('paxly_sk');
+      const pk = getPartnerPublicKey();
+      
+      const scrollEl = scrollRef.current;
+      const prevScrollHeight = scrollEl ? scrollEl.scrollHeight : 0;
+
+      // Request next batch of older messages using cursor-based before parameter
+      const olderData = await getMessages(0, 50, oldestMsg.id);
+      if (!Array.isArray(olderData) || olderData.length === 0) {
+        setHasMore(false);
+        return;
+      }
+
+      if (olderData.length < 50) {
+        setHasMore(false);
+      }
+
+      const decryptedOlder = [];
+      for (const m of olderData) {
+        m.reactions = parseSafeReactions(m.reactions);
+        if (m.text && sk && pk) {
+          try {
+            m.text = decryptMessage(m.text, sk, pk);
+          } catch (e) {
+            console.warn("Decrypt error in loadOlderMessages:", e);
+          }
+        }
+        decryptedOlder.push(m);
+      }
+
+      setMsgs(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const freshOlder = decryptedOlder.filter(m => !existingIds.has(m.id));
+        if (freshOlder.length === 0) {
+          setHasMore(false);
+          return prev;
+        }
+        const merged = [...freshOlder, ...prev].sort((a, b) => 
+          parseSafeDate(a.timestamp).getTime() - parseSafeDate(b.timestamp).getTime()
+        );
+        return merged;
+      });
+
+      // Preserve scroll position: flex-direction: column-reverse preserves anchor automatically.
+      requestAnimationFrame(() => {
+        if (scrollEl && scrollEl.scrollHeight !== prevScrollHeight) {
+          // Additional safety check if needed
+        }
+      });
+    } catch (err) {
+      console.error("Failed to load older messages:", err);
+      setLoadOlderError("Failed to load older messages. Click to retry.");
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  };
+
   useEffect(() => {
-    const token = localStorage.getItem('ros_token');
-    const cachedSpace = JSON.parse(localStorage.getItem('cached_space') || '{}');
+    const token = safeGetItem('ros_token');
+    const cachedSpace = getScopedCachedSpace(currentUserId);
     const immediateSpaceId = space?.id || cachedSpace?.space?.id || user?.couple_space_id;
     if (token && immediateSpaceId && !wsService.isConnected()) {
       wsService.connect(token, immediateSpaceId);
@@ -369,9 +577,13 @@ export default function Chat() {
     getSpace()
       .then(d => {
         setPartner(d.partner);
-        localStorage.setItem('cached_partner', JSON.stringify(d.partner));
+        if (currentUserId && (d.id || currentSpaceId)) {
+          setScopedCachedPartner(currentUserId, d.id || currentSpaceId, d.partner);
+        }
         setSpace(d.space);
-        localStorage.setItem('cached_space', JSON.stringify(d));
+        if (currentUserId) {
+          setScopedCachedSpace(currentUserId, d);
+        }
         if (token && d?.space?.id) {
           wsService.connect(token, d.space.id);
         }
@@ -391,22 +603,42 @@ export default function Chat() {
     window.addEventListener('focus', onFocusSync);
     document.addEventListener('visibilitychange', onFocusSync);
 
+    const onScrollCancel = () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+      if (tapTimeout.current) {
+        clearTimeout(tapTimeout.current);
+        tapTimeout.current = null;
+      }
+    };
+    window.addEventListener('scroll', onScrollCancel, { passive: true });
+
     const offs = [
       wsService.on('connected', () => syncMessages()),
       wsService.on('chat_message', msg => {
         if (String(msg.sender_id) !== String(user?.id)) {
           handlePartnerTyping(false);
         }
-        const sk = localStorage.getItem('paxly_sk');
-        let cachedP = null;
-        try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
-        const pk = partner?.public_key || cachedP?.public_key;
+        const sk = safeGetItem('paxly_sk');
+        const pk = getPartnerPublicKey();
         
         // Ensure msg object has 'id' property (backend sends 'message_id')
         if (msg.message_id && !msg.id) {
           msg.id = msg.message_id;
         }
         msg.reactions = parseSafeReactions(msg.reactions);
+
+        // Cancel any pending REST fallback timers for this message
+        if (msg.temp_id && pendingSendsRef.current.has(msg.temp_id)) {
+          const pending = pendingSendsRef.current.get(msg.temp_id);
+          if (pending?.timer) clearTimeout(pending.timer);
+          pendingSendsRef.current.delete(msg.temp_id);
+        }
+        if (msg.temp_id) {
+          wsService.dequeue(msg.temp_id);
+        }
 
         setMsgs(p => {
           const isOwn = String(msg.sender_id) === String(user?.id);
@@ -420,20 +652,20 @@ export default function Chat() {
             }
           }
 
-          // Check if this incoming message matches any optimistic message
+          // Check if this incoming message matches any optimistic or failed message
           const optIdx = p.findIndex(m => {
-            if (!m.isOptimistic) return false;
+            if (!m.isOptimistic && !m.failed) return false;
+            // Primary authoritative match: stable temporary ID
             if (msg.temp_id && (m.id === msg.temp_id || m.temp_id === msg.temp_id)) return true;
             if (isOwn) {
               if (m.message_type !== msg.message_type) return false;
+              // For audio and video, never do fuzzy diff matching; always require exact temp_id
               if (m.message_type === 'text') {
-                return m.text === decryptedText || m.text === msg.text;
+                if (m.text === decryptedText || m.text === msg.text) {
+                  const diff = Math.abs(parseSafeDate(m.timestamp).getTime() - parseSafeDate(msg.timestamp || Date.now()).getTime());
+                  return diff < 30000;
+                }
               }
-              if (msg.media_url && m.media_url) {
-                return m.media_url === msg.media_url || m.media_url.includes(msg.media_url) || msg.media_url.includes(m.media_url);
-              }
-              const diff = Math.abs(parseSafeDate(m.timestamp).getTime() - parseSafeDate(msg.timestamp || Date.now()).getTime());
-              return diff < 30000;
             }
             return false;
           });
@@ -441,13 +673,19 @@ export default function Chat() {
           if (optIdx !== -1) {
             const newMsgs = [...p];
             const optMsg = newMsgs[optIdx];
+            if (optMsg._blobUrl) {
+              setTimeout(() => {
+                try { URL.revokeObjectURL(optMsg._blobUrl); } catch {}
+              }, 5000);
+            }
             newMsgs[optIdx] = {
               ...msg,
               temp_id: optMsg.temp_id || msg.temp_id,
               text: optMsg.text || decryptedText, // preserve already decrypted/plaintext
-              media_url: optMsg.media_url || msg.media_url, // keep local objectUrl if present
+              media_url: msg.media_url || optMsg.media_url, // prefer confirmed remote URL
               reactions: Object.keys(parseSafeReactions(msg.reactions)).length > 0 ? parseSafeReactions(msg.reactions) : parseSafeReactions(optMsg.reactions),
-              isOptimistic: false
+              isOptimistic: false,
+              failed: false
             };
 
             // Deduplicate: remove any other duplicate of msg.id if present
@@ -469,18 +707,28 @@ export default function Chat() {
             return deduplicated;
           }
 
-          // If no optimistic match, check if msg.id is already present
-          if (p.some(m => m.id === msg.id)) {
+          // If no optimistic match, check if msg.id or non-optimistic temp_id is already present
+          if (p.some(m => m.id === msg.id || (msg.temp_id && m.temp_id === msg.temp_id && !m.isOptimistic))) {
             return p;
           }
 
           const finalMsg = {
             ...msg,
             text: isOwn ? (msg.text || decryptedText) : decryptedText,
-            isOptimistic: false
+            isOptimistic: false,
+            failed: false
           };
           return [...p, finalMsg];
         });
+      }),
+      wsService.on('chat_message_error', d => {
+        if (!d?.temp_id) return;
+        if (pendingSendsRef.current.has(d.temp_id)) {
+          const pending = pendingSendsRef.current.get(d.temp_id);
+          if (pending?.timer) clearTimeout(pending.timer);
+          pendingSendsRef.current.delete(d.temp_id);
+        }
+        setMsgs(prev => prev.map(m => (m.id === d.temp_id || m.temp_id === d.temp_id) ? { ...m, isOptimistic: false, failed: true } : m));
       }),
       wsService.on('typing', d => { if (d.user_id !== user?.id) handlePartnerTyping(d.is_typing); }),
       wsService.on('presence', d => { if (d.user_id !== user?.id) setPartnerOnline(d.online); }),
@@ -519,7 +767,9 @@ export default function Chat() {
           }
 
           const updated = p.map(m => (String(m.id) === String(d.message_id) || (m.temp_id && String(m.temp_id) === String(d.message_id))) ? { ...m, reactions: nextReactions } : m);
-          localStorage.setItem('cached_messages', JSON.stringify(updated));
+          if (currentUserId && currentSpaceId) {
+            setScopedCachedMessages(currentUserId, currentSpaceId, updated);
+          }
           return updated;
         });
       }),
@@ -529,10 +779,8 @@ export default function Chat() {
       }),
       wsService.on('message_edited', d => {
         if (!d || !d.message_id) return;
-        const sk = localStorage.getItem('paxly_sk');
-        let cachedP = null;
-        try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
-        const pk = partner?.public_key || cachedP?.public_key;
+        const sk = safeGetItem('paxly_sk');
+        const pk = getPartnerPublicKey();
         let newText = d.text;
         if (newText && sk && pk) {
           try {
@@ -555,15 +803,65 @@ export default function Chat() {
         if (d.sender_id !== user?.id)
           setSaveRequest({ from: partner?.name || 'Partner', ...d });
       }),
-      wsService.on('media_save_response', d => {
-        if (d.sender_id !== user?.id) {
-          setRequestingSave(false);
-          if (d.allowed) {
-            const a = document.createElement('a');
-            a.href = d.media_url;
-            a.download = `vlynxly_${Date.now()}`;
-            a.click();
-          } else alert('Save request denied by partner.');
+      wsService.on('media_save_response', async d => {
+        setRequestingSave(false);
+        if (!d || !d.allowed) {
+          alert('Save request denied by partner.');
+          return;
+        }
+
+        try {
+          const targetMsg = (pendingSaveMsgRef.current && (String(pendingSaveMsgRef.current.id) === String(d.message_id) || !d.message_id))
+            ? pendingSaveMsgRef.current
+            : msgs.find(m => String(m.id) === String(d.message_id));
+
+          const rawUrl = d.media_url || targetMsg?.media_url;
+          if (!rawUrl) {
+            alert('Failed to save media: Media URL not found.');
+            return;
+          }
+
+          const token = safeGetItem('ros_token');
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+          const res = await fetch(fixUrl(rawUrl), { headers });
+          if (!res.ok) {
+            throw new Error(`Download failed with status ${res.status}`);
+          }
+          let blob = await res.blob();
+
+          let encryptionKey = null;
+          if (targetMsg?.text && targetMsg.text.startsWith('E2EE_KEY:')) {
+            encryptionKey = targetMsg.text.substring(9);
+          }
+          if (encryptionKey) {
+            blob = await decryptMediaBlob(blob, encryptionKey);
+          }
+
+          let ext = 'bin';
+          const mime = blob.type || '';
+          if (mime.includes('image/png')) ext = 'png';
+          else if (mime.includes('image/jpeg') || mime.includes('image/jpg')) ext = 'jpg';
+          else if (mime.includes('image/webp')) ext = 'webp';
+          else if (mime.includes('image/gif')) ext = 'gif';
+          else if (mime.includes('video/mp4')) ext = 'mp4';
+          else if (mime.includes('video/webm')) ext = 'webm';
+          else if (mime.includes('audio/webm') || mime.includes('audio/ogg')) ext = 'webm';
+          else if (mime.includes('audio/mp4') || mime.includes('audio/m4a')) ext = 'm4a';
+          else if (targetMsg?.message_type === 'image') ext = 'jpg';
+          else if (targetMsg?.message_type === 'video') ext = 'mp4';
+          else if (targetMsg?.message_type === 'audio') ext = 'webm';
+
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objectUrl;
+          a.download = `vlynxly_${Date.now()}.${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 3000);
+        } catch (err) {
+          console.error('Approved media download failed:', err);
+          alert(`Failed to save media: ${err.message || 'Decryption error'}`);
         }
       }),
       wsService.on('capture_detected', d => {
@@ -579,20 +877,26 @@ export default function Chat() {
     return () => {
       clearInterval(syncInterval);
       if (tapTimeout.current) clearTimeout(tapTimeout.current);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
       window.removeEventListener('focus', onFocusSync);
       document.removeEventListener('visibilitychange', onFocusSync);
+      window.removeEventListener('scroll', onScrollCancel);
       offs.forEach(f => f());
     };
   }, [user?.id]);
 
   /* ── sync local cache ─────────────────────────────────────── */
   useEffect(() => {
-    localStorage.setItem('cached_messages', JSON.stringify(msgs));
-  }, [msgs]);
+    if (currentUserId && currentSpaceId) {
+      setScopedCachedMessages(currentUserId, currentSpaceId, msgs);
+    }
+  }, [msgs, currentUserId, currentSpaceId]);
 
   useEffect(() => {
-    localStorage.setItem('chat_draft', text);
-  }, [text]);
+    if (currentUserId && currentSpaceId) {
+      setScopedChatDraft(currentUserId, currentSpaceId, text);
+    }
+  }, [text, currentUserId, currentSpaceId]);
 
   /* ── auto scroll ──────────────────────────────────────────── */
   const prevMsgsLength = useRef(0);
@@ -662,10 +966,8 @@ export default function Chat() {
       const targetId = editingMsg.id;
       setSending(true);
 
-      const sk = localStorage.getItem('paxly_sk');
-      let cachedP = null;
-      try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
-      const pk = partner?.public_key || cachedP?.public_key;
+      const sk = safeGetItem('paxly_sk');
+      const pk = getPartnerPublicKey();
       let payloadText = rawText;
       if (sk && pk) {
         payloadText = encryptMessage(rawText, sk, pk);
@@ -715,6 +1017,7 @@ export default function Chat() {
       reply_to_id: replyingTo?.id || null,
       timestamp: new Date().toISOString(),
       isOptimistic: true,
+      failed: false,
       reactions: {}
     };
 
@@ -727,10 +1030,8 @@ export default function Chat() {
     }
     setMsgs(p => [...p, tempMsg]);
 
-    const sk = localStorage.getItem('paxly_sk');
-    let cachedP = null;
-    try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
-    const pk = partner?.public_key || cachedP?.public_key;
+    const sk = safeGetItem('paxly_sk');
+    const pk = getPartnerPublicKey();
     let payloadText = rawText;
     if (sk && pk) {
        payloadText = encryptMessage(rawText, sk, pk);
@@ -740,46 +1041,118 @@ export default function Chat() {
     const sendViaRest = () => {
       if (delivered) return;
       delivered = true;
+      pendingSendsRef.current.delete(tempId);
       api.post('/chat/messages', {
         text: payloadText,
         message_type: 'text',
         reply_to_id: replyingTo?.id || null,
         temp_id: tempId
       }).then(res => {
+        wsService.dequeue(tempId);
         setMsgs(prev => {
-          const exists = prev.some(m => m.id === res.data.id);
+          const exists = prev.some(m => m.id === res.data.id || (m.temp_id === tempId && !m.isOptimistic && !m.failed));
           if (exists) {
             return prev.filter(m => m.id !== tempId);
           }
-          return prev.map(m => (m.id === tempId ? { ...res.data, temp_id: tempId, text: rawText, isOptimistic: false } : m));
+          return prev.map(m => (m.id === tempId || m.temp_id === tempId ? { ...res.data, temp_id: tempId, text: rawText, isOptimistic: false, failed: false } : m));
         });
       }).catch(err => {
         console.error("REST message delivery fallback error:", err);
+        setMsgs(prev => prev.map(m => (m.id === tempId || m.temp_id === tempId) ? { ...m, isOptimistic: false, failed: true } : m));
       });
     };
 
     if (wsService.isConnected()) {
       wsService.sendMessage(payloadText, 'text', null, false, 1, replyingTo?.id, tempId);
-      // Safety net: if WebSocket confirmation does not arrive within 2.5s, fallback to REST
-      setTimeout(() => {
+      // Safety net: if WebSocket confirmation does not arrive within 3.5s, fallback to REST
+      const fallbackTimer = setTimeout(() => {
         setMsgs(current => {
-          const opt = current.find(m => m.id === tempId && m.isOptimistic);
-          if (opt && !delivered) {
-            console.warn("⚠️ WebSocket send unconfirmed after 2.5s, sending REST fallback for", tempId);
+          const opt = current.find(m => (m.id === tempId || m.temp_id === tempId) && m.isOptimistic);
+          if (opt && !delivered && pendingSendsRef.current.has(tempId)) {
+            console.warn("⚠️ WebSocket send unconfirmed after 3.5s, sending REST fallback for", tempId);
             sendViaRest();
           }
           return current;
         });
-      }, 2500);
+      }, 3500);
+      pendingSendsRef.current.set(tempId, { timer: fallbackTimer });
     } else {
       sendViaRest();
       // Try to re-establish WebSocket connection immediately
-      const token = localStorage.getItem('ros_token');
-      const cachedSpace = JSON.parse(localStorage.getItem('cached_space') || '{}');
+      const token = safeGetItem('ros_token');
+      const cachedSpace = getScopedCachedSpace(currentUserId);
       const spaceId = space?.id || cachedSpace?.space?.id || user?.couple_space_id;
       if (token && spaceId) {
         wsService.connect(token, spaceId);
       }
+    }
+  };
+
+  const retryMessage = (msg) => {
+    if (!msg) return;
+    const targetTempId = msg.temp_id || msg.id;
+
+    if (msg.message_type === 'audio' && (msg._audioBlob || (msg.media_url && msg.media_url.startsWith('blob:')))) {
+      const blob = msg._audioBlob;
+      if (blob) {
+        setMsgs(prev => prev.filter(m => m.id !== targetTempId && m.temp_id !== targetTempId));
+        sendVoiceNote(blob);
+        return;
+      }
+    }
+
+    setMsgs(prev => prev.map(m => (m.id === targetTempId || m.temp_id === targetTempId) ? { ...m, isOptimistic: true, failed: false } : m));
+
+    const sk = safeGetItem('paxly_sk');
+    const pk = getPartnerPublicKey();
+    let payloadText = msg.text || '';
+    if (sk && pk && !payloadText.startsWith('E2EE_KEY:')) {
+      try {
+        payloadText = encryptMessage(payloadText, sk, pk);
+      } catch {}
+    }
+
+    if (wsService.isConnected()) {
+      wsService.sendMessage(payloadText, msg.message_type || 'text', msg.media_url || null, msg.is_once_view || false, msg.view_limit || 1, msg.reply_to_id || null, targetTempId);
+      const fallbackTimer = setTimeout(() => {
+        setMsgs(current => {
+          const opt = current.find(m => (m.id === targetTempId || m.temp_id === targetTempId) && m.isOptimistic);
+          if (opt && pendingSendsRef.current.has(targetTempId)) {
+            pendingSendsRef.current.delete(targetTempId);
+            api.post('/chat/messages', {
+              text: payloadText,
+              message_type: msg.message_type || 'text',
+              media_url: msg.media_url || null,
+              is_once_view: msg.is_once_view || false,
+              view_limit: msg.view_limit || 1,
+              reply_to_id: msg.reply_to_id || null,
+              temp_id: targetTempId
+            }).then(res => {
+              wsService.dequeue(targetTempId);
+              setMsgs(prev => prev.map(m => (m.id === targetTempId || m.temp_id === targetTempId) ? { ...res.data, temp_id: targetTempId, isOptimistic: false, failed: false } : m));
+            }).catch(() => {
+              setMsgs(prev => prev.map(m => (m.id === targetTempId || m.temp_id === targetTempId) ? { ...m, isOptimistic: false, failed: true } : m));
+            });
+          }
+          return current;
+        });
+      }, 3500);
+      pendingSendsRef.current.set(targetTempId, { timer: fallbackTimer });
+    } else {
+      api.post('/chat/messages', {
+        text: payloadText,
+        message_type: msg.message_type || 'text',
+        media_url: msg.media_url || null,
+        is_once_view: msg.is_once_view || false,
+        view_limit: msg.view_limit || 1,
+        reply_to_id: msg.reply_to_id || null,
+        temp_id: targetTempId
+      }).then(res => {
+        wsService.dequeue(targetTempId);
+        setMsgs(prev => prev.map(m => (m.id === targetTempId || m.temp_id === targetTempId) ? { ...res.data, temp_id: targetTempId, isOptimistic: false, failed: false } : m));
+      }).catch(err => {
+        setMsgs(prev => prev.map(m => (m.id === targetTempId || m.temp_id === targetTempId) ? { ...m, isOptimistic: false, failed: true } : m));
+      });
     }
   };
 
@@ -801,6 +1174,105 @@ export default function Chat() {
 
     setPendingFile(file);
     setShowingStudio(true); // Open Studio for preview instead of popup
+  };
+
+  const sendVoiceNote = async (blob) => {
+    if (!blob) return;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const localAudioUrl = URL.createObjectURL(blob);
+    const replyTargetId = replyingTo?.id || null;
+
+    // Instant optimistic update with playable local audio URL
+    const tempMsg = {
+      id: tempId,
+      temp_id: tempId,
+      sender_id: user?.id,
+      text: '',
+      message_type: 'audio',
+      media_url: localAudioUrl,
+      _blobUrl: localAudioUrl,
+      _audioBlob: blob,
+      reply_to_id: replyTargetId,
+      timestamp: new Date().toISOString(),
+      isOptimistic: true,
+      isUploading: true,
+      failed: false,
+      reactions: {}
+    };
+    setMsgs(p => [...p, tempMsg]);
+    setReplyingTo(null);
+
+    try {
+      const { encryptedBlob, symmetricKey } = await encryptMediaBlob(blob);
+      const file = new File([encryptedBlob], 'voice_note.webm', { type: 'audio/webm' });
+      const { media_url } = await uploadMedia(file);
+
+      const sk = safeGetItem('paxly_sk');
+      const pk = getPartnerPublicKey();
+      let rawKeyText = `E2EE_KEY:${symmetricKey}`;
+      let payloadText = rawKeyText;
+      if (sk && pk) {
+        payloadText = encryptMessage(rawKeyText, sk, pk);
+      }
+
+      setMsgs(prev => prev.map(m => (m.id === tempId || m.temp_id === tempId) ? { ...m, text: rawKeyText, isUploading: false } : m));
+
+      let voiceDelivered = false;
+      const sendVoiceViaRest = () => {
+        if (voiceDelivered) return;
+        voiceDelivered = true;
+        pendingSendsRef.current.delete(tempId);
+        api.post('/chat/messages', {
+          text: payloadText,
+          message_type: 'audio',
+          media_url: media_url,
+          is_once_view: false,
+          view_limit: 0,
+          reply_to_id: replyTargetId,
+          temp_id: tempId
+        }).then(res => {
+          wsService.dequeue(tempId);
+          setTimeout(() => { try { URL.revokeObjectURL(localAudioUrl); } catch {} }, 5000);
+          setMsgs(prev => {
+            const exists = prev.some(m => m.id === res.data.id || (m.temp_id === tempId && !m.isOptimistic && !m.failed));
+            if (exists) {
+              return prev.filter(m => m.id !== tempId);
+            }
+            return prev.map(m => (m.id === tempId || m.temp_id === tempId ? {
+              ...res.data,
+              temp_id: tempId,
+              text: rawKeyText,
+              media_url: res.data.media_url || media_url,
+              isOptimistic: false,
+              failed: false
+            } : m));
+          });
+        }).catch(err => {
+          console.error("REST voice delivery fallback error:", err);
+          setMsgs(prev => prev.map(m => (m.id === tempId || m.temp_id === tempId) ? { ...m, isOptimistic: false, failed: true, isUploading: false } : m));
+        });
+      };
+
+      if (wsService.isConnected()) {
+        wsService.sendMessage(payloadText, 'audio', media_url, false, 0, replyTargetId, tempId);
+        const fallbackTimer = setTimeout(() => {
+          setMsgs(current => {
+            const opt = current.find(m => (m.id === tempId || m.temp_id === tempId) && m.isOptimistic);
+            if (opt && !voiceDelivered && pendingSendsRef.current.has(tempId)) {
+              console.warn("⚠️ WebSocket voice send unconfirmed after 4s, sending REST fallback for", tempId);
+              sendVoiceViaRest();
+            }
+            return current;
+          });
+        }, 4000);
+        pendingSendsRef.current.set(tempId, { timer: fallbackTimer });
+      } else {
+        sendVoiceViaRest();
+      }
+    } catch (err) {
+      console.error("Failed to encrypt or upload voice note:", err);
+      setMsgs(prev => prev.map(m => (m.id === tempId || m.temp_id === tempId) ? { ...m, isOptimistic: false, failed: true, isUploading: false } : m));
+    }
   };
 
   const startVoiceRecord = async (e) => {
@@ -838,31 +1310,7 @@ export default function Chat() {
             setRecordState('preview');
           } else if (action === 'send') {
             setRecordState('idle');
-            setSending(true);
-            const { encryptedBlob, symmetricKey } = await encryptMediaBlob(blob);
-            const file = new File([encryptedBlob], 'voice_note.webm', { type: 'audio/webm' });
-            const { media_url } = await uploadMedia(file);
-            
-            const sk = localStorage.getItem('paxly_sk');
-            let cachedP = null;
-            try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
-            const pk = partner?.public_key || cachedP?.public_key;
-            let payloadText = `E2EE_KEY:${symmetricKey}`;
-            if (sk && pk) {
-               payloadText = encryptMessage(payloadText, sk, pk);
-            }
-            if (wsService.isConnected()) {
-              wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
-            } else {
-              api.post('/chat/messages', {
-                text: payloadText,
-                message_type: 'audio',
-                media_url: media_url,
-                is_once_view: false,
-                view_limit: 0
-              }).catch(e => console.error("REST voice save error:", e));
-            }
-            setSending(false);
+            sendVoiceNote(blob);
           }
         } else {
           setRecordState('idle');
@@ -918,40 +1366,13 @@ export default function Chat() {
     }
   };
 
-  const sendPreviewVoiceRecord = async () => {
+  const sendPreviewVoiceRecord = () => {
     if (!audioPreviewBlob) return;
-    if (!wsService.ws || wsService.ws.readyState !== WebSocket.OPEN) {
-      alert("Chat is reconnecting... Cannot send voice note right now.");
-      return;
-    }
-    setSending(true);
-    setRecordState('idle');
-    try {
-      const { encryptedBlob, symmetricKey } = await encryptMediaBlob(audioPreviewBlob);
-      const file = new File([encryptedBlob], 'voice_note.webm', { type: 'audio/webm' });
-      const { media_url } = await uploadMedia(file);
-      
-      const sk = localStorage.getItem('paxly_sk');
-      const pk = partner?.public_key;
-      let payloadText = `E2EE_KEY:${symmetricKey}`;
-      if (sk && pk) {
-         payloadText = encryptMessage(payloadText, sk, pk);
-      }
-      if (wsService.isConnected()) {
-        wsService.sendMessage(payloadText, 'audio', media_url, false, 0);
-      } else {
-        api.post('/chat/messages', {
-          text: payloadText,
-          message_type: 'audio',
-          media_url: media_url,
-          is_once_view: false,
-          view_limit: 0
-        }).catch(e => console.error("REST preview voice save error:", e));
-      }
-    } catch (err) {}
+    const blob = audioPreviewBlob;
     setAudioPreviewBlob(null);
     setAudioPreviewUrl(null);
-    setSending(false);
+    setRecordState('idle');
+    sendVoiceNote(blob);
   };
 
   const sendLockedVoiceRecord = () => {
@@ -1012,10 +1433,8 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
       }
       const type = isVid ? 'video' : 'image';
       
-      const sk = localStorage.getItem('paxly_sk');
-      let cachedP = null;
-      try { cachedP = JSON.parse(localStorage.getItem('cached_partner') || '{}'); } catch {}
-      const pk = partner?.public_key || cachedP?.public_key;
+      const sk = safeGetItem('paxly_sk');
+      const pk = getPartnerPublicKey();
       let payloadText = `E2EE_KEY:${symmetricKey}`;
       if (sk && pk) {
          payloadText = encryptMessage(payloadText, sk, pk);
@@ -1025,6 +1444,7 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
       const sendMediaViaRest = () => {
         if (mediaDelivered) return;
         mediaDelivered = true;
+        pendingSendsRef.current.delete(tempMsg.id);
         api.post('/chat/messages', {
           text: payloadText,
           message_type: type,
@@ -1034,28 +1454,33 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
           reply_to_id: replyingTo?.id || null,
           temp_id: tempMsg.id
         }).then(res => {
+          wsService.dequeue(tempMsg.id);
           setMsgs(prev => {
-            const exists = prev.some(m => m.id === res.data.id);
+            const exists = prev.some(m => m.id === res.data.id || (m.temp_id === tempMsg.id && !m.isOptimistic && !m.failed));
             if (exists) {
               return prev.filter(m => m.id !== tempMsg.id);
             }
-            return prev.map(m => (m.id === tempMsg.id ? { ...res.data, temp_id: tempMsg.id, isOptimistic: false, media_url: tempMsg.media_url } : m));
+            return prev.map(m => (m.id === tempMsg.id || m.temp_id === tempMsg.id ? { ...res.data, temp_id: tempMsg.id, isOptimistic: false, failed: false, media_url: tempMsg.media_url } : m));
           });
-        }).catch(e => console.error("REST media save error:", e));
+        }).catch(e => {
+          console.error("REST media save error:", e);
+          setMsgs(prev => prev.map(m => (m.id === tempMsg.id || m.temp_id === tempMsg.id) ? { ...m, isOptimistic: false, failed: true } : m));
+        });
       };
 
       if (wsService.isConnected()) {
         wsService.sendMessage(payloadText, type, finalUrl, isOnceView, limit, replyingTo?.id, tempMsg.id);
-        setTimeout(() => {
+        const fallbackTimer = setTimeout(() => {
           setMsgs(current => {
-            const opt = current.find(m => m.id === tempMsg.id && m.isOptimistic);
-            if (opt && !mediaDelivered) {
-              console.warn("⚠️ WebSocket media send unconfirmed after 3s, sending REST fallback for", tempMsg.id);
+            const opt = current.find(m => (m.id === tempMsg.id || m.temp_id === tempMsg.id) && m.isOptimistic);
+            if (opt && !mediaDelivered && pendingSendsRef.current.has(tempMsg.id)) {
+              console.warn("⚠️ WebSocket media send unconfirmed after 4s, sending REST fallback for", tempMsg.id);
               sendMediaViaRest();
             }
             return current;
           });
-        }, 3000);
+        }, 4000);
+        pendingSendsRef.current.set(tempMsg.id, { timer: fallbackTimer });
       } else {
         sendMediaViaRest();
       }
@@ -1089,11 +1514,13 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
   const updateTheme = async id => {
     // Optimistic update — change instantly in UI
     setSpace(p => ({ ...p, theme_id: id, chat_wallpaper: null }));
-    // Also persist to localStorage so it survives refresh
+    // Also persist to scoped cache so it survives refresh
     try {
-      const cached = JSON.parse(localStorage.getItem('cached_space') || '{}');
-      cached.space = { ...(cached.space || {}), theme_id: id, chat_wallpaper: null };
-      localStorage.setItem('cached_space', JSON.stringify(cached));
+      if (currentUserId) {
+        const cached = getScopedCachedSpace(currentUserId) || {};
+        cached.space = { ...(cached.space || {}), theme_id: id, chat_wallpaper: null };
+        setScopedCachedSpace(currentUserId, cached);
+      }
     } catch {}
     // Save to server (best-effort)
     try {
@@ -1104,14 +1531,59 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
   };
   const updateWallpaper = url => setSpace(p => ({ ...p, theme_id: 'custom', chat_wallpaper: url }));
 
+  const downloadMediaDirect = async (msg) => {
+    try {
+      const rawUrl = msg.media_url;
+      if (!rawUrl) return;
+      const token = safeGetItem('ros_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(fixUrl(rawUrl), { headers });
+      if (!res.ok) throw new Error(`Download failed with status ${res.status}`);
+      let blob = await res.blob();
+      let encryptionKey = null;
+      if (msg.text && msg.text.startsWith('E2EE_KEY:')) {
+        encryptionKey = msg.text.substring(9);
+      }
+      if (encryptionKey) {
+        blob = await decryptMediaBlob(blob, encryptionKey);
+      }
+      let ext = 'bin';
+      const mime = blob.type || '';
+      if (mime.includes('image/png')) ext = 'png';
+      else if (mime.includes('image/jpeg') || mime.includes('image/jpg')) ext = 'jpg';
+      else if (mime.includes('image/webp')) ext = 'webp';
+      else if (mime.includes('image/gif')) ext = 'gif';
+      else if (mime.includes('video/mp4')) ext = 'mp4';
+      else if (mime.includes('video/webm')) ext = 'webm';
+      else if (mime.includes('audio/webm') || mime.includes('audio/ogg')) ext = 'webm';
+      else if (mime.includes('audio/mp4') || mime.includes('audio/m4a')) ext = 'm4a';
+      else if (msg.message_type === 'image') ext = 'jpg';
+      else if (msg.message_type === 'video') ext = 'mp4';
+      else if (msg.message_type === 'audio') ext = 'webm';
+
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `vlynxly_${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 3000);
+    } catch (err) {
+      console.error('Direct media download failed:', err);
+      alert(`Failed to download media: ${err.message || 'Decryption error'}`);
+    }
+  };
+
   const requestSave = msg => {
     if (msg.sender_id === user?.id) return;
+    pendingSaveMsgRef.current = msg;
     setRequestingSave(true);
     wsService.sendMediaSaveRequest(msg.media_url, msg.id);
   };
   const respondSave = allowed => {
     if (!saveRequest) return;
-    wsService.sendMediaSaveResponse(saveRequest.sender_id, allowed, saveRequest.message_id);
+    wsService.sendMediaSaveResponse(saveRequest.sender_id, allowed, saveRequest.message_id, saveRequest.media_url);
     setSaveRequest(null);
   };
 
@@ -1124,13 +1596,7 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
       return '';
     }
   };
-  const fixUrl    = url => {
-    if (!url) return url;
-    if (url.includes('localhost') || url.includes('127.0.0.1'))
-      try { return (import.meta.env.VITE_API_URL || '') + new URL(url).pathname; } catch {}
-    if (url.startsWith('/')) return (import.meta.env.VITE_API_URL || '') + url;
-    return url;
-  };
+
 
   const activeThemeId = space?.theme_id || 'classic';
   const activeTheme   = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
@@ -1506,7 +1972,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         )}
 
         {/* E2EE Key Missing Notice Banner */}
-        {!localStorage.getItem('paxly_sk') && (
+        {!safeGetItem('paxly_sk') && (
           <div style={{
             margin: '8px 16px',
             padding: '10px 14px',
@@ -1524,9 +1990,9 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             <span>🔒 Key not initialized on this phone. Log in once to decrypt messages.</span>
             <button 
               onClick={() => {
-                localStorage.removeItem('ros_token');
-                localStorage.removeItem('ros_user');
-                localStorage.removeItem('paxly_sk');
+                safeRemoveItem('ros_token');
+                safeRemoveItem('ros_user');
+                safeRemoveItem('paxly_sk');
                 window.location.href = '/login';
               }}
               style={{
@@ -1547,7 +2013,32 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         )}
 
         {/* ── MESSAGES ─────────────────────────────────────── */}
-        <div className="chat-scroll" ref={scrollRef} style={ replyingTo ? { paddingBottom: '160px', transition: 'padding-bottom 0.2s ease' } : { transition: 'padding-bottom 0.2s ease' } }>
+        <div
+          className="chat-scroll"
+          ref={scrollRef}
+          onScroll={() => {
+            if (longPressTimer.current) {
+              clearTimeout(longPressTimer.current);
+              longPressTimer.current = null;
+            }
+            if (tapTimeout.current) {
+              clearTimeout(tapTimeout.current);
+              tapTimeout.current = null;
+            }
+            setSwipingMsgId(null);
+            setSwipeOffset(0);
+
+            // Auto-load older messages when user scrolls near the top (CHAT-012)
+            const el = scrollRef.current;
+            if (el && hasMore && !loadingOlderRef.current && !loadOlderError) {
+              const distanceFromTop = Math.abs(Math.abs(el.scrollTop) - (el.scrollHeight - el.clientHeight));
+              if (distanceFromTop < 200 || Math.abs(el.scrollTop) > (el.scrollHeight - el.clientHeight - 200)) {
+                loadOlderMessages();
+              }
+            }
+          }}
+          style={ replyingTo ? { paddingBottom: '160px', transition: 'padding-bottom 0.2s ease' } : { transition: 'padding-bottom 0.2s ease' } }
+        >
           <div ref={bottomRef} style={{ height:1, flexShrink:0 }} />
           
           {typing && (
@@ -1654,7 +2145,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       onTouchStart={(e) => handleMsgTouchStart(e, msg)}
                       onTouchMove={handleMsgTouchMove}
                       onTouchEnd={e => handleMsgTouchEnd(e, msg)}
+                      onTouchCancel={handleMsgTouchCancel}
                       onClick={(e) => {
+                        if (isLongPressTriggered.current) {
+                          if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                          if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+                          return;
+                        }
                         if (isSecure && !me && !isSpent && !isCompromised) {
                           handleSecureView(msg);
                           return;
@@ -1678,18 +2175,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           lastTapTime.current = 0;
                         } else {
                           lastTapTime.current = now;
-                          const r = e.currentTarget.getBoundingClientRect();
-                          const clickX = e.clientX || (r.left + r.width / 2);
-                          const clickY = e.clientY || r.top;
-                          if (tapTimeout.current) clearTimeout(tapTimeout.current);
-                          tapTimeout.current = setTimeout(() => {
-                            setContextMenuMsg({
-                              msg,
-                              x: clickX,
-                              y: clickY,
-                              type: "options"
-                            });
-                          }, 250);
+                          // Ordinary reading, tapping, and clicking leave context menu closed (CHAT-011).
                         }
                       }}
                       style={{
@@ -1766,6 +2252,14 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                       ) : (
                         <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
                           <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                          {!me && (
+                            <button
+                              onClick={e => { e.stopPropagation(); requestSave(msg); }}
+                              style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
+                            >
+                              <Icons.Download size={11} /> SAVE
+                            </button>
+                          )}
                         </MediaWrap>
                       ))}
 
@@ -1862,6 +2356,32 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                     fontWeight: 500
                   }}>
                     <span style={{ opacity: 0.65 }}>{ts(msg)}</span>
+                    {Boolean(msg.failed) ? (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); retryMessage(msg); }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                          fontSize: '0.64rem',
+                          fontWeight: 600,
+                          color: '#ff4d4f',
+                          cursor: 'pointer',
+                          background: 'rgba(255, 77, 79, 0.15)',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(255, 77, 79, 0.3)'
+                        }}
+                        title="Delivery failed. Tap to retry."
+                      >
+                        <Icons.AlertCircle size={10} color="#ff4d4f" />
+                        Failed (tap to retry)
+                      </span>
+                    ) : Boolean(msg.isOptimistic) ? (
+                      <span style={{ opacity: 0.6, fontStyle: 'italic', fontSize: '0.64rem' }}>
+                        sending...
+                      </span>
+                    ) : null}
                     {Boolean(msg.is_edited) && (
                       <span
                         style={{
@@ -1898,6 +2418,61 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
               </div>
             );
           }))}
+
+          {/* History Pagination Control (CHAT-012) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '14px 0', width: '100%', flexShrink: 0 }}>
+            {loadingOlder ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: activeTheme.accent || '#C9A96E', fontSize: '0.8rem', padding: '6px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '20px', backdropFilter: 'blur(10px)' }}>
+                <Icons.Loader size={15} className="spin" />
+                <span>Loading older messages...</span>
+              </div>
+            ) : loadOlderError ? (
+              <button
+                onClick={loadOlderMessages}
+                style={{
+                  background: 'rgba(255, 90, 60, 0.15)',
+                  border: '1px solid rgba(255, 90, 60, 0.4)',
+                  color: '#ff6b4a',
+                  borderRadius: '20px',
+                  padding: '6px 16px',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  backdropFilter: 'blur(10px)'
+                }}
+              >
+                <span>{loadOlderError}</span>
+              </button>
+            ) : hasMore ? (
+              <button
+                onClick={loadOlderMessages}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: `1px solid ${activeTheme.accent || '#C9A96E'}44`,
+                  color: activeTheme.accent || '#C9A96E',
+                  borderRadius: '20px',
+                  padding: '6px 18px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  backdropFilter: 'blur(10px)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Icons.Clock size={14} />
+                <span>Load older messages</span>
+              </button>
+            ) : msgs.length > 0 ? (
+              <div style={{ color: 'var(--muted)', fontSize: '0.72rem', opacity: 0.6, letterSpacing: 0.5, padding: '4px 0' }}>
+                ✨ Beginning of your conversation ✨
+              </div>
+            ) : null}
+          </div>
 
           {/* Removed typing and bottomRef from here */}
         </div>
@@ -2311,6 +2886,28 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         }
                       },
                     ];
+
+                    if (contextMenuMsg.msg.media_url && !contextMenuMsg.msg.is_once_view) {
+                      if (!isOwnMsg) {
+                        actionItems.push({
+                          icon: <Icons.Download size={18} />,
+                          label: 'Save Media',
+                          action: () => {
+                            requestSave(contextMenuMsg.msg);
+                            setContextMenuMsg(null);
+                          }
+                        });
+                      } else {
+                        actionItems.push({
+                          icon: <Icons.Download size={18} />,
+                          label: 'Download Media',
+                          action: () => {
+                            downloadMediaDirect(contextMenuMsg.msg);
+                            setContextMenuMsg(null);
+                          }
+                        });
+                      }
+                    }
 
                     return (
                       <>

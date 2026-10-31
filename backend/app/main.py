@@ -1,9 +1,10 @@
 # Deployment Trigger: Restore Gunicorn
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.background import BackgroundTasks
+from typing import Optional
 from contextlib import asynccontextmanager
 from app.api.routes import auth, couple, chat, mood, memories, explore, ai, notes, dates, bucket, shop, notifications, voice_notes, security, theatre, surprise, admin, payment, place_partner, calls, website, health
 import os
@@ -11,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from app.services.email_service import email_service
 from app.core.config import settings
 
-from app.core.database import connect_db, engine, Base, AsyncSessionLocal
+from app.core.database import connect_db, engine, Base, AsyncSessionLocal, get_db
 from app.models.orm import BannedIP
 from app.websocket.handler import router as ws_router
 from sqlalchemy.future import select
@@ -27,6 +28,7 @@ def _sqlite_column_migrations():
             "is_once_view": "BOOLEAN DEFAULT 0", "view_limit": "INTEGER DEFAULT 1",
             "views_used": "INTEGER DEFAULT 0", "is_compromised": "BOOLEAN DEFAULT 0",
             "is_edited": "BOOLEAN DEFAULT 0", "edited_at": "TIMESTAMP",
+            "temp_id": "VARCHAR",
         },
         "users": {
             "blur_sensitive": "BOOLEAN DEFAULT 0", "hide_activity": "BOOLEAN DEFAULT 0",
@@ -73,6 +75,22 @@ async def _migrate_sqlite(conn):
             if name not in existing:
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {definition}"))
     await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_aura_escalation_events_user_id ON aura_escalation_events (user_id)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_couple_space_temp_id ON messages (couple_space_id, temp_id)"))
+    await conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS media_cleanup_queue (
+            id VARCHAR PRIMARY KEY,
+            filename VARCHAR NOT NULL,
+            folder VARCHAR DEFAULT 'chat',
+            couple_space_id VARCHAR,
+            attempts INTEGER DEFAULT 0,
+            last_error TEXT,
+            status VARCHAR DEFAULT 'pending',
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        )
+    """))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_media_cleanup_filename ON media_cleanup_queue (filename)"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_media_cleanup_status ON media_cleanup_queue (status)"))
 
 
 async def _migrate_postgresql(conn):
@@ -87,6 +105,11 @@ async def _migrate_postgresql(conn):
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_compromised BOOLEAN DEFAULT FALSE",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT FALSE",
         "ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS temp_id VARCHAR",
+        "CREATE INDEX IF NOT EXISTS ix_messages_couple_space_temp_id ON messages (couple_space_id, temp_id)",
+        "CREATE TABLE IF NOT EXISTS media_cleanup_queue (id VARCHAR PRIMARY KEY, filename VARCHAR NOT NULL, folder VARCHAR DEFAULT 'chat', couple_space_id VARCHAR, attempts INTEGER DEFAULT 0, last_error TEXT, status VARCHAR DEFAULT 'pending', created_at TIMESTAMP, updated_at TIMESTAMP)",
+        "CREATE INDEX IF NOT EXISTS ix_media_cleanup_filename ON media_cleanup_queue (filename)",
+        "CREATE INDEX IF NOT EXISTS ix_media_cleanup_status ON media_cleanup_queue (status)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS blur_sensitive BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS hide_activity BOOLEAN DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS stealth_mode BOOLEAN DEFAULT FALSE",
@@ -137,12 +160,26 @@ async def _initialize_database_schema(conn):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 0. Startup Security & Configuration Validation
-    try:
-        get_cipher(force_reload=True)
-    except Exception as e:
-        print(f"[WARNING STARTUP ENCRYPTION] Fallback key active: {e}")
-
+    from app.websocket.manager import manager
+    topo = manager.check_worker_topology()
+    if topo["mode"] == "single_worker":
+        print("[TOPOLOGY] WebSocket worker topology: Single-worker mode enforced (WEB_CONCURRENCY=1). In-memory delivery is safe.")
+    elif topo["mode"] == "multi_worker_broker":
+        print("[TOPOLOGY] WebSocket worker topology: Multi-worker mode with shared broker active.")
+    else:
+        print(f"[TOPOLOGY WARNING] Multiple workers detected (WEB_CONCURRENCY={topo['concurrency']}) without REDIS_URL. WebSocket messages between partners on separate workers will not synchronize in real-time. Set WEB_CONCURRENCY=1 or configure REDIS_URL.")
     is_prod = getattr(settings, "ENVIRONMENT", "").lower() == "production"
+    if is_prod:
+        try:
+            get_cipher(force_reload=True)
+        except Exception as e:
+            print(f"[FATAL STARTUP ENCRYPTION ERROR] {e}")
+            raise RuntimeError(f"Application startup rejected due to unsafe configuration: {e}") from e
+    else:
+        try:
+            get_cipher(force_reload=True)
+        except Exception as e:
+            print(f"[WARNING STARTUP ENCRYPTION] Fallback key active: {e}")
 
     # Enforce or warn on SECRET_KEY in production
     insecure_keys = {"change-this-secret-key", "secret", "default", "changeme", "password"}
@@ -354,6 +391,134 @@ app.include_router(place_partner.router, prefix="/api")
 app.include_router(calls.router, prefix="/api")
 app.include_router(website.router, prefix="/api")
 app.include_router(ws_router)
+
+async def _verify_media_access(
+    filename: str,
+    folder: str,
+    token: Optional[str],
+    authorization: Optional[str],
+    db: AsyncSession
+) -> str:
+    # 1. Path traversal defense
+    if not filename or ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=404, detail="Media not found.")
+
+    # 2. Extract Bearer or query token
+    raw_token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        raw_token = authorization.split(" ", 1)[1].strip()
+    elif token:
+        raw_token = token.strip()
+
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Authentication required to access private chat media.")
+
+    # 3. Validate token
+    try:
+        from jose import jwt
+        payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid authentication token.")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired authentication token.")
+
+    # 4. Resolve authenticated user and couple space
+    from app.models.orm import User, Message, VoiceNote, Memory, CoupleSpace, MediaCleanupQueue
+    from app.api.routes.chat import resolve_and_sync_space
+    from sqlalchemy import or_
+
+    u_res = await db.execute(select(User).filter(User.id == user_id))
+    user = u_res.scalars().first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found.")
+
+    space, _ = await resolve_and_sync_space(user, db)
+    space_id = space.id if space else user.couple_space_id
+
+    if not space_id:
+        raise HTTPException(status_code=404, detail="Media not found.")
+
+    # 5. Check couple space authorization and deletion status
+    is_authorized = False
+
+    # Check messages in user's couple space
+    m_res = await db.execute(
+        select(Message).filter(
+            Message.couple_space_id == space_id,
+            Message.media_url.contains(filename)
+        )
+    )
+    msg_obj = m_res.scalars().first()
+    if msg_obj:
+        deleted_list = list(msg_obj.deleted_for or [])
+        # Inaccessible if deleted for this user, or if view-once media is spent or compromised
+        if user_id not in deleted_list and not (msg_obj.is_once_view and msg_obj.views_used >= msg_obj.view_limit) and not msg_obj.is_compromised:
+            is_authorized = True
+    elif filename.startswith(f"{space_id}_"):
+        # Check if the file was deleted (queued in cleanup queue or file deleted)
+        q_res = await db.execute(
+            select(MediaCleanupQueue.id).filter(
+                MediaCleanupQueue.filename == filename,
+                MediaCleanupQueue.couple_space_id == space_id
+            )
+        )
+        if not q_res.first():
+            is_authorized = True
+    else:
+        # Check wallpaper
+        if space and space.chat_wallpaper and filename in space.chat_wallpaper:
+            is_authorized = True
+        else:
+            # Check voice notes
+            vn_res = await db.execute(
+                select(VoiceNote.id).filter(
+                    VoiceNote.couple_space_id == space_id,
+                    or_(VoiceNote.filename == filename, VoiceNote.url.contains(filename))
+                )
+            )
+            if vn_res.scalar():
+                is_authorized = True
+            else:
+                # Check memories (saved to Memory Vault)
+                mem_res = await db.execute(
+                    select(Memory.id).filter(
+                        Memory.couple_space_id == space_id,
+                        Memory.image_url.contains(filename)
+                    )
+                )
+                if mem_res.scalar():
+                    is_authorized = True
+
+    if not is_authorized:
+        # Return 404 without leaking file existence
+        raise HTTPException(status_code=404, detail="Media not found.")
+
+    file_path = os.path.join(settings.MEDIA_DIR, folder, filename)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Media not found.")
+
+    return file_path
+
+@app.get("/media/chat/{filename}")
+async def serve_chat_media(
+    filename: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db)
+):
+    path = await _verify_media_access(filename, "chat", token, authorization, db)
+    return FileResponse(path)
+
+@app.get("/media/voice/{filename}")
+async def serve_voice_media(
+    filename: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db)
+):
+    path = await _verify_media_access(filename, "voice", token, authorization, db)
+    return FileResponse(path)
 
 app.mount("/media", StaticFiles(directory="./media"), name="media")
 

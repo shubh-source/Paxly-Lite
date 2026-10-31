@@ -161,14 +161,14 @@ def get_cipher(force_reload: bool = False) -> Fernet:
 
     if is_production:
         if not current_key_setting:
-            logger.warning("ENCRYPTION_KEY missing in production. Deriving deterministic 32-byte Fernet key from SECRET_KEY.")
             import hashlib
+            logger.warning("ENCRYPTION_KEY missing in production. Deriving deterministic 32-byte Fernet key from SECRET_KEY.")
             secret_source = (getattr(settings, "SECRET_KEY", "") or "vlynxly-production-fallback-key-32chars").encode("utf-8")
             digest = hashlib.sha256(secret_source).digest()
             primary_key_bytes = base64.urlsafe_b64encode(digest)
         elif current_key_setting == LEGACY_FERNET_KEY or current_key_setting.encode("utf-8") == LEGACY_FALLBACK_KEY_RAW:
-            logger.warning("Legacy fallback key detected in production. Deriving deterministic key from SECRET_KEY.")
             import hashlib
+            logger.warning("Legacy fallback key detected in production. Deriving deterministic key from SECRET_KEY.")
             secret_source = (getattr(settings, "SECRET_KEY", "") or "vlynxly-production-fallback-key-32chars").encode("utf-8")
             digest = hashlib.sha256(secret_source).digest()
             primary_key_bytes = base64.urlsafe_b64encode(digest)
@@ -183,8 +183,12 @@ def get_cipher(force_reload: bool = False) -> Fernet:
     else:
         # Non-production (dev/test)
         if not current_key_setting:
-            logger.warning("ENCRYPTION_KEY is not set. Generating ephemeral Fernet key for session.")
-            primary_key_bytes = Fernet.generate_key()
+            # Deterministic development/test key derived from SECRET_KEY (CHAT-005)
+            import hashlib
+            secret_source = (getattr(settings, "SECRET_KEY", "") or "vlynxly-development-fallback-key-32chars").encode("utf-8")
+            digest = hashlib.sha256(secret_source).digest()
+            primary_key_bytes = base64.urlsafe_b64encode(digest)
+            logger.warning("ENCRYPTION_KEY is not set in non-production. Using deterministic key derived from SECRET_KEY.")
         else:
             try:
                 primary_key_bytes = _validate_strict_fernet_key(current_key_setting, "ENCRYPTION_KEY")

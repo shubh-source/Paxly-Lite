@@ -10,16 +10,46 @@ export default function VoiceNotePlayer({ src, isMe, theme, encryptionKey }) {
   const audioRef = useRef(null);
 
   useEffect(() => {
-    if (encryptionKey && src) {
-      fetch(src)
-        .then(res => res.blob())
-        .then(blob => decryptMediaBlob(blob, encryptionKey))
-        .then(decryptedBlob => {
-          const url = URL.createObjectURL(decryptedBlob);
-          setLocalSrc(url);
-        })
-        .catch(err => console.error("Audio decryption failed:", err));
+    if (!src) return;
+    if (src.startsWith('blob:') || src.startsWith('data:')) {
+      setLocalSrc(src);
+      return;
     }
+
+    let isMounted = true;
+    let objectUrl = null;
+
+    const token = localStorage.getItem('ros_token');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    fetch(src, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blob => {
+        if (encryptionKey) {
+          return decryptMediaBlob(blob, encryptionKey);
+        }
+        return blob;
+      })
+      .then(finalBlob => {
+        if (!isMounted) return;
+        objectUrl = URL.createObjectURL(finalBlob);
+        setLocalSrc(objectUrl);
+      })
+      .catch(err => {
+        if (!isMounted) return;
+        console.error("Audio load failed:", err);
+        setLocalSrc(src);
+      });
+
+    return () => {
+      isMounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
   }, [src, encryptionKey]);
 
   useEffect(() => {

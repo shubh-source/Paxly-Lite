@@ -5,6 +5,7 @@ import { Icons } from '../components/ui/Icons';
 import api, { getTodayMoods, getSpace, getNotifications } from '../services/api';
 import NotificationService from '../services/NotificationService';
 import { wsService } from '../services/websocket';
+import { getScopedCachedPartner } from '../services/chatCache';
 import JiggleGiftBoxModal from '../components/ui/JiggleGiftBoxModal';
 
 const CORE_QUICK = [
@@ -68,7 +69,7 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
     }).catch(() => {});
 
     try {
-      const p = JSON.parse(localStorage.getItem('cached_partner'));
+      const p = getScopedCachedPartner(user?.id, user?.couple_space_id);
       if (p) setPartner(p);
     } catch {}
     

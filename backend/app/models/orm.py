@@ -106,6 +106,7 @@ class Message(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     is_edited = Column(Boolean, default=False)
     edited_at = Column(DateTime, nullable=True)
+    temp_id = Column(String, nullable=True, index=True)
 
 
 class Mood(Base):
@@ -507,3 +508,15 @@ class SystemErrorLog(Base):
     user_id = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class MediaCleanupQueue(Base):
+    __tablename__ = "media_cleanup_queue"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    filename = Column(String, nullable=False, index=True)
+    folder = Column(String, default="chat")
+    couple_space_id = Column(String, nullable=True)
+    attempts = Column(Integer, default=0)
+    last_error = Column(Text, nullable=True)
+    status = Column(String, default="pending")  # pending | completed | failed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)

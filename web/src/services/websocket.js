@@ -172,18 +172,27 @@ class WSService {
       } catch (err) {
         console.error('WS send error:', err);
         if (data?.type !== 'auth') {
-          this.queue.push(data);
+          if (!data?.temp_id || !this.queue.some(item => item?.temp_id === data.temp_id)) {
+            this.queue.push(data);
+          }
         }
       }
     } else {
       // Queue message and try to reconnect if not connected
       if (data?.type !== 'auth') {
-        this.queue.push(data);
+        if (!data?.temp_id || !this.queue.some(item => item?.temp_id === data.temp_id)) {
+          this.queue.push(data);
+        }
       }
       if (this.token && this.coupleSpaceId && (!this.ws || this.ws.readyState === WebSocket.CLOSED)) {
         this.connect(this.token, this.coupleSpaceId);
       }
     }
+  }
+
+  dequeue(tempId) {
+    if (!tempId) return;
+    this.queue = this.queue.filter(item => item?.temp_id !== tempId);
   }
 
   on(event, cb) {
@@ -248,8 +257,8 @@ class WSService {
     this.send({ type: 'media_save_request', media_url: mediaUrl, message_id: messageId });
   }
 
-  sendMediaSaveResponse(requestId, allowed, messageId) {
-    this.send({ type: 'media_save_response', request_id: requestId, allowed, message_id: messageId });
+  sendMediaSaveResponse(requestId, allowed, messageId, mediaUrl = null) {
+    this.send({ type: 'media_save_response', request_id: requestId, allowed, message_id: messageId, media_url: mediaUrl });
   }
 
   // Vault Download Permissions

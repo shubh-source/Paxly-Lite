@@ -3,6 +3,7 @@ import api, { getMe, getSpace } from '../services/api';
 import { wsService } from '../services/websocket';
 import { clearUserBrowserStorage } from '../services/auraStorage';
 import { showInstantPresenceNotification } from '../services/systemNotification';
+import { setScopedCachedSpace, setScopedCachedPartner, cleanupLegacyGlobalChatKeys } from '../services/chatCache';
 
 const AuthContext = createContext(null);
 
@@ -13,6 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    cleanupLegacyGlobalChatKeys();
     const token = localStorage.getItem('ros_token');
     const cachedUser = localStorage.getItem('ros_user');
     
@@ -45,8 +47,8 @@ export const AuthProvider = ({ children }) => {
         wsService.connect(token, u.couple_space_id);
         
         if (spaceData) {
-          localStorage.setItem('cached_space', JSON.stringify(spaceData));
-          localStorage.setItem('cached_partner', JSON.stringify(spaceData.partner));
+          setScopedCachedSpace(u.id, spaceData);
+          setScopedCachedPartner(u.id, spaceData.space?.id || u.couple_space_id, spaceData.partner);
         }
         
         // Background Notifications (Non-blocking)
