@@ -247,61 +247,76 @@ async def websocket_endpoint(websocket: WebSocket):
                     temp_id = payload.get("temp_id")
                     emoji = payload.get("emoji")
                     if message_id or temp_id:
+                        # 1. IMMEDIATE IN-MEMORY REAL-TIME BROADCAST (<5ms)
+                        # Zero wait: partner receives reaction immediately on screen without blocking on DB roundtrips
+                        instant_evt = {
+                            "type": "reaction",
+                            "message_id": message_id,
+                            "temp_id": temp_id,
+                            "user_id": user_id,
+                            "emoji": emoji
+                        }
                         try:
-                            async with AsyncSessionLocal() as db:
-                                # Look up message by id or temp_id within couple space
-                                stmt = (
-                                    select(Message)
-                                    .filter(
-                                        or_(
-                                            Message.id == message_id if message_id else False,
-                                            Message.temp_id == message_id if message_id else False,
-                                            Message.id == temp_id if temp_id else False,
-                                            Message.temp_id == temp_id if temp_id else False,
-                                        ),
-                                        Message.couple_space_id == space_id
-                                    )
-                                )
-                                res = await db.execute(stmt)
-                                msg = res.scalars().first()
-                                if msg:
-                                    from app.api.routes.chat import safe_parse_reactions
-                                    from sqlalchemy.orm.attributes import flag_modified
-                                    curr_reactions = dict(safe_parse_reactions(msg.reactions))
-                                    if emoji:
-                                        curr_reactions[user_id] = emoji
-                                    else:
-                                        curr_reactions.pop(user_id, None)
+                            await manager.send_to_space(space_id, instant_evt, exclude_socket=websocket)
+                            partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
+                            if partner_id and not partner_sockets_in_space:
+                                await manager.send_to_user(partner_id, instant_evt, exclude_socket=websocket)
+                        except Exception as b_err:
+                            logger.warning(f"Error instant-broadcasting reaction: {b_err}")
 
-                                    msg.reactions = curr_reactions
-                                    flag_modified(msg, "reactions")
-                                    await db.commit()
-
-                                    reaction_evt = {
-                                        "type": "reaction",
-                                        "message_id": msg.id,
-                                        "temp_id": msg.temp_id,
-                                        "user_id": user_id,
-                                        "emoji": emoji,
-                                        "reactions": curr_reactions
-                                    }
-                                    await manager.send_to_space(space_id, reaction_evt)
-                                    partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
-                                    if partner_id and not partner_sockets_in_space:
-                                        await manager.send_to_user(partner_id, reaction_evt)
-                                else:
-                                    logger.warning(f"Reaction target message not found: {message_id} / {temp_id} in space {space_id}")
-                        except Exception as r_err:
-                            logger.error(f"Error processing reaction: {r_err}")
-                        except Exception as e:
-                            print(f"Reaction DB Error: {e}")
+                        # 2. CONCURRENT NON-BLOCKING PERSISTENCE (Runs in background without delaying real-time delivery)
+                        async def _persist_reaction():
                             try:
-                                await websocket.send_json({
-                                    "type": "error",
-                                    "message": "Failed to update reaction"
-                                })
-                            except Exception:
-                                pass
+                                async with AsyncSessionLocal() as db:
+                                    stmt = (
+                                        select(Message)
+                                        .filter(
+                                            or_(
+                                                Message.id == message_id if message_id else False,
+                                                Message.temp_id == message_id if message_id else False,
+                                                Message.id == temp_id if temp_id else False,
+                                                Message.temp_id == temp_id if temp_id else False,
+                                            ),
+                                            Message.couple_space_id == space_id
+                                        )
+                                    )
+                                    res = await db.execute(stmt)
+                                    msg = res.scalars().first()
+                                    if msg:
+                                        from app.api.routes.chat import safe_parse_reactions
+                                        from sqlalchemy.orm.attributes import flag_modified
+                                        curr_reactions = dict(safe_parse_reactions(msg.reactions))
+                                        if emoji:
+                                            curr_reactions[user_id] = emoji
+                                        else:
+                                            curr_reactions.pop(user_id, None)
+
+                                        msg.reactions = curr_reactions
+                                        flag_modified(msg, "reactions")
+                                        await db.commit()
+
+                                        # Authoritative confirmed state broadcast with full verified DB dictionary
+                                        confirmed_evt = {
+                                            "type": "reaction",
+                                            "message_id": msg.id,
+                                            "temp_id": msg.temp_id,
+                                            "user_id": user_id,
+                                            "emoji": emoji,
+                                            "reactions": curr_reactions
+                                        }
+                                        await manager.send_to_space(space_id, confirmed_evt)
+                                        partner_sockets = manager.spaces.get(space_id, {}).get(partner_id)
+                                        if partner_id and not partner_sockets:
+                                            await manager.send_to_user(partner_id, confirmed_evt)
+                                    else:
+                                        logger.warning(f"Reaction target message not found: {message_id} / {temp_id} in space {space_id}")
+                            except Exception as db_r_err:
+                                logger.error(f"Error persisting reaction: {db_r_err}")
+
+                        import asyncio
+                        r_task = asyncio.create_task(_persist_reaction())
+                        _background_tasks.add(r_task)
+                        r_task.add_done_callback(_background_tasks.discard)
 
                 elif p_type in ["message_edit", "message_edited"]:
                     message_id = payload.get("message_id")
