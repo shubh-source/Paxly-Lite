@@ -72,7 +72,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     partner_name = p_user.name
 
         await manager.connect(websocket, space_id, user_id)
-        last_presence_touch[user_id] = datetime.now(timezone.utc)
+        last_presence_touch[user_id] = datetime.utcnow()
 
         # Notify partner immediately that this user entered the space!
         await manager.send_to_space(space_id, {
@@ -105,7 +105,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     raw_text = payload.get("text", "")
                     encrypted_text = encrypt_data(raw_text)
                     temp_id = payload.get("temp_id")
-                    now_ts = datetime.now(timezone.utc)
+                    now_ts = datetime.utcnow()
                     msg_id = str(uuid.uuid4())
                     msg_type = payload.get("message_type", "text")
                     media_url = payload.get("media_url")
@@ -173,7 +173,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                     "view_limit": existing_msg.view_limit,
                                     "views_used": existing_msg.views_used,
                                     "reply_to_id": existing_msg.reply_to_id,
-                                    "timestamp": existing_msg.timestamp.isoformat().replace("+00:00", "Z") if existing_msg.timestamp else now_ts.isoformat().replace("+00:00", "Z")
+                                    "timestamp": (existing_msg.timestamp.isoformat() + "Z") if existing_msg.timestamp else (now_ts.isoformat() + "Z")
                                 }
                                 manager.record_processed_message(space_id, temp_id, broadcast_data)
                                 try:
@@ -237,7 +237,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "view_limit": v_limit,
                         "views_used": 0,
                         "reply_to_id": reply_id,
-                        "timestamp": now_ts.isoformat().replace("+00:00", "Z")
+                        "timestamp": now_ts.isoformat() + "Z"
                     }
 
                     if temp_id:
@@ -401,7 +401,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 else:
                                     msg.text = encrypt_data(raw_text)
                                     msg.is_edited = True
-                                    msg.edited_at = datetime.now(timezone.utc)
+                                    msg.edited_at = datetime.utcnow()
                                     await db.commit()
                                     await manager.send_to_space(space_id, {
                                         "type": "message_edited",
@@ -409,7 +409,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                         "sender_id": user_id,
                                         "text": raw_text,
                                         "is_edited": True,
-                                        "edited_at": msg.edited_at.isoformat().replace("+00:00", "Z")
+                                        "edited_at": (msg.edited_at.isoformat() + "Z") if msg.edited_at else None
                                     })
                         except Exception as e:
                             print(f"WS Edit Error: {e}")
@@ -520,10 +520,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                     couple_space_id=space_id,
                                     title="Saved from Secure Chat",
                                     description=f"Saved with permission from {user_name}",
-                                    date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                                    date=datetime.utcnow().strftime("%Y-%m-%d"),
                                     image_url=msg.media_url,
                                     created_by=request_id,
-                                    created_at=datetime.now(timezone.utc)
+                                    created_at=datetime.utcnow()
                                 )
                                 db.add(mem)
                                 await db.commit()
@@ -566,7 +566,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.send_to_user(partner_id, payload)
 
                 elif p_type == "presence_touch":
-                    now_ts = datetime.now(timezone.utc)
+                    now_ts = datetime.utcnow()
                     last_time = last_presence_touch.get(user_id)
                     # Debounce: re-announce presence if at least 15s since last broadcast
                     if not last_time or (now_ts - last_time).total_seconds() > 15:

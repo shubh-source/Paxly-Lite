@@ -727,6 +727,11 @@ export default function Chat() {
           const pending = pendingSendsRef.current.get(d.temp_id);
           if (pending?.timer) clearTimeout(pending.timer);
           pendingSendsRef.current.delete(d.temp_id);
+          if (typeof pending?.sendRestFallback === 'function') {
+            console.warn("WebSocket send error received, attempting seamless REST fallback for", d.temp_id);
+            pending.sendRestFallback();
+            return;
+          }
         }
         setMsgs(prev => prev.map(m => (m.id === d.temp_id || m.temp_id === d.temp_id) ? { ...m, isOptimistic: false, failed: true } : m));
       }),
@@ -1075,7 +1080,7 @@ export default function Chat() {
           return current;
         });
       }, 3500);
-      pendingSendsRef.current.set(tempId, { timer: fallbackTimer });
+      pendingSendsRef.current.set(tempId, { timer: fallbackTimer, sendRestFallback: sendViaRest });
     } else {
       sendViaRest();
       // Try to re-establish WebSocket connection immediately
@@ -1265,7 +1270,7 @@ export default function Chat() {
             return current;
           });
         }, 4000);
-        pendingSendsRef.current.set(tempId, { timer: fallbackTimer });
+        pendingSendsRef.current.set(tempId, { timer: fallbackTimer, sendRestFallback: sendVoiceViaRest });
       } else {
         sendVoiceViaRest();
       }
@@ -1480,7 +1485,7 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
             return current;
           });
         }, 4000);
-        pendingSendsRef.current.set(tempMsg.id, { timer: fallbackTimer });
+        pendingSendsRef.current.set(tempMsg.id, { timer: fallbackTimer, sendRestFallback: sendMediaViaRest });
       } else {
         sendMediaViaRest();
       }
