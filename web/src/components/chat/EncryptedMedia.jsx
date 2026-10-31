@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { decryptMediaBlob } from '../../services/crypto';
+import { getCachedMediaBlob, setCachedMediaBlob } from '../../services/mediaStore';
 import { Icons } from '../ui/Icons';
 
-// Global cache for decrypted media object URLs so re-renders/scrolls never re-fetch or flicker
+// Global memory cache for decrypted media object URLs so re-renders/scrolls never re-fetch or flicker
 const decryptedMediaCache = new Map();
 
 export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }) {
@@ -32,7 +33,7 @@ export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }
       return;
     }
 
-    // Check memory cache
+    // 1. Check memory cache (fastest)
     if (decryptedMediaCache.has(src)) {
       setLocalSrc(decryptedMediaCache.get(src));
       setLoading(false);
@@ -49,34 +50,52 @@ export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }
     let isMounted = true;
     let objectUrl = null;
 
-    setLoading(true);
-    const token = localStorage.getItem('ros_token');
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-    fetch(src, { headers })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.blob();
-      })
-      .then(blob => {
-        if (encryptionKey) {
-          return decryptMediaBlob(blob, encryptionKey);
-        }
-        return blob;
-      })
-      .then(finalBlob => {
-        if (!isMounted) return;
-        objectUrl = URL.createObjectURL(finalBlob);
+    // 2. Check IndexedDB cache for instant offline restore when chat is opened
+    getCachedMediaBlob(src).then(cachedBlob => {
+      if (!isMounted) return;
+      if (cachedBlob) {
+        objectUrl = URL.createObjectURL(cachedBlob);
         decryptedMediaCache.set(src, objectUrl);
         setLocalSrc(objectUrl);
         setLoading(false);
-      })
-      .catch(err => {
-        if (!isMounted) return;
-        console.error("Media load failed:", err);
-        setLocalSrc(src);
-        setLoading(false);
-      });
+        return;
+      }
+
+      // 3. Network fetch + E2EE decryption
+      setLoading(true);
+      const token = localStorage.getItem('ros_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const fetchUrl = (token && !src.includes('token=')) 
+        ? (src.includes('?') ? `${src}&token=${token}` : `${src}?token=${token}`) 
+        : src;
+
+      fetch(fetchUrl, { headers })
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.blob();
+        })
+        .then(blob => {
+          if (encryptionKey) {
+            return decryptMediaBlob(blob, encryptionKey);
+          }
+          return blob;
+        })
+        .then(finalBlob => {
+          if (!isMounted) return;
+          // Store decrypted blob in persistent IndexedDB for instant future loads
+          setCachedMediaBlob(src, finalBlob);
+          objectUrl = URL.createObjectURL(finalBlob);
+          decryptedMediaCache.set(src, objectUrl);
+          setLocalSrc(objectUrl);
+          setLoading(false);
+        })
+        .catch(err => {
+          if (!isMounted) return;
+          console.error("Media load failed:", err);
+          setLocalSrc(src);
+          setLoading(false);
+        });
+    });
 
     return () => {
       isMounted = false;
@@ -85,7 +104,16 @@ export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }
 
   if (loading) {
     return (
-      <div style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: 12 }}>
+      <div style={{
+        width: 240,
+        height: 200,
+        maxWidth: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(255,255,255,0.05)',
+        borderRadius: 12
+      }}>
         <div className="spinner-small" style={{ borderTopColor: 'var(--accent)' }} />
       </div>
     );

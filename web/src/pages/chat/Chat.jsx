@@ -2169,8 +2169,21 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             const isMedia       = msg.message_type === 'image' || msg.message_type === 'video' || msg.message_type === 'audio';
             
             let encryptionKey = null;
-            if (isMedia && msg.text && msg.text.startsWith('E2EE_KEY:')) {
-               encryptionKey = msg.text.substring(9);
+            let resolvedKeyText = msg.text;
+            if (isMedia && resolvedKeyText && !resolvedKeyText.startsWith('E2EE_KEY:')) {
+              const sk = safeGetItem('paxly_sk');
+              const pk = getPartnerPublicKey();
+              if (sk && pk) {
+                try {
+                  const dec = decryptMessage(resolvedKeyText, sk, pk);
+                  if (dec && dec.startsWith('E2EE_KEY:')) {
+                    resolvedKeyText = dec;
+                  }
+                } catch {}
+              }
+            }
+            if (isMedia && resolvedKeyText && resolvedKeyText.startsWith('E2EE_KEY:')) {
+               encryptionKey = resolvedKeyText.substring(9);
             }
             
             // For texts, if it starts with E2EE_KEY:, we don't display it.
@@ -3197,7 +3210,7 @@ function SecureChip({ isCompromised, isSpent, isVideo, Icons }) {
 
 function MediaWrap({ blurred, isSending, children }) {
   return (
-    <div style={{ position:'relative', borderRadius:12, overflow:'hidden', display:'inline-block', maxWidth:'100%' }}>
+    <div style={{ position:'relative', borderRadius:14, overflow:'hidden', display:'inline-block', maxWidth:'100%', minWidth: 180, minHeight: 140 }}>
       <div style={{ filter: blurred ? 'blur(22px)' : isSending ? 'brightness(0.78)' : 'none', transition:'filter 0.3s ease' }}>
         {children}
       </div>
