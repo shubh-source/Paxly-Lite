@@ -70,8 +70,9 @@ export function sanitizeMessageForCache(msg) {
 
   // Never store transient heavy binary Blobs in localStorage
   // Only persist stable remote media URLs (/media/...)
-  if (msg.media_url && !msg.media_url.startsWith('blob:') && !msg.media_url.startsWith('data:')) {
-    clean.media_url = msg.media_url;
+  const stableUrl = msg._remoteMediaUrl || msg.media_url;
+  if (stableUrl && !stableUrl.startsWith('blob:') && !stableUrl.startsWith('data:')) {
+    clean.media_url = stableUrl;
   } else if (msg.media_url && (msg.isOptimistic || msg.failed) && msg.media_url.length < 500) {
     clean.media_url = msg.media_url;
   }

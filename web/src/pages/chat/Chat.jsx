@@ -453,6 +453,10 @@ export default function Chat() {
               // Preserve any pending local reactions or plaintext if server hasn't updated yet
               const serverMsg = msgMap.get(m.id);
               if (m.text && !serverMsg.text) serverMsg.text = m.text;
+              if (m.media_url?.startsWith('blob:') || m.media_url?.startsWith('data:')) {
+                serverMsg._remoteMediaUrl = serverMsg.media_url;
+                serverMsg.media_url = m.media_url;
+              }
               
               // Merge reactions: keep server reactions, but also preserve any local reaction from m.reactions
               const mReactions = parseSafeReactions(m.reactions);
@@ -683,9 +687,11 @@ export default function Chat() {
               ...msg,
               temp_id: optMsg.temp_id || msg.temp_id,
               text: optMsg.text || decryptedText, // preserve already decrypted/plaintext
-              media_url: msg.media_url || optMsg.media_url, // prefer confirmed remote URL
+              media_url: (optMsg.media_url?.startsWith('blob:') || optMsg.media_url?.startsWith('data:')) ? optMsg.media_url : (msg.media_url || optMsg.media_url),
+              _remoteMediaUrl: msg.media_url,
               reactions: Object.keys(parseSafeReactions(msg.reactions)).length > 0 ? parseSafeReactions(msg.reactions) : parseSafeReactions(optMsg.reactions),
               isOptimistic: false,
+              isUploading: false,
               failed: false
             };
 
@@ -1401,8 +1407,57 @@ export default function Chat() {
 
 const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 
+const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, quality = 0.85) => {
+  if (!file || !file.type?.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
+    return file;
+  }
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxWidth || height > maxHeight) {
+          if (width / maxWidth > height / maxHeight) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) {
+              resolve(file);
+            } else {
+              const compressedFile = new File([blob], file.name || 'photo.jpg', { type: 'image/jpeg' });
+              resolve(compressedFile);
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    } catch {
+      resolve(file);
+    }
+  });
+};
+
   const sendMedia = async (fileToUse, mode = 'standard') => {
-    const f = fileToUse || pendingFile;
+    let f = fileToUse || pendingFile;
     setShowingStudio(false);
     setPendingFile(null);
     if (!f) return;
@@ -1414,6 +1469,15 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
 
     setSending(true);
     setShowGallerySecureModal(false);
+
+    // Fast client-side image optimization so photos send snappy (<0.5s upload)
+    if (f.type?.startsWith('image/')) {
+      try {
+        f = await compressImageForChat(f);
+      } catch (e) {
+        console.warn("Image compression skipped:", e);
+      }
+    }
     
     // OPTIMISTIC UPDATE
     const objectUrl = URL.createObjectURL(f);
@@ -1426,6 +1490,7 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
       text: '',
       message_type: isVideo ? 'video' : 'image',
       media_url: objectUrl,
+      _blobUrl: objectUrl,
       timestamp: new Date().toISOString(),
       isOptimistic: true,
       isUploading: true,
@@ -1475,7 +1540,15 @@ const formatRecordTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:
             if (exists) {
               return prev.filter(m => m.id !== tempMsg.id);
             }
-            return prev.map(m => (m.id === tempMsg.id || m.temp_id === tempMsg.id ? { ...res.data, temp_id: tempMsg.id, isOptimistic: false, failed: false, media_url: tempMsg.media_url } : m));
+            return prev.map(m => (m.id === tempMsg.id || m.temp_id === tempMsg.id ? { 
+              ...res.data, 
+              temp_id: tempMsg.id, 
+              isOptimistic: false, 
+              isUploading: false,
+              failed: false, 
+              media_url: (tempMsg.media_url?.startsWith('blob:') || tempMsg.media_url?.startsWith('data:')) ? tempMsg.media_url : res.data.media_url,
+              _remoteMediaUrl: res.data.media_url 
+            } : m));
           });
         }).catch(e => {
           console.error("REST media save error:", e);
@@ -2261,11 +2334,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                       {/* VIDEO */}
                       {msg.message_type === 'video' && (isSecure ? (
-                        <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
-                          <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
-                        </div>
+                        <MediaWrap isSending={Boolean(msg.isOptimistic || msg.isUploading)}>
+                          <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
+                            <SecureChip isCompromised={isCompromised} isSpent={isSpent} isVideo Icons={Icons} />
+                          </div>
+                        </MediaWrap>
                       ) : (
-                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
+                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]} isSending={Boolean(msg.isOptimistic || msg.isUploading)}>
                           <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
                           {!me && (
                             <button
@@ -2280,11 +2355,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
                       {/* IMAGE */}
                       {msg.message_type === 'image' && (isSecure ? (
-                        <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
-                          <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
-                        </div>
+                        <MediaWrap isSending={Boolean(msg.isOptimistic || msg.isUploading)}>
+                          <div onClick={() => !isSpent && !isCompromised && setSecureMediaOpen(msg)} style={{ cursor: (!isSpent && !isCompromised) ? 'pointer' : 'default' }}>
+                            <SecureChip isCompromised={isCompromised} isSpent={isSpent} Icons={Icons} />
+                          </div>
+                        </MediaWrap>
                       ) : (
-                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]}>
+                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]} isSending={Boolean(msg.isOptimistic || msg.isUploading)}>
                           <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
                           {!me && (
                             <button
@@ -2393,9 +2470,11 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         Failed (tap to retry)
                       </span>
                     ) : Boolean(msg.isOptimistic) ? (
-                      <span style={{ opacity: 0.6, fontStyle: 'italic', fontSize: '0.64rem' }}>
-                        sending...
-                      </span>
+                      (msg.message_type === 'image' || msg.message_type === 'video') ? null : (
+                        <span style={{ opacity: 0.6, fontStyle: 'italic', fontSize: '0.64rem' }}>
+                          sending...
+                        </span>
+                      )
                     ) : null}
                     {Boolean(msg.is_edited) && (
                       <span
@@ -3116,15 +3195,49 @@ function SecureChip({ isCompromised, isSpent, isVideo, Icons }) {
   );
 }
 
-function MediaWrap({ blurred, children }) {
+function MediaWrap({ blurred, isSending, children }) {
   return (
-    <div style={{ position:'relative' }}>
-      <div style={{ filter: blurred ? 'blur(22px)' : 'none', transition:'filter 0.3s ease' }}>
+    <div style={{ position:'relative', borderRadius:12, overflow:'hidden', display:'inline-block', maxWidth:'100%' }}>
+      <div style={{ filter: blurred ? 'blur(22px)' : isSending ? 'brightness(0.78)' : 'none', transition:'filter 0.3s ease' }}>
         {children}
       </div>
       {blurred && (
         <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:'0.7rem', fontWeight:700, background:'rgba(0,0,0,0.2)', pointerEvents:'none', borderRadius:12 }}>
           TAP TO REVEAL
+        </div>
+      )}
+      {isSending && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+          zIndex: 15
+        }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            border: '1.5px solid rgba(255,255,255,0.25)'
+          }}>
+            <div style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              border: '2.5px solid rgba(255,255,255,0.25)',
+              borderTopColor: '#b3945a',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+          </div>
         </div>
       )}
     </div>

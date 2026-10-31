@@ -2,9 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { decryptMediaBlob } from '../../services/crypto';
 import { Icons } from '../ui/Icons';
 
+// Global cache for decrypted media object URLs so re-renders/scrolls never re-fetch or flicker
+const decryptedMediaCache = new Map();
+
 export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }) {
-  const [localSrc, setLocalSrc] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [localSrc, setLocalSrc] = useState(() => {
+    if (!src) return null;
+    if (src.startsWith('blob:') || src.startsWith('data:')) return src;
+    if (decryptedMediaCache.has(src)) return decryptedMediaCache.get(src);
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (!src) return false;
+    if (src.startsWith('blob:') || src.startsWith('data:')) return false;
+    if (decryptedMediaCache.has(src)) return false;
+    return true;
+  });
 
   useEffect(() => {
     if (!src) {
@@ -15,6 +28,20 @@ export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }
 
     if (src.startsWith('blob:') || src.startsWith('data:')) {
       setLocalSrc(src);
+      setLoading(false);
+      return;
+    }
+
+    // Check memory cache
+    if (decryptedMediaCache.has(src)) {
+      setLocalSrc(decryptedMediaCache.get(src));
+      setLoading(false);
+      return;
+    }
+
+    // If localSrc is already a valid blob, keep displaying it and avoid flash
+    if (localSrc && (localSrc.startsWith('blob:') || localSrc.startsWith('data:'))) {
+      decryptedMediaCache.set(src, localSrc);
       setLoading(false);
       return;
     }
@@ -40,6 +67,7 @@ export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }
       .then(finalBlob => {
         if (!isMounted) return;
         objectUrl = URL.createObjectURL(finalBlob);
+        decryptedMediaCache.set(src, objectUrl);
         setLocalSrc(objectUrl);
         setLoading(false);
       })
@@ -52,9 +80,6 @@ export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }
 
     return () => {
       isMounted = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
     };
   }, [src, encryptionKey]);
 
