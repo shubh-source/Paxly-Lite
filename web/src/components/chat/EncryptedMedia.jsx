@@ -4,7 +4,7 @@ import { getCachedMediaBlob, setCachedMediaBlob } from '../../services/mediaStor
 import { Icons } from '../ui/Icons';
 
 // Global memory cache for decrypted media object URLs so re-renders/scrolls never re-fetch or flicker
-const decryptedMediaCache = new Map();
+export const decryptedMediaCache = new Map();
 
 export default function EncryptedMedia({ src, encryptionKey, isVideo, ...props }) {
   const [localSrc, setLocalSrc] = useState(() => {

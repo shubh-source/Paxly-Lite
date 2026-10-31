@@ -19,7 +19,9 @@ import {
   safeSetItem,
   safeRemoveItem
 } from '../../services/chatCache';
-import EncryptedMedia from '../../components/chat/EncryptedMedia';
+import EncryptedMedia, { decryptedMediaCache } from '../../components/chat/EncryptedMedia';
+import MediaLightboxModal from '../../components/chat/MediaLightboxModal';
+import { setCachedMediaBlob } from '../../services/mediaStore';
 import SecureViewer from '../../components/SecureViewer';
 import ThemePicker from './ThemePicker';
 import VoiceNotePlayer from '../../components/chat/VoiceNotePlayer';
@@ -97,6 +99,7 @@ export default function Chat() {
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [sending, setSending]         = useState(false);
   const [secureMediaOpen, setSecureMediaOpen] = useState(null);
+  const [fullscreenMedia, setFullscreenMedia] = useState(null);
 
   // Voice
   const [recordState, setRecordState]           = useState('idle');
@@ -678,16 +681,19 @@ export default function Chat() {
           if (optIdx !== -1) {
             const newMsgs = [...p];
             const optMsg = newMsgs[optIdx];
-            if (optMsg._blobUrl) {
-              setTimeout(() => {
-                try { URL.revokeObjectURL(optMsg._blobUrl); } catch {}
-              }, 5000);
+            if (optMsg._blobUrl && msg.media_url) {
+              try {
+                decryptedMediaCache.set(msg.media_url, optMsg._blobUrl);
+                if (fixUrl(msg.media_url) !== msg.media_url) {
+                  decryptedMediaCache.set(fixUrl(msg.media_url), optMsg._blobUrl);
+                }
+              } catch {}
             }
             newMsgs[optIdx] = {
               ...msg,
               temp_id: optMsg.temp_id || msg.temp_id,
               text: optMsg.text || decryptedText, // preserve already decrypted/plaintext
-              media_url: (optMsg.media_url?.startsWith('blob:') || optMsg.media_url?.startsWith('data:')) ? optMsg.media_url : (msg.media_url || optMsg.media_url),
+              media_url: msg.media_url || optMsg.media_url,
               _remoteMediaUrl: msg.media_url,
               reactions: Object.keys(parseSafeReactions(msg.reactions)).length > 0 ? parseSafeReactions(msg.reactions) : parseSafeReactions(optMsg.reactions),
               isOptimistic: false,
@@ -1512,6 +1518,15 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
         finalUrl = (import.meta.env.VITE_API_URL || '') + media_url;
       }
       const type = isVid ? 'video' : 'image';
+
+      // Pre-seed in-memory & IndexedDB cache with original blob to avoid flicker or reload
+      try {
+        decryptedMediaCache.set(finalUrl, objectUrl);
+        if (fixUrl(finalUrl) !== finalUrl) decryptedMediaCache.set(fixUrl(finalUrl), objectUrl);
+        setCachedMediaBlob(finalUrl, f);
+      } catch (e) {
+        console.warn("Media cache pre-seed failed:", e);
+      }
       
       const sk = safeGetItem('paxly_sk');
       const pk = getPartnerPublicKey();
@@ -1535,6 +1550,13 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
           temp_id: tempMsg.id
         }).then(res => {
           wsService.dequeue(tempMsg.id);
+          const savedUrl = res.data.media_url || finalUrl;
+          if (objectUrl && savedUrl) {
+            try {
+              decryptedMediaCache.set(savedUrl, objectUrl);
+              if (fixUrl(savedUrl) !== savedUrl) decryptedMediaCache.set(fixUrl(savedUrl), objectUrl);
+            } catch {}
+          }
           setMsgs(prev => {
             const exists = prev.some(m => m.id === res.data.id || (m.temp_id === tempMsg.id && !m.isOptimistic && !m.failed));
             if (exists) {
@@ -1546,7 +1568,7 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
               isOptimistic: false, 
               isUploading: false,
               failed: false, 
-              media_url: (tempMsg.media_url?.startsWith('blob:') || tempMsg.media_url?.startsWith('data:')) ? tempMsg.media_url : res.data.media_url,
+              media_url: savedUrl,
               _remoteMediaUrl: res.data.media_url 
             } : m));
           });
@@ -1619,6 +1641,28 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
   };
   const updateWallpaper = url => setSpace(p => ({ ...p, theme_id: 'custom', chat_wallpaper: url }));
 
+  const handleMediaTap = (msg, encKey) => {
+    if (msg.is_once_view) return;
+    const now = Date.now();
+    if (now - lastTapTime.current < 300) {
+      if (tapTimeout.current) {
+        clearTimeout(tapTimeout.current);
+        tapTimeout.current = null;
+      }
+      handleEmojiSelect(msg, '❤️', true);
+      setFloatingHeart(msg.id);
+      setTimeout(() => setFloatingHeart(null), 1000);
+      lastTapTime.current = 0;
+    } else {
+      lastTapTime.current = now;
+      if (tapTimeout.current) clearTimeout(tapTimeout.current);
+      tapTimeout.current = setTimeout(() => {
+        setFullscreenMedia({ ...msg, encryptionKey: encKey });
+        tapTimeout.current = null;
+      }, 280);
+    }
+  };
+
   const downloadMediaDirect = async (msg) => {
     try {
       const rawUrl = msg.media_url;
@@ -1628,9 +1672,21 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
       const res = await fetch(fixUrl(rawUrl), { headers });
       if (!res.ok) throw new Error(`Download failed with status ${res.status}`);
       let blob = await res.blob();
-      let encryptionKey = null;
-      if (msg.text && msg.text.startsWith('E2EE_KEY:')) {
+      let encryptionKey = msg.encryptionKey || null;
+      if (!encryptionKey && msg.text && msg.text.startsWith('E2EE_KEY:')) {
         encryptionKey = msg.text.substring(9);
+      }
+      if (!encryptionKey && msg.text) {
+        const sk = safeGetItem('paxly_sk');
+        const pk = getPartnerPublicKey();
+        if (sk && pk) {
+          try {
+            const dec = decryptMessage(msg.text, sk, pk);
+            if (dec && dec.startsWith('E2EE_KEY:')) {
+              encryptionKey = dec.substring(9);
+            }
+          } catch {}
+        }
       }
       if (encryptionKey) {
         blob = await decryptMediaBlob(blob, encryptionKey);
@@ -2276,7 +2332,13 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           lastTapTime.current = 0;
                         } else {
                           lastTapTime.current = now;
-                          // Ordinary reading, tapping, and clicking leave context menu closed (CHAT-011).
+                          if (!isSecure && (msg.message_type === 'image' || msg.message_type === 'video')) {
+                            if (tapTimeout.current) clearTimeout(tapTimeout.current);
+                            tapTimeout.current = setTimeout(() => {
+                              setFullscreenMedia({ ...msg, encryptionKey });
+                              tapTimeout.current = null;
+                            }, 280);
+                          }
                         }
                       }}
                       style={{
@@ -2353,7 +2415,11 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           </div>
                         </MediaWrap>
                       ) : (
-                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]} isSending={Boolean(msg.isOptimistic || msg.isUploading)}>
+                        <MediaWrap 
+                          blurred={user?.blur_sensitive && !unblurred[msg.id]} 
+                          isSending={Boolean(msg.isOptimistic || msg.isUploading)}
+                          onClick={() => handleMediaTap(msg, encryptionKey)}
+                        >
                           <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
                           {!me && (
                             <button
@@ -2374,8 +2440,12 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           </div>
                         </MediaWrap>
                       ) : (
-                        <MediaWrap blurred={user?.blur_sensitive && !unblurred[msg.id]} isSending={Boolean(msg.isOptimistic || msg.isUploading)}>
-                          <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
+                        <MediaWrap 
+                          blurred={user?.blur_sensitive && !unblurred[msg.id]} 
+                          isSending={Boolean(msg.isOptimistic || msg.isUploading)}
+                          onClick={() => handleMediaTap(msg, encryptionKey)}
+                        >
+                          <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12, cursor:'pointer' }} />
                           {!me && (
                             <button
                               onClick={e => { e.stopPropagation(); requestSave(msg); }}
@@ -3157,6 +3227,18 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         />
       )}
 
+      {/* Fullscreen Media Lightbox Modal */}
+      {fullscreenMedia && (
+        <MediaLightboxModal
+          msg={fullscreenMedia}
+          isOwn={fullscreenMedia.sender_id === user?.id}
+          encryptionKey={fullscreenMedia.encryptionKey}
+          onClose={() => setFullscreenMedia(null)}
+          onDownload={downloadMediaDirect}
+          onRequestSave={requestSave}
+        />
+      )}
+
       {/* Ask Aura Modal */}
       {auraModalMsg && (
         <AskAuraModal
@@ -3208,9 +3290,21 @@ function SecureChip({ isCompromised, isSpent, isVideo, Icons }) {
   );
 }
 
-function MediaWrap({ blurred, isSending, children }) {
+function MediaWrap({ blurred, isSending, children, onClick }) {
   return (
-    <div style={{ position:'relative', borderRadius:14, overflow:'hidden', display:'inline-block', maxWidth:'100%', minWidth: 180, minHeight: 140 }}>
+    <div 
+      onClick={onClick}
+      style={{ 
+        position:'relative', 
+        borderRadius:14, 
+        overflow:'hidden', 
+        display:'inline-block', 
+        maxWidth:'100%', 
+        minWidth: 180, 
+        minHeight: 140,
+        cursor: onClick ? 'pointer' : 'default'
+      }}
+    >
       <div style={{ filter: blurred ? 'blur(22px)' : isSending ? 'brightness(0.78)' : 'none', transition:'filter 0.3s ease' }}>
         {children}
       </div>
