@@ -244,79 +244,55 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 elif p_type == "reaction":
                     message_id = payload.get("message_id")
+                    temp_id = payload.get("temp_id")
                     emoji = payload.get("emoji")
-                    new_reactions = {}
-                    if message_id:
+                    if message_id or temp_id:
                         try:
                             async with AsyncSessionLocal() as db:
-                                # Enforce couple space isolation & concurrency protection
+                                # Look up message by id or temp_id within couple space
                                 stmt = (
                                     select(Message)
                                     .filter(
-                                        Message.id == message_id,
+                                        or_(
+                                            Message.id == message_id if message_id else False,
+                                            Message.temp_id == message_id if message_id else False,
+                                            Message.id == temp_id if temp_id else False,
+                                            Message.temp_id == temp_id if temp_id else False,
+                                        ),
                                         Message.couple_space_id == space_id
                                     )
                                 )
                                 res = await db.execute(stmt)
                                 msg = res.scalars().first()
                                 if msg:
-                                    from sqlalchemy import text
                                     from app.api.routes.chat import safe_parse_reactions
-                                    bind = db.get_bind()
-                                    is_pg = bind and getattr(bind.dialect, "name", "").lower() in ("postgresql", "postgres")
-
+                                    from sqlalchemy.orm.attributes import flag_modified
+                                    curr_reactions = dict(safe_parse_reactions(msg.reactions))
                                     if emoji:
-                                        if is_pg:
-                                            patch_json = json.dumps({user_id: emoji})
-                                            await db.execute(
-                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb WHERE id = :msg_id AND couple_space_id = :space_id"),
-                                                {"patch": patch_json, "space_id": space_id, "msg_id": message_id}
-                                            )
-                                        else:
-                                            await db.execute(
-                                                text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"', :emoji) WHERE id = :msg_id AND couple_space_id = :space_id"),
-                                                {"emoji": emoji, "space_id": space_id, "msg_id": message_id}
-                                            )
+                                        curr_reactions[user_id] = emoji
                                     else:
-                                        if is_pg:
-                                            await db.execute(
-                                                text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id AND couple_space_id = :space_id"),
-                                                {"uid": user_id, "msg_id": message_id, "space_id": space_id}
-                                            )
-                                        else:
-                                            await db.execute(
-                                                text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{user_id}\"') WHERE id = :msg_id AND couple_space_id = :space_id"),
-                                                {"msg_id": message_id, "space_id": space_id}
-                                            )
-                                    await db.commit()
+                                        curr_reactions.pop(user_id, None)
 
-                                    r_res = await db.execute(
-                                        select(Message.reactions).filter(
-                                            Message.id == message_id,
-                                            Message.couple_space_id == space_id
-                                        )
-                                    )
-                                    new_reactions = safe_parse_reactions(r_res.scalar())
+                                    msg.reactions = curr_reactions
+                                    flag_modified(msg, "reactions")
+                                    await db.commit()
 
                                     reaction_evt = {
                                         "type": "reaction",
-                                        "message_id": message_id,
+                                        "message_id": msg.id,
+                                        "temp_id": msg.temp_id,
                                         "user_id": user_id,
                                         "emoji": emoji,
-                                        "reactions": new_reactions
+                                        "reactions": curr_reactions
                                     }
                                     await manager.send_to_space(space_id, reaction_evt)
                                     partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
                                     if partner_id and not partner_sockets_in_space:
                                         await manager.send_to_user(partner_id, reaction_evt)
                                 else:
-                                    try:
-                                        await websocket.send_json({
-                                            "type": "error",
-                                            "message": "Message not found in your couple space."
-                                        })
-                                    except Exception:
-                                        pass
+                                    logger.warning(f"Reaction target message not found: {message_id} / {temp_id} in space {space_id}")
+                        except Exception as r_err:
+                            logger.error(f"Error processing reaction: {r_err}")
                         except Exception as e:
                             print(f"Reaction DB Error: {e}")
                             try:

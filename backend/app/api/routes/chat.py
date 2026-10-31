@@ -503,11 +503,14 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     elif cu.partner_id:
         user_ids.append(cu.partner_id)
 
-    # Enforce couple space isolation
+    # Enforce couple space isolation and reconcile id / temp_id
     stmt = (
         select(Message)
         .filter(
-            Message.id == message_id,
+            or_(
+                Message.id == message_id,
+                Message.temp_id == message_id
+            ),
             Message.couple_space_id == space_id
         )
     )
@@ -516,39 +519,24 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     if not msg:
         raise HTTPException(404, "Message not found in your couple space.")
     
-    # Atomic database-level JSON update
-    from sqlalchemy import text
-    bind = db.get_bind()
-    is_pg = bind and getattr(bind.dialect, "name", "").lower() in ("postgresql", "postgres")
-
-    if is_pg:
-        patch_json = json.dumps({cu.id: data.emoji})
-        await db.execute(
-            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) || :patch::jsonb WHERE id = :msg_id AND couple_space_id = :space_id"),
-            {"patch": patch_json, "space_id": space_id, "msg_id": message_id}
-        )
+    from sqlalchemy.orm.attributes import flag_modified
+    curr_reactions = dict(safe_parse_reactions(msg.reactions))
+    if data.emoji:
+        curr_reactions[cu.id] = data.emoji
     else:
-        await db.execute(
-            text(f"UPDATE messages SET reactions = json_set(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"', :emoji) WHERE id = :msg_id AND couple_space_id = :space_id"),
-            {"emoji": data.emoji, "space_id": space_id, "msg_id": message_id}
-        )
-    await db.commit()
+        curr_reactions.pop(cu.id, None)
 
-    # Re-fetch confirmed persisted reactions directly from DB
-    r_res = await db.execute(
-        select(Message.reactions).filter(
-            Message.id == message_id,
-            Message.couple_space_id == space_id
-        )
-    )
-    new_reactions = safe_parse_reactions(r_res.scalar())
+    msg.reactions = curr_reactions
+    flag_modified(msg, "reactions")
+    await db.commit()
 
     reaction_evt = {
         "type": "reaction",
-        "message_id": message_id,
+        "message_id": msg.id,
+        "temp_id": msg.temp_id,
         "user_id": cu.id,
         "emoji": data.emoji,
-        "reactions": new_reactions
+        "reactions": curr_reactions
     }
     try:
         from app.websocket.manager import manager
@@ -559,7 +547,7 @@ async def react(message_id: str, data: ReactionAdd, cu: User = Depends(get_curre
     except Exception as e:
         print(f"WS Broadcast error: {e}")
 
-    return {"ok": True, "reactions": new_reactions}
+    return {"ok": True, "reactions": curr_reactions}
 
 @router.delete("/messages/{message_id}/react")
 async def remove_reaction(message_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -573,11 +561,14 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     elif cu.partner_id:
         user_ids.append(cu.partner_id)
 
-    # Enforce couple space isolation
+    # Enforce couple space isolation and reconcile id / temp_id
     stmt = (
         select(Message)
         .filter(
-            Message.id == message_id,
+            or_(
+                Message.id == message_id,
+                Message.temp_id == message_id
+            ),
             Message.couple_space_id == space_id
         )
     )
@@ -586,38 +577,21 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     if not msg:
         raise HTTPException(404, "Message not found in your couple space.")
     
-    # Atomic database-level JSON key removal
-    from sqlalchemy import text
-    bind = db.get_bind()
-    is_pg = bind and getattr(bind.dialect, "name", "").lower() in ("postgresql", "postgres")
+    from sqlalchemy.orm.attributes import flag_modified
+    curr_reactions = dict(safe_parse_reactions(msg.reactions))
+    curr_reactions.pop(cu.id, None)
 
-    if is_pg:
-        await db.execute(
-            text("UPDATE messages SET reactions = COALESCE(reactions, '{}'::jsonb) - :uid WHERE id = :msg_id AND couple_space_id = :space_id"),
-            {"uid": cu.id, "msg_id": message_id, "space_id": space_id}
-        )
-    else:
-        await db.execute(
-            text(f"UPDATE messages SET reactions = json_remove(COALESCE(reactions, '{{}}'), '$.\"{cu.id}\"') WHERE id = :msg_id AND couple_space_id = :space_id"),
-            {"msg_id": message_id, "space_id": space_id}
-        )
+    msg.reactions = curr_reactions
+    flag_modified(msg, "reactions")
     await db.commit()
-
-    # Re-fetch confirmed persisted reactions directly from DB
-    r_res = await db.execute(
-        select(Message.reactions).filter(
-            Message.id == message_id,
-            Message.couple_space_id == space_id
-        )
-    )
-    new_reactions = safe_parse_reactions(r_res.scalar())
 
     reaction_evt = {
         "type": "reaction",
-        "message_id": message_id,
+        "message_id": msg.id,
+        "temp_id": msg.temp_id,
         "user_id": cu.id,
         "emoji": None,
-        "reactions": new_reactions
+        "reactions": curr_reactions
     }
     try:
         from app.websocket.manager import manager
@@ -628,7 +602,7 @@ async def remove_reaction(message_id: str, cu: User = Depends(get_current_user),
     except Exception as e:
         print(f"WS Broadcast error: {e}")
 
-    return {"ok": True, "reactions": new_reactions}
+    return {"ok": True, "reactions": curr_reactions}
 
 @router.patch("/messages/{message_id}")
 async def edit_message(

@@ -241,6 +241,7 @@ export default function Chat() {
         wsService.send({
           type: 'reaction',
           message_id: targetMsg.id,
+          temp_id: targetMsg.temp_id || null,
           emoji: newEmoji
         });
       } else {
@@ -745,10 +746,14 @@ export default function Chat() {
         }
       }),
       wsService.on('reaction', d => {
-        if (!d || !d.message_id) return;
+        if (!d || (!d.message_id && !d.temp_id)) return;
         const incomingReactions = parseSafeReactions(d.reactions);
         setMsgs(p => {
-          const target = p.find(m => String(m.id) === String(d.message_id) || (m.temp_id && String(m.temp_id) === String(d.message_id)));
+          const target = p.find(m => 
+            (d.message_id && String(m.id) === String(d.message_id)) || 
+            (d.temp_id && (String(m.id) === String(d.temp_id) || String(m.temp_id) === String(d.temp_id))) ||
+            (m.temp_id && d.message_id && String(m.temp_id) === String(d.message_id))
+          );
           if (!target) return p;
 
           let nextReactions = { ...parseSafeReactions(target.reactions) };
@@ -771,7 +776,12 @@ export default function Chat() {
             return p;
           }
 
-          const updated = p.map(m => (String(m.id) === String(d.message_id) || (m.temp_id && String(m.temp_id) === String(d.message_id))) ? { ...m, reactions: nextReactions } : m);
+          const updated = p.map(m => (
+            m === target || 
+            (d.message_id && String(m.id) === String(d.message_id)) || 
+            (d.temp_id && (String(m.id) === String(d.temp_id) || String(m.temp_id) === String(d.temp_id))) ||
+            (m.temp_id && d.message_id && String(m.temp_id) === String(d.message_id))
+          ) ? { ...m, reactions: nextReactions } : m);
           if (currentUserId && currentSpaceId) {
             setScopedCachedMessages(currentUserId, currentSpaceId, updated);
           }
