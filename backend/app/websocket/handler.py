@@ -113,27 +113,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     v_limit = payload.get("view_limit", 1)
                     reply_id = payload.get("reply_to_id")
 
-                    # Scope reply reference strictly to the current couple space
-                    if reply_id:
-                        async with AsyncSessionLocal() as db_reply_check:
-                            rep_res = await db_reply_check.execute(
-                                select(Message.id).filter(
-                                    Message.id == reply_id,
-                                    Message.couple_space_id == space_id
-                                )
-                            )
-                            if not rep_res.scalar():
-                                try:
-                                    await websocket.send_json({
-                                        "type": "chat_message_error",
-                                        "temp_id": temp_id,
-                                        "message": "Message not found in your couple space."
-                                    })
-                                except Exception:
-                                    pass
-                                continue
-
-                    # Deduplication: If already processed (e.g., via REST fallback), echo existing
+                    # Fast in-memory deduplication: if already processed via WebSocket/REST, echo existing immediately
                     if temp_id:
                         cached_msg = manager.get_processed_message(space_id, temp_id)
                         if cached_msg:
@@ -143,48 +123,28 @@ async def websocket_endpoint(websocket: WebSocket):
                                 pass
                             continue
 
-                        # Check database in case REST persisted it or cache missed
-                        async with AsyncSessionLocal() as db:
-                            res = await db.execute(
-                                select(Message).filter(
-                                    Message.couple_space_id == space_id,
-                                    Message.temp_id == temp_id
-                                )
-                            )
-                            existing_msg = res.scalars().first()
-                            if existing_msg:
-                                from app.api.routes.chat import safe_parse_reactions
-                                text_val = existing_msg.text or ""
-                                try:
-                                    text_val = decrypt_data(text_val)
-                                except Exception:
-                                    pass
-                                broadcast_data = {
-                                    "type": "chat_message",
-                                    "id": str(existing_msg.id),
-                                    "temp_id": temp_id,
-                                    "sender_id": existing_msg.sender_id,
-                                    "sender_name": existing_msg.sender_name,
-                                    "message_type": existing_msg.message_type or "text",
-                                    "text": text_val,
-                                    "media_url": existing_msg.media_url,
-                                    "reactions": safe_parse_reactions(existing_msg.reactions),
-                                    "is_once_view": existing_msg.is_once_view,
-                                    "view_limit": existing_msg.view_limit,
-                                    "views_used": existing_msg.views_used,
-                                    "reply_to_id": existing_msg.reply_to_id,
-                                    "timestamp": (existing_msg.timestamp.isoformat() + "Z") if existing_msg.timestamp else (now_ts.isoformat() + "Z")
-                                }
-                                manager.record_processed_message(space_id, temp_id, broadcast_data)
-                                try:
-                                    await websocket.send_json(broadcast_data)
-                                except Exception:
-                                    pass
-                                continue
-
-                    # Persist to database inside a transaction and commit BEFORE broadcasting
+                    # Persist to database inside a single clean transaction and commit BEFORE broadcasting
                     try:
                         async with AsyncSessionLocal() as db:
+                            # Scope reply reference strictly to current couple space if provided
+                            if reply_id:
+                                rep_res = await db.execute(
+                                    select(Message.id).filter(
+                                        Message.id == reply_id,
+                                        Message.couple_space_id == space_id
+                                    )
+                                )
+                                if not rep_res.scalar():
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "chat_message_error",
+                                            "temp_id": temp_id,
+                                            "message": "Message not found in your couple space."
+                                        })
+                                    except Exception:
+                                        pass
+                                    continue
+
                             msg = Message(
                                 id=msg_id, couple_space_id=space_id, sender_id=user_id,
                                 sender_name=user_name,
@@ -243,11 +203,17 @@ async def websocket_endpoint(websocket: WebSocket):
                     if temp_id:
                         manager.record_processed_message(space_id, temp_id, broadcast_data)
 
-                    # Confirmed broadcast to space
-                    await manager.send_to_space(space_id, broadcast_data)
+                    # Immediate direct ACK to the sending websocket
+                    try:
+                        await websocket.send_json(broadcast_data)
+                    except Exception:
+                        pass
+
+                    # Confirmed broadcast to partner & other space devices (exclude sender socket to avoid duplicate)
+                    await manager.send_to_space(space_id, broadcast_data, exclude_socket=websocket)
                     partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
                     if partner_id and not partner_sockets_in_space:
-                        await manager.send_to_user(partner_id, broadcast_data)
+                        await manager.send_to_user(partner_id, broadcast_data, exclude_socket=websocket)
 
                 elif p_type == "ping":
                     try:

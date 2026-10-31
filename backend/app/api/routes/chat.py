@@ -44,6 +44,16 @@ async def resolve_and_sync_space(cu: User, db: AsyncSession) -> Tuple[CoupleSpac
     3. Auto-aligns both users to the canonical space and establishes bidirectional partner_id links.
     4. Guarantees that users never get orphaned into an empty space while messages exist in another.
     """
+    # FAST PATH: If user already has an aligned couple_space_id and partner_id, resolve with zero overhead (<5ms)
+    if cu.couple_space_id and cu.partner_id:
+        sp_res = await db.execute(select(CoupleSpace).filter(CoupleSpace.id == cu.couple_space_id))
+        sp_obj = sp_res.scalars().first()
+        if sp_obj:
+            p_res = await db.execute(select(User).filter(User.id == cu.partner_id))
+            partner_obj = p_res.scalars().first()
+            if partner_obj and partner_obj.couple_space_id == cu.couple_space_id:
+                return sp_obj, partner_obj
+
     partner: Optional[User] = None
 
     # 1. Direct partner lookup
