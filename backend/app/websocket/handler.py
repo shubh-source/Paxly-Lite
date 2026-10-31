@@ -25,6 +25,7 @@ async def get_user_from_token(token: str, db: AsyncSession):
     except Exception: return None
 
 last_presence_touch = {}
+_background_tasks = set()
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -123,66 +124,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                 pass
                             continue
 
-                    # Persist to database inside a single clean transaction and commit BEFORE broadcasting
-                    try:
-                        async with AsyncSessionLocal() as db:
-                            # Scope reply reference strictly to current couple space if provided
-                            if reply_id:
-                                rep_res = await db.execute(
-                                    select(Message.id).filter(
-                                        Message.id == reply_id,
-                                        Message.couple_space_id == space_id
-                                    )
-                                )
-                                if not rep_res.scalar():
-                                    try:
-                                        await websocket.send_json({
-                                            "type": "chat_message_error",
-                                            "temp_id": temp_id,
-                                            "message": "Message not found in your couple space."
-                                        })
-                                    except Exception:
-                                        pass
-                                    continue
-
-                            msg = Message(
-                                id=msg_id, couple_space_id=space_id, sender_id=user_id,
-                                sender_name=user_name,
-                                message_type=msg_type, text=encrypted_text,
-                                media_url=media_url, is_once_view=is_once,
-                                view_limit=v_limit, timestamp=now_ts,
-                                reply_to_id=reply_id,
-                                temp_id=temp_id
-                            )
-                            # Auto-save audio to voice notes
-                            if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
-                                from app.models.orm import VoiceNote
-                                vn = VoiceNote(
-                                    id=str(uuid.uuid4()),
-                                    couple_space_id=space_id,
-                                    sender_id=user_id,
-                                    url=msg.media_url,
-                                    filename="voice_note.webm",
-                                    custom_name="Chat Whisper",
-                                    size=0,
-                                    created_at=now_ts
-                                )
-                                db.add(vn)
-
-                            db.add(msg)
-                            await db.commit()
-                    except Exception as db_err:
-                        logger.error(f"Failed to persist chat message: {db_err}")
-                        try:
-                            await websocket.send_json({
-                                "type": "chat_message_error",
-                                "temp_id": temp_id,
-                                "message": "Failed to persist message to database"
-                            })
-                        except Exception:
-                            pass
-                        continue
-
                     broadcast_data = {
                         "type": "chat_message", 
                         "id": msg_id, 
@@ -203,17 +144,84 @@ async def websocket_endpoint(websocket: WebSocket):
                     if temp_id:
                         manager.record_processed_message(space_id, temp_id, broadcast_data)
 
-                    # Immediate direct ACK to the sending websocket
+                    # 1. IMMEDIATE DIRECT ACK TO SENDER (Zero wait, <10ms)
                     try:
                         await websocket.send_json(broadcast_data)
-                    except Exception:
-                        pass
+                    except Exception as ack_err:
+                        logger.warning(f"Failed to ACK sender: {ack_err}")
 
-                    # Confirmed broadcast to partner & other space devices (exclude sender socket to avoid duplicate)
-                    await manager.send_to_space(space_id, broadcast_data, exclude_socket=websocket)
-                    partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
-                    if partner_id and not partner_sockets_in_space:
-                        await manager.send_to_user(partner_id, broadcast_data, exclude_socket=websocket)
+                    # 2. IMMEDIATE REAL-TIME BROADCAST TO PARTNER (<10ms)
+                    try:
+                        await manager.send_to_space(space_id, broadcast_data, exclude_socket=websocket)
+                        partner_sockets_in_space = manager.spaces.get(space_id, {}).get(partner_id)
+                        if partner_id and not partner_sockets_in_space:
+                            await manager.send_to_user(partner_id, broadcast_data, exclude_socket=websocket)
+                    except Exception as bcast_err:
+                        logger.warning(f"Failed to broadcast to partner: {bcast_err}")
+
+                    # 3. CONCURRENT NON-BLOCKING PERSISTENCE (Runs in parallel without blocking WebSocket loop)
+                    async def _persist_message():
+                        import asyncio
+                        for attempt in range(2):
+                            try:
+                                async with AsyncSessionLocal() as db:
+                                    # Validate reply reference strictly within current space
+                                    valid_reply_id = reply_id
+                                    if reply_id:
+                                        rep_res = await db.execute(
+                                            select(Message.id).filter(
+                                                Message.id == reply_id,
+                                                Message.couple_space_id == space_id
+                                            )
+                                        )
+                                        if not rep_res.scalar():
+                                            valid_reply_id = None
+
+                                    msg = Message(
+                                        id=msg_id, couple_space_id=space_id, sender_id=user_id,
+                                        sender_name=user_name,
+                                        message_type=msg_type, text=encrypted_text,
+                                        media_url=media_url, is_once_view=is_once,
+                                        view_limit=v_limit, timestamp=now_ts,
+                                        reply_to_id=valid_reply_id,
+                                        temp_id=temp_id
+                                    )
+                                    # Auto-save audio to voice notes
+                                    if msg.media_url and not msg.is_once_view and msg.message_type == "audio":
+                                        from app.models.orm import VoiceNote
+                                        vn = VoiceNote(
+                                            id=str(uuid.uuid4()),
+                                            couple_space_id=space_id,
+                                            sender_id=user_id,
+                                            url=msg.media_url,
+                                            filename="voice_note.webm",
+                                            custom_name="Chat Whisper",
+                                            size=0,
+                                            created_at=now_ts
+                                        )
+                                        db.add(vn)
+
+                                    db.add(msg)
+                                    await db.commit()
+                                    return
+                            except Exception as db_err:
+                                logger.error(f"Failed to persist chat message (attempt {attempt+1}): {db_err}")
+                                if attempt == 1:
+                                    try:
+                                        await websocket.send_json({
+                                            "type": "chat_message_error",
+                                            "temp_id": temp_id,
+                                            "message": "Failed to persist message to database"
+                                        })
+                                    except Exception:
+                                        pass
+                                else:
+                                    await asyncio.sleep(0.5)
+
+                    import asyncio
+                    persist_task = asyncio.create_task(_persist_message())
+                    _background_tasks.add(persist_task)
+                    persist_task.add_done_callback(_background_tasks.discard)
 
                 elif p_type == "ping":
                     try:

@@ -90,10 +90,22 @@ class WSService {
       if (this.pingTimer) {
         clearInterval(this.pingTimer);
       }
-      // Keepalive ping every 10 seconds for snappy disconnect detection
+      this._waitingForPong = false;
+      // Snappy keepalive heartbeat every 10 seconds: detects dead/zombie sockets and recovers instantly
       this.pingTimer = setInterval(() => {
         if (this.isConnected()) {
-          try { this.ws.send(JSON.stringify({ type: 'ping' })); } catch {
+          if (this._waitingForPong) {
+            console.warn("⚡ WebSocket heartbeat timeout (no pong): reconnecting instantly");
+            this._waitingForPong = false;
+            try { this.ws.close(); } catch {}
+            this.handleResume();
+            return;
+          }
+          this._waitingForPong = true;
+          try {
+            this.ws.send(JSON.stringify({ type: 'ping' }));
+          } catch {
+            this._waitingForPong = false;
             this.handleResume();
           }
         }
@@ -113,7 +125,10 @@ class WSService {
     this.ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'pong') return; // keepalive response
+        if (data.type === 'pong') {
+          this._waitingForPong = false;
+          return; // keepalive response
+        }
         if (data.type === 'webrtc_offer') {
           this.latestOffer = data;
         }
@@ -126,6 +141,7 @@ class WSService {
 
     this.ws.onclose = (e) => {
       console.log('🔌 WebSocket disconnected', e.code);
+      this._waitingForPong = false;
       if (this.pingTimer) {
         clearInterval(this.pingTimer);
         this.pingTimer = null;

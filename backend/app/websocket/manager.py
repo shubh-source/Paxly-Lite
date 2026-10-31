@@ -204,7 +204,7 @@ class ConnectionManager:
         exclude_user = envelope.get("exclude_user")
         await self._send_to_local_space(space_id, message, exclude_user)
 
-    async def send_to_user(self, user_id: str, message: dict):
+    async def send_to_user(self, user_id: str, message: dict, exclude_socket: WebSocket = None):
         """Send message to all active devices of a specific user across any space."""
         target_sockets = set()
         for s_id, users in list(self.spaces.items()):
@@ -213,6 +213,8 @@ class ConnectionManager:
 
         dead = []
         for ws in list(target_sockets):
+            if ws == exclude_socket:
+                continue
             try:
                 await ws.send_json(message)
             except Exception:
