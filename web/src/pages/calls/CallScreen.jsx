@@ -7,6 +7,24 @@ import api, { getSpace } from '../../services/api';
 import { Icons } from '../../components/ui/Icons';
 import { useAuth } from '../../context/AuthContext';
 import { format } from 'date-fns';
+import { CHAT_THEMES } from '../../data/chatThemes';
+import ChatBackground from '../../components/chat/ChatBackground';
+import { fixUrl } from '../chat/Chat';
+
+function hexToRgba(hex, alpha = 1) {
+  if (!hex || typeof hex !== 'string') return `rgba(201,169,110,${alpha})`;
+  if (hex.startsWith('rgba') || hex.startsWith('rgb')) {
+    if (alpha === 1) return hex;
+    return hex.replace(/[\d\.]+\)$/g, `${alpha})`);
+  }
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  if (c.length === 6) {
+    const num = parseInt(c, 16);
+    return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+  }
+  return hex;
+}
 
 const ICE_SERVERS = {
   iceServers: [
@@ -23,6 +41,17 @@ export default function CallScreen() {
   const initType = params.get('type') || 'video';
   const isHistoryView = params.get('view') === 'history';
 
+  // Instant Space & Theme Cache Retrieval
+  const getInitialSpace = () => {
+    try {
+      if (user?.id) {
+        const cachedSpace = getScopedCachedSpace(user.id);
+        if (cachedSpace?.space) return cachedSpace.space;
+      }
+    } catch {}
+    return { theme_id: 'classic', chat_wallpaper: null };
+  };
+
   // Instant Partner Cache Retrieval (Zero Delay / No Question Mark)
   const getInitialPartner = () => {
     try {
@@ -37,6 +66,12 @@ export default function CallScreen() {
     } catch {}
     return { name: 'Sneha' };
   };
+
+  const [space, setSpace] = useState(getInitialSpace);
+  const activeThemeId = space?.theme_id || 'classic';
+  const activeTheme = CHAT_THEMES[activeThemeId] || CHAT_THEMES.classic;
+  const accentColor = activeTheme.accent || '#C9A96E';
+  const themeBg = activeTheme.bg || '#070709';
 
   const [callState, setCallState] = useState('idle'); // idle | calling | incoming | connecting | connected | history
   const [callType, setCallType] = useState(initType);
@@ -63,10 +98,13 @@ export default function CallScreen() {
 
   useEffect(() => {
     getSpace().then(d => {
-      if (d?.partner) {
-        setPartner(d.partner);
-        if (user?.id && (d.id || user?.couple_space_id)) {
-          setScopedCachedPartner(user.id, d.id || user.couple_space_id, d.partner);
+      if (d) {
+        setSpace(d);
+        if (d.partner) {
+          setPartner(d.partner);
+          if (user?.id && (d.id || user?.couple_space_id)) {
+            setScopedCachedPartner(user.id, d.id || user.couple_space_id, d.partner);
+          }
         }
       }
     });
@@ -88,6 +126,13 @@ export default function CallScreen() {
     }
 
     const offs = [
+      wsService.on('theme_updated', d => {
+        setSpace(p => ({
+          ...p,
+          theme_id: d.theme_id,
+          chat_wallpaper: d.chat_wallpaper
+        }));
+      }),
       wsService.on('webrtc_offer', async d => {
         setIncomingOffer(d);
         setCallType(d.call_type);
@@ -309,13 +354,13 @@ export default function CallScreen() {
                     <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                       <div style={{
                         width: 44, height: 44, borderRadius: '50%',
-                        background: isMe ? 'rgba(201,169,110,0.15)' : 'rgba(124,111,205,0.15)',
-                        border: `1px solid ${isMe ? 'rgba(201,169,110,0.3)' : 'rgba(124,111,205,0.3)'}`,
+                        background: isMe ? hexToRgba(accentColor, 0.16) : 'rgba(124,111,205,0.15)',
+                        border: `1px solid ${isMe ? hexToRgba(accentColor, 0.35) : 'rgba(124,111,205,0.3)'}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>
                         {log.call_type === 'video' 
-                          ? <Icons.Video size={18} color={isMe ? '#C9A96E' : '#7C6FCD'} /> 
-                          : <Icons.Phone size={18} color={isMe ? '#C9A96E' : '#7C6FCD'} />
+                          ? <Icons.Video size={18} color={isMe ? accentColor : '#7C6FCD'} /> 
+                          : <Icons.Phone size={18} color={isMe ? accentColor : '#7C6FCD'} />
                         }
                       </div>
                       <div>
@@ -328,7 +373,7 @@ export default function CallScreen() {
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ margin: 0, fontWeight: 800, color: '#C9A96E', fontSize: '1.1rem', fontFamily: 'monospace' }}>
+                      <p style={{ margin: 0, fontWeight: 800, color: accentColor, fontSize: '1.1rem', fontFamily: 'monospace' }}>
                         {fmt(log.duration)}
                       </p>
                     </div>
@@ -351,33 +396,58 @@ export default function CallScreen() {
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center',
       overflow: 'hidden', fontFamily: 'DM Sans, sans-serif', zIndex: 999999
     }}>
-      {/* Dynamic Animated Atmospheric Lighting */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+      {/* ── BACKGROUND THEME / WALLPAPER ──────────────────────── */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+        {space?.chat_wallpaper ? (
+          <>
+            <div style={{
+              width: '100%', height: '100%',
+              background: `url(${fixUrl(space.chat_wallpaper)}) center/cover no-repeat`,
+              filter: 'brightness(0.6) contrast(1.05)'
+            }} />
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.85) 100%)',
+              backdropFilter: 'blur(3px)'
+            }} />
+          </>
+        ) : (
+          <div style={{
+            width: '100%', height: '100%',
+            background: themeBg,
+            position: 'absolute', inset: 0
+          }} />
+        )}
+
+        {/* Dynamic Animated Living Elements (Fireflies, Rain, Stars, Sakura, Bokeh, etc.) */}
+        <ChatBackground elements={activeTheme.elements} theme={activeTheme} />
+
+        {/* Dynamic Animated Atmospheric Lighting (matched to theme accent) */}
         <motion.div
           animate={{
             scale: [1, 1.25, 1],
-            opacity: [0.25, 0.45, 0.25],
+            opacity: [0.3, 0.55, 0.3],
             x: [0, 20, 0],
             y: [0, -30, 0]
           }}
           transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
           style={{
             position: 'absolute', top: '10%', left: '15%', width: '75vw', height: '75vw',
-            background: 'radial-gradient(circle, rgba(201,169,110,0.22) 0%, rgba(124,111,205,0.12) 45%, transparent 70%)',
+            background: `radial-gradient(circle, ${hexToRgba(accentColor, 0.28)} 0%, ${hexToRgba(accentColor, 0.08)} 45%, transparent 70%)`,
             filter: 'blur(90px)'
           }}
         />
         <motion.div
           animate={{
             scale: [1.1, 0.9, 1.1],
-            opacity: [0.15, 0.35, 0.15],
+            opacity: [0.2, 0.45, 0.2],
             x: [0, -25, 0],
             y: [0, 30, 0]
           }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1 }}
           style={{
             position: 'absolute', bottom: '15%', right: '10%', width: '80vw', height: '80vw',
-            background: 'radial-gradient(circle, rgba(124,111,205,0.2) 0%, rgba(201,169,110,0.1) 50%, transparent 75%)',
+            background: `radial-gradient(circle, ${hexToRgba(accentColor, 0.24)} 0%, ${hexToRgba(accentColor, 0.06)} 50%, transparent 75%)`,
             filter: 'blur(100px)'
           }}
         />
@@ -424,11 +494,11 @@ export default function CallScreen() {
           onClick={() => setShowAudioMenu(true)}
           title="Audio Output Device"
           style={{
-            background: audioRoute === 'speaker' ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.06)',
-            border: audioRoute === 'speaker' ? '1px solid rgba(201,169,110,0.35)' : '1px solid rgba(255,255,255,0.1)',
+            background: audioRoute === 'speaker' ? hexToRgba(accentColor, 0.18) : 'rgba(255,255,255,0.06)',
+            border: audioRoute === 'speaker' ? `1px solid ${hexToRgba(accentColor, 0.4)}` : '1px solid rgba(255,255,255,0.1)',
             borderRadius: 16, width: 44, height: 44,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: audioRoute === 'speaker' ? '#C9A96E' : '#fff', cursor: 'pointer', backdropFilter: 'blur(20px)'
+            color: audioRoute === 'speaker' ? accentColor : '#fff', cursor: 'pointer', backdropFilter: 'blur(20px)'
           }}
         >
           {audioRoute === 'speaker' ? <Icons.Volume2 size={20} /> : <Icons.Phone size={20} />}
@@ -461,7 +531,7 @@ export default function CallScreen() {
             position: 'absolute', top: 90, right: 20,
             width: 110, height: 165, borderRadius: 22,
             overflow: 'hidden',
-            border: '2px solid rgba(201,169,110,0.5)',
+            border: `2px solid ${hexToRgba(accentColor, 0.6)}`,
             background: '#121216', zIndex: 25,
             boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
             cursor: 'grab'
@@ -504,7 +574,7 @@ export default function CallScreen() {
               transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut" }}
               style={{
                 position: 'absolute', inset: -16, borderRadius: '50%',
-                border: '2px solid rgba(201,169,110,0.6)', filter: 'blur(3px)',
+                border: `2px solid ${hexToRgba(accentColor, 0.6)}`, filter: 'blur(3px)',
                 pointerEvents: 'none'
               }}
             />
@@ -514,7 +584,7 @@ export default function CallScreen() {
               transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
               style={{
                 position: 'absolute', inset: -28, borderRadius: '50%',
-                border: '1.5px solid rgba(124,111,205,0.5)', filter: 'blur(4px)',
+                border: `1.5px solid ${hexToRgba(accentColor, 0.45)}`, filter: 'blur(4px)',
                 pointerEvents: 'none'
               }}
             />
@@ -524,7 +594,7 @@ export default function CallScreen() {
               transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut", delay: 1.2 }}
               style={{
                 position: 'absolute', inset: -40, borderRadius: '50%',
-                border: '1px solid rgba(201,169,110,0.3)', filter: 'blur(6px)',
+                border: `1px solid ${hexToRgba(accentColor, 0.3)}`, filter: 'blur(6px)',
                 pointerEvents: 'none'
               }}
             />
@@ -533,8 +603,8 @@ export default function CallScreen() {
             <div style={{
               width: '100%', height: '100%', borderRadius: '50%',
               background: 'linear-gradient(135deg, #24201c, #131218)',
-              border: '3.5px solid #C9A96E',
-              boxShadow: '0 0 50px rgba(201,169,110,0.4), inset 0 0 25px rgba(0,0,0,0.8)',
+              border: `3.5px solid ${accentColor}`,
+              boxShadow: `0 0 50px ${hexToRgba(accentColor, 0.4)}, inset 0 0 25px rgba(0,0,0,0.8)`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               position: 'relative', zIndex: 2, overflow: 'hidden'
             }}>
@@ -545,7 +615,7 @@ export default function CallScreen() {
                   fontSize: '3.8rem',
                   fontFamily: 'Cormorant Garamond, serif',
                   fontWeight: 700,
-                  background: 'linear-gradient(135deg, #FFF, #C9A96E)',
+                  background: `linear-gradient(135deg, #FFF, ${accentColor})`,
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent'
                 }}>
@@ -576,7 +646,7 @@ export default function CallScreen() {
             <span style={{
               fontSize: callState === 'connected' ? '1.15rem' : '0.85rem',
               fontWeight: callState === 'connected' ? 800 : 600,
-              color: callState === 'connected' ? '#C9A96E' : 'rgba(255,255,255,0.7)',
+              color: callState === 'connected' ? accentColor : 'rgba(255,255,255,0.7)',
               fontFamily: callState === 'connected' ? 'monospace' : 'inherit',
               letterSpacing: callState === 'connected' ? '2px' : '0.5px'
             }}>
@@ -602,9 +672,9 @@ export default function CallScreen() {
                   transition={{ duration: 0.55 + (i % 4) * 0.12, repeat: Infinity, ease: 'easeInOut', delay: i * 0.05 }}
                   style={{
                     width: 4,
-                    background: 'linear-gradient(to top, #C9A96E, #7C6FCD)',
+                    background: `linear-gradient(to top, ${accentColor}, ${activeTheme.bubbleOther || '#7C6FCD'})`,
                     borderRadius: 4,
-                    boxShadow: '0 0 8px rgba(201,169,110,0.4)'
+                    boxShadow: `0 0 8px ${hexToRgba(accentColor, 0.4)}`
                   }}
                 />
               ))}
@@ -884,9 +954,9 @@ export default function CallScreen() {
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '16px 20px', borderRadius: 18,
-                      background: audioRoute === dev.id ? 'rgba(201,169,110,0.16)' : 'rgba(255,255,255,0.04)',
-                      border: audioRoute === dev.id ? '1.5px solid rgba(201,169,110,0.5)' : '1px solid rgba(255,255,255,0.06)',
-                      color: audioRoute === dev.id ? '#C9A96E' : '#fff',
+                      background: audioRoute === dev.id ? hexToRgba(accentColor, 0.18) : 'rgba(255,255,255,0.04)',
+                      border: audioRoute === dev.id ? `1.5px solid ${hexToRgba(accentColor, 0.55)}` : '1px solid rgba(255,255,255,0.06)',
+                      color: audioRoute === dev.id ? accentColor : '#fff',
                       fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer'
                     }}
                   >
@@ -894,7 +964,7 @@ export default function CallScreen() {
                       {dev.icon}
                       <span>{dev.label}</span>
                     </div>
-                    {audioRoute === dev.id && <span style={{ color: '#C9A96E', fontWeight: 900 }}>✓</span>}
+                    {audioRoute === dev.id && <span style={{ color: accentColor, fontWeight: 900 }}>✓</span>}
                   </button>
                 ))}
               </div>
