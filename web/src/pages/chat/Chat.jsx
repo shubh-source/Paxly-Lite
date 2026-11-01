@@ -493,6 +493,16 @@ export default function Chat() {
         }
         return merged;
       });
+
+      // Check for any pending save requests targeting this user
+      api.get('/chat/pending-save-requests')
+        .then(res => {
+          if (Array.isArray(res.data) && res.data.length > 0) {
+            setSaveRequest(res.data[0]);
+          }
+        })
+        .catch(() => {});
+
       setLoadingHistory(false);
     } catch (err) {
       console.warn("syncMessages error:", err);
@@ -827,10 +837,11 @@ export default function Chat() {
         }));
       }),
       wsService.on('media_save_request', d => {
-        if (d.sender_id !== user?.id)
-          setSaveRequest({ from: partner?.name || 'Partner', ...d });
+        if (String(d.sender_id) !== String(user?.id))
+          setSaveRequest({ from: d.from || partner?.name || 'Partner', ...d });
       }),
       wsService.on('media_save_response', async d => {
+        if (d.request_id && String(d.request_id) !== String(user?.id)) return;
         setRequestingSave(false);
         if (!d || !d.allowed) {
           alert('Save request denied by partner.');
@@ -1723,11 +1734,26 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
     if (msg.sender_id === user?.id) return;
     pendingSaveMsgRef.current = msg;
     setRequestingSave(true);
+    // 1. Send via WebSocket for instant delivery
     wsService.sendMediaSaveRequest(msg.media_url, msg.id);
+    // 2. Also send via REST API to persist in partner's notification box & offline delivery
+    api.post('/chat/media-save-request', {
+      media_url: msg.media_url,
+      message_id: msg.id
+    }).catch(e => console.warn('REST save request fallback error:', e));
   };
-  const respondSave = allowed => {
+  const respondSave = (allowed) => {
     if (!saveRequest) return;
+    // 1. Send via WebSocket
     wsService.sendMediaSaveResponse(saveRequest.sender_id, allowed, saveRequest.message_id, saveRequest.media_url);
+    // 2. Also send via REST API to resolve notification in database
+    api.post('/chat/media-save-respond', {
+      request_id: saveRequest.sender_id,
+      allowed,
+      message_id: saveRequest.message_id,
+      media_url: saveRequest.media_url,
+      notification_id: saveRequest.notification_id || null
+    }).catch(e => console.warn('REST save response fallback error:', e));
     setSaveRequest(null);
   };
 
@@ -2930,16 +2956,16 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {/* Save request */}
         {saveRequest && (
-          <div className="chat-modal-overlay">
-            <div className="chat-modal-card" style={{ border:'1px solid var(--accent)' }}>
-              <div style={{ marginBottom:16, display:'flex', justifyContent:'center' }}><Icons.Vault size={42} color="var(--accent)" /></div>
-              <h3 style={{ marginBottom:6, color:'#fff' }}>Save Request</h3>
-              <p style={{ fontSize:'0.88rem', color:'#fff', marginBottom:20 }}>
-                <b>{saveRequest.from}</b> wants to save a photo. Allow?
+          <div className="chat-modal-overlay" style={{ zIndex: 9999999 }}>
+            <div className="chat-modal-card" style={{ border:'1px solid var(--accent)', boxShadow: '0 12px 48px rgba(0,0,0,0.85)', background: '#1c1815' }}>
+              <div style={{ marginBottom:16, display:'flex', justifyContent:'center' }}><Icons.Vault size={44} color="var(--accent)" /></div>
+              <h3 style={{ marginBottom:6, color:'#fff', fontSize: '1.2rem' }}>Save Request</h3>
+              <p style={{ fontSize:'0.92rem', color:'rgba(255,255,255,0.85)', marginBottom:20, lineHeight: 1.5 }}>
+                <b>{saveRequest.from || partner?.name || 'Your partner'}</b> wants to save a photo to their phone. Allow?
               </p>
-              <div style={{ display:'flex', gap:10 }}>
-                <button className="btn btn-g" onClick={() => respondSave(false)} style={{ flex:1, padding:12, borderRadius:12, cursor:'pointer' }}>Deny</button>
-                <button className="btn btn-p" onClick={() => respondSave(true)}  style={{ flex:1, padding:12, borderRadius:12, color:'#000', fontWeight:700, cursor:'pointer' }}>Allow</button>
+              <div style={{ display:'flex', gap:12 }}>
+                <button className="btn btn-g" onClick={() => respondSave(false)} style={{ flex:1, padding:14, borderRadius:12, cursor:'pointer', background: 'rgba(255,255,255,0.1)', color: '#fff' }}>Deny</button>
+                <button className="btn btn-p" onClick={() => respondSave(true)}  style={{ flex:1, padding:14, borderRadius:12, color:'#000', fontWeight:700, cursor:'pointer', background: activeTheme.accent || 'var(--accent)' }}>Allow Save</button>
               </div>
             </div>
           </div>

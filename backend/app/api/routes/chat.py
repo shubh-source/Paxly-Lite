@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -783,3 +784,172 @@ async def update_wallpaper(file: UploadFile = File(...), cu: User = Depends(get_
     await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(chat_wallpaper=url, theme_id="custom"))
     await db.commit()
     return {"chat_wallpaper": url}
+
+class MediaSaveRequestData(BaseModel):
+    media_url: str
+    message_id: Optional[str] = None
+
+class MediaSaveRespondData(BaseModel):
+    request_id: str
+    allowed: bool
+    message_id: Optional[str] = None
+    media_url: Optional[str] = None
+    notification_id: Optional[int] = None
+
+@router.post("/media-save-request")
+async def create_media_save_request(
+    data: MediaSaveRequestData,
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    space, partner = await resolve_and_sync_space(cu, db)
+    if not space:
+        raise HTTPException(400, "No couple space found.")
+    
+    space_id = space.id
+    target_partner_id = partner.id if partner else cu.partner_id
+    if not target_partner_id:
+        target_partner_id = space.user2_id if space.user1_id == cu.id else space.user1_id
+
+    payload = {
+        "type": "media_save_request",
+        "media_url": data.media_url,
+        "message_id": data.message_id,
+        "from": cu.name or "Partner",
+        "sender_id": cu.id
+    }
+
+    # 1. Real-time broadcast to space & partner
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, payload, exclude_user=cu.id)
+        if target_partner_id:
+            await manager.send_to_user(str(target_partner_id), payload)
+    except Exception as e:
+        print(f"WS broadcast error: {e}")
+
+    # 2. Persist notification in database for partner's notification box
+    if target_partner_id:
+        from app.models.orm import Notification
+        notif = Notification(
+            user_id=str(target_partner_id),
+            type="media_save_request",
+            title="Photo Save Request",
+            body=f"{cu.name or 'Partner'} requested permission to save a photo from chat.",
+            data={
+                "sender_id": cu.id,
+                "from": cu.name or "Partner",
+                "message_id": data.message_id,
+                "media_url": data.media_url,
+                "status": "pending"
+            }
+        )
+        db.add(notif)
+        await db.commit()
+
+    return {"ok": True}
+
+@router.post("/media-save-respond")
+async def respond_media_save_request(
+    data: MediaSaveRespondData,
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id if space else (cu.couple_space_id or f"space_{cu.id}")
+
+    from app.models.orm import Notification
+    # Mark notification as read and updated
+    if data.notification_id:
+        stmt = select(Notification).filter(Notification.id == data.notification_id, Notification.user_id == cu.id)
+        res = await db.execute(stmt)
+        n = res.scalars().first()
+        if n:
+            n.read = True
+            n.data = { **(n.data or {}), "status": "allowed" if data.allowed else "denied" }
+    else:
+        # Mark all pending save requests from this requester as resolved
+        stmt = select(Notification).filter(
+            Notification.user_id == cu.id,
+            Notification.type == "media_save_request",
+            Notification.read == False
+        )
+        res = await db.execute(stmt)
+        for n in res.scalars().all():
+            if n.data and (not data.message_id or n.data.get("message_id") == data.message_id):
+                n.read = True
+                n.data = { **(n.data or {}), "status": "allowed" if data.allowed else "denied" }
+
+    # Save to vault if allowed
+    final_media_url = data.media_url
+    if data.allowed and data.message_id:
+        msg_res = await db.execute(
+            select(Message).filter(Message.id == data.message_id, Message.couple_space_id == space_id)
+        )
+        msg_obj = msg_res.scalars().first()
+        if msg_obj and msg_obj.media_url:
+            final_media_url = msg_obj.media_url
+            from app.models.orm import Memory
+            mem = Memory(
+                id=str(uuid.uuid4()),
+                couple_space_id=space_id,
+                title="Saved from Secure Chat",
+                description=f"Saved with permission from {cu.name or 'Partner'}",
+                date=datetime.utcnow().strftime("%Y-%m-%d"),
+                image_url=msg_obj.media_url,
+                created_by=data.request_id,
+                created_at=datetime.utcnow()
+            )
+            db.add(mem)
+
+    await db.commit()
+
+    payload = {
+        "type": "media_save_response",
+        "request_id": data.request_id,
+        "allowed": data.allowed,
+        "message_id": data.message_id,
+        "media_url": final_media_url,
+        "partner_name": cu.name or "Partner"
+    }
+
+    # Broadcast response
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, payload, exclude_user=cu.id)
+        if data.request_id:
+            await manager.send_to_user(str(data.request_id), payload)
+    except Exception as e:
+        print(f"WS broadcast error: {e}")
+
+    return {"ok": True, "allowed": data.allowed}
+
+@router.get("/pending-save-requests")
+async def get_pending_save_requests(
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.orm import Notification
+    stmt = (
+        select(Notification)
+        .filter(
+            Notification.user_id == cu.id,
+            Notification.type == "media_save_request",
+            Notification.read == False
+        )
+        .order_by(Notification.created_at.desc())
+    )
+    res = await db.execute(stmt)
+    pending = []
+    for n in res.scalars().all():
+        if n.data and n.data.get("status") == "pending":
+            pending.append({
+                "notification_id": n.id,
+                "sender_id": n.data.get("sender_id"),
+                "from": n.data.get("from"),
+                "message_id": n.data.get("message_id"),
+                "media_url": n.data.get("media_url"),
+                "created_at": _to_iso_utc(n.created_at)
+            })
+    return pending
+

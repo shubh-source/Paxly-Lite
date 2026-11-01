@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getNotifications, markAllNotificationsRead } from '../services/api';
+import api, { getNotifications, markAllNotificationsRead } from '../services/api';
 import { Icons } from '../components/ui/Icons';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -27,8 +27,28 @@ export default function Notifications() {
     });
   }, []);
 
+  const handleSaveRespond = async (e, n, allowed) => {
+    e.stopPropagation();
+    try {
+      await api.post('/chat/media-save-respond', {
+        request_id: n.data?.sender_id,
+        allowed,
+        message_id: n.data?.message_id,
+        media_url: n.data?.media_url,
+        notification_id: n.id
+      });
+      setNotifs(prev => prev.map(item => item.id === n.id ? {
+        ...item,
+        read: true,
+        data: { ...(item.data || {}), status: allowed ? 'allowed' : 'denied' }
+      } : item));
+    } catch (err) {
+      alert('Failed to respond: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   const handleClick = (n) => {
-    if (n.type === 'safety_alert') {
+    if (n.type === 'safety_alert' || n.type === 'media_save_request') {
       nav('/chat');
     } else if (n.type === 'ai_report') {
       nav('/ai/lab');
@@ -100,6 +120,8 @@ export default function Notifications() {
                       <Icons.Heart size={22} color="#ec4899" />
                     ) : isIntruder ? (
                       <Icons.Shield size={22} color="#FF3B30" />
+                    ) : n.type === 'media_save_request' ? (
+                      <Icons.Download size={22} color="var(--accent)" />
                     ) : (n.type === 'love_note' || n.type === 'love_note_gift' || n.type === 'love_note_author_unlocked' || n.type === 'love_note_capsule') ? (
                       <Icons.LoveNote size={20} color="var(--accent)" />
                     ) : n.type === 'anniversary_reminder' ? (
@@ -145,6 +167,54 @@ export default function Notifications() {
                     <div style={{ fontSize: '0.85rem', color: isSafety || isIntruder ? '#e2e8f0' : 'var(--muted)', lineHeight: 1.45, marginBottom: 8 }}>
                       {n.body}
                     </div>
+                    {n.type === 'media_save_request' && (
+                      <div style={{ marginTop: 8, marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center' }}>
+                        {(!n.data?.status || n.data?.status === 'pending') ? (
+                          <>
+                            <button
+                              onClick={(e) => handleSaveRespond(e, n, false)}
+                              style={{
+                                padding: '6px 14px',
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 8,
+                                color: '#fff',
+                                fontSize: '0.82rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Deny
+                            </button>
+                            <button
+                              onClick={(e) => handleSaveRespond(e, n, true)}
+                              style={{
+                                padding: '6px 16px',
+                                background: 'var(--accent)',
+                                border: 'none',
+                                borderRadius: 8,
+                                color: '#000',
+                                fontWeight: 700,
+                                fontSize: '0.82rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Allow Save
+                            </button>
+                          </>
+                        ) : (
+                          <span style={{
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            color: n.data?.status === 'allowed' ? '#4ade80' : '#f87171',
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            background: n.data?.status === 'allowed' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)'
+                          }}>
+                            {n.data?.status === 'allowed' ? '✓ Allowed' : '✗ Denied'}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontSize: '0.7rem', color: 'var(--s2)' }}>
                         {formatDistanceToNow(new Date(n.created_at))} ago

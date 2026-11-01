@@ -459,7 +459,37 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif p_type == "media_save_request":
                     payload["from"] = user_name
                     payload["sender_id"] = user_id
-                    await manager.send_to_user(partner_id, payload)
+                    # 1. Real-time broadcast to space & partner
+                    await manager.send_to_space(space_id, payload, exclude_user=user_id, exclude_socket=websocket)
+                    if partner_id:
+                        await manager.send_to_user(str(partner_id), payload, exclude_socket=websocket)
+
+                    # 2. Persist notification to partner's notification box in database
+                    target_partner_id = partner_id
+                    if not target_partner_id and space:
+                        target_partner_id = space.user2_id if space.user1_id == user_id else space.user1_id
+
+                    if target_partner_id:
+                        try:
+                            async with AsyncSessionLocal() as db:
+                                from app.models.orm import Notification
+                                notif = Notification(
+                                    user_id=str(target_partner_id),
+                                    type="media_save_request",
+                                    title="Photo Save Request",
+                                    body=f"{user_name} requested permission to save a photo from chat.",
+                                    data={
+                                        "sender_id": user_id,
+                                        "from": user_name,
+                                        "message_id": payload.get("message_id"),
+                                        "media_url": payload.get("media_url"),
+                                        "status": "pending"
+                                    }
+                                )
+                                db.add(notif)
+                                await db.commit()
+                        except Exception as ne:
+                            logger.warning(f"Failed to record media save notification: {ne}")
 
                 elif p_type == "media_save_response":
                     allowed = payload.get("allowed", False)
@@ -469,41 +499,63 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                     payload["partner_name"] = user_name
 
-                    if allowed and msg_id:
-                        async with AsyncSessionLocal() as db:
-                            # Security: Scope media lookup strictly to the authenticated couple space
-                            res = await db.execute(
-                                select(Message).filter(Message.id == msg_id, Message.couple_space_id == space_id)
-                            )
-                            msg = res.scalars().first()
-                            if msg and msg.media_url:
-                                if not media_url:
-                                    payload["media_url"] = msg.media_url
-                                from app.models.orm import Memory
-                                mem = Memory(
-                                    id=str(uuid.uuid4()),
-                                    couple_space_id=space_id,
-                                    title="Saved from Secure Chat",
-                                    description=f"Saved with permission from {user_name}",
-                                    date=datetime.utcnow().strftime("%Y-%m-%d"),
-                                    image_url=msg.media_url,
-                                    created_by=request_id,
-                                    created_at=datetime.utcnow()
+                    async with AsyncSessionLocal() as db:
+                        try:
+                            from app.models.orm import Notification
+                            notifs_res = await db.execute(
+                                select(Notification).filter(
+                                    Notification.user_id == user_id,
+                                    Notification.type == "media_save_request",
+                                    Notification.read == False
                                 )
-                                db.add(mem)
-                                await db.commit()
+                            )
+                            for n in notifs_res.scalars().all():
+                                if n.data and (not msg_id or n.data.get("message_id") == msg_id):
+                                    n.read = True
+                                    n.data = { **(n.data or {}), "status": "allowed" if allowed else "denied" }
 
-                    await manager.send_to_user(request_id, payload)
+                            if allowed and msg_id:
+                                # Security: Scope media lookup strictly to the authenticated couple space
+                                res = await db.execute(
+                                    select(Message).filter(Message.id == msg_id, Message.couple_space_id == space_id)
+                                )
+                                msg = res.scalars().first()
+                                if msg and msg.media_url:
+                                    if not media_url:
+                                        payload["media_url"] = msg.media_url
+                                    from app.models.orm import Memory
+                                    mem = Memory(
+                                        id=str(uuid.uuid4()),
+                                        couple_space_id=space_id,
+                                        title="Saved from Secure Chat",
+                                        description=f"Saved with permission from {user_name}",
+                                        date=datetime.utcnow().strftime("%Y-%m-%d"),
+                                        image_url=msg.media_url,
+                                        created_by=request_id,
+                                        created_at=datetime.utcnow()
+                                    )
+                                    db.add(mem)
+                            await db.commit()
+                        except Exception as de:
+                            logger.warning(f"Error persisting media save response: {de}")
+
+                    await manager.send_to_space(space_id, payload, exclude_user=user_id, exclude_socket=websocket)
+                    if request_id:
+                        await manager.send_to_user(str(request_id), payload)
 
                 elif p_type == "vault_download_request":
                     payload["from"] = user_name
                     payload["sender_id"] = user_id
-                    await manager.send_to_user(partner_id, payload)
+                    await manager.send_to_space(space_id, payload, exclude_user=user_id, exclude_socket=websocket)
+                    if partner_id:
+                        await manager.send_to_user(str(partner_id), payload, exclude_socket=websocket)
 
                 elif p_type == "vault_download_response":
                     request_id = payload.get("request_id")
                     payload["partner_name"] = user_name
-                    await manager.send_to_user(request_id, payload)
+                    await manager.send_to_space(space_id, payload, exclude_user=user_id, exclude_socket=websocket)
+                    if request_id:
+                        await manager.send_to_user(str(request_id), payload)
 
                 elif p_type in ["webrtc_offer", "webrtc_answer", "webrtc_ice", "webrtc_reject", "webrtc_end"]:
                     # Relay to partner
