@@ -862,28 +862,20 @@ async def create_media_save_request(
         raise HTTPException(400, "No couple space found.")
     
     space_id = str(space.id)
-    target_partner_id = str(partner.id) if partner else (str(cu.partner_id) if cu.partner_id else None)
+    target_partner_id = None
+    if data.message_id:
+        msg_res = await db.execute(select(Message).filter(Message.id == data.message_id))
+        msg_obj = msg_res.scalars().first()
+        if msg_obj and msg_obj.sender_id and str(msg_obj.sender_id) != str(cu.id):
+            target_partner_id = str(msg_obj.sender_id)
+
+    if not target_partner_id:
+        target_partner_id = str(partner.id) if partner else (str(cu.partner_id) if cu.partner_id else None)
     if not target_partner_id:
         target_partner_id = str(space.user2_id if str(space.user1_id) == str(cu.id) else space.user1_id)
 
-    payload = {
-        "type": "media_save_request",
-        "media_url": data.media_url,
-        "message_id": data.message_id,
-        "from": cu.name or "Partner",
-        "sender_id": str(cu.id)
-    }
-
-    # 1. Real-time broadcast to space & partner
-    try:
-        from app.websocket.manager import manager
-        await manager.send_to_space(space_id, payload, exclude_user=str(cu.id))
-        if target_partner_id:
-            await manager.send_to_user(str(target_partner_id), payload)
-    except Exception as e:
-        print(f"WS broadcast error: {e}")
-
-    # 2. Persist notification in database for partner's notification box
+    notif_id = None
+    # 1. Persist notification in database for partner's notification box & offline delivery
     if target_partner_id:
         from app.models.orm import Notification
         notif = Notification(
@@ -901,8 +893,28 @@ async def create_media_save_request(
         )
         db.add(notif)
         await db.commit()
+        await db.refresh(notif)
+        notif_id = notif.id
 
-    return {"ok": True}
+    payload = {
+        "type": "media_save_request",
+        "media_url": data.media_url,
+        "message_id": data.message_id,
+        "from": cu.name or "Partner",
+        "sender_id": str(cu.id),
+        "notification_id": notif_id
+    }
+
+    # 2. Real-time broadcast to space & partner
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, payload, exclude_user=str(cu.id))
+        if target_partner_id:
+            await manager.send_to_user(str(target_partner_id), payload)
+    except Exception as e:
+        print(f"WS broadcast error: {e}")
+
+    return {"ok": True, "notification_id": notif_id}
 
 @router.post("/media-save-respond")
 async def respond_media_save_request(
@@ -989,11 +1001,11 @@ async def get_pending_save_requests(
     stmt = (
         select(Notification)
         .filter(
-            Notification.user_id == cu.id,
-            Notification.type == "media_save_request",
-            Notification.read == False
+            Notification.user_id == str(cu.id),
+            Notification.type == "media_save_request"
         )
         .order_by(Notification.created_at.desc())
+        .limit(30)
     )
     res = await db.execute(stmt)
     pending = []
@@ -1008,4 +1020,32 @@ async def get_pending_save_requests(
                 "created_at": _to_iso_utc(n.created_at)
             })
     return pending
+
+@router.get("/my-save-request-status")
+async def get_my_save_request_status(
+    message_id: Optional[str] = None,
+    cu: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.orm import Notification
+    stmt = (
+        select(Notification)
+        .filter(
+            Notification.type == "media_save_request"
+        )
+        .order_by(Notification.created_at.desc())
+        .limit(30)
+    )
+    res = await db.execute(stmt)
+    for n in res.scalars().all():
+        if n.data and str(n.data.get("sender_id")) == str(cu.id):
+            if not message_id or str(n.data.get("message_id")) == str(message_id):
+                status = n.data.get("status", "pending")
+                return {
+                    "status": status,
+                    "allowed": status == "allowed",
+                    "message_id": n.data.get("message_id"),
+                    "media_url": n.data.get("media_url")
+                }
+    return {"status": "none"}
 

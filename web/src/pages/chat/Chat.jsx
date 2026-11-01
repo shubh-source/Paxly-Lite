@@ -359,6 +359,7 @@ export default function Chat() {
   // Save requests
   const [saveRequest, setSaveRequest]   = useState(null);
   const [requestingSave, setRequestingSave] = useState(false);
+  const saveTimeoutRef = useRef(null);
 
   const bottomRef  = useRef(null);
   const typingTimer = useRef(null);
@@ -499,9 +500,31 @@ export default function Chat() {
         .then(res => {
           if (Array.isArray(res.data) && res.data.length > 0) {
             setSaveRequest(res.data[0]);
+          } else {
+            setSaveRequest(null);
           }
         })
         .catch(() => {});
+
+      // If this user is actively waiting for a save request response, check status
+      if (pendingSaveMsgRef.current) {
+        api.get('/chat/my-save-request-status', { params: { message_id: pendingSaveMsgRef.current.id } })
+          .then(res => {
+            if (res.data?.status === 'allowed') {
+              if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+              setRequestingSave(false);
+              const target = pendingSaveMsgRef.current;
+              pendingSaveMsgRef.current = null;
+              if (target) downloadMediaDirect(target);
+            } else if (res.data?.status === 'denied') {
+              if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+              setRequestingSave(false);
+              pendingSaveMsgRef.current = null;
+              alert('Save request denied by partner.');
+            }
+          })
+          .catch(() => {});
+      }
 
       setLoadingHistory(false);
     } catch (err) {
@@ -1678,22 +1701,14 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
   const handleMediaTap = (msg, encKey) => {
     if (msg.is_once_view) return;
     const now = Date.now();
-    if (now - lastTapTime.current < 260) {
-      if (tapTimeout.current) {
-        clearTimeout(tapTimeout.current);
-        tapTimeout.current = null;
-      }
+    if (now - lastTapTime.current < 280) {
       handleEmojiSelect(msg, '❤️', true);
       setFloatingHeart(msg.id);
       setTimeout(() => setFloatingHeart(null), 1000);
       lastTapTime.current = 0;
     } else {
       lastTapTime.current = now;
-      if (tapTimeout.current) clearTimeout(tapTimeout.current);
-      tapTimeout.current = setTimeout(() => {
-        setFullscreenMedia({ ...msg, encryptionKey: encKey });
-        tapTimeout.current = null;
-      }, 220);
+      setFullscreenMedia({ ...msg, encryptionKey: encKey });
     }
   };
 
@@ -1753,6 +1768,12 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
     }
   };
 
+  const cancelSaveRequest = () => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    setRequestingSave(false);
+    pendingSaveMsgRef.current = null;
+  };
+
   const requestSave = msg => {
     if (msg.sender_id === user?.id) {
       downloadMediaDirect(msg);
@@ -1760,12 +1781,22 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
     }
     pendingSaveMsgRef.current = msg;
     setRequestingSave(true);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setRequestingSave(false);
+      pendingSaveMsgRef.current = null;
+    }, 45000);
+
     // 1. Send via WebSocket for instant delivery
     wsService.sendMediaSaveRequest(msg.media_url, msg.id);
     // 2. Also send via REST API to persist in partner's notification box & offline delivery
     api.post('/chat/media-save-request', {
       media_url: msg.media_url,
       message_id: msg.id
+    }).then(res => {
+      if (res.data?.notification_id && pendingSaveMsgRef.current) {
+        pendingSaveMsgRef.current.notification_id = res.data.notification_id;
+      }
     }).catch(e => console.warn('REST save request fallback error:', e));
   };
   const respondSave = (allowed) => {
@@ -3007,8 +3038,15 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
 
         {/* Requesting save banner */}
         {requestingSave && (
-          <div style={{ position:'fixed', top:80, left:'50%', transform:'translateX(-50%)', background:'var(--accent)', color:'#000', padding:'10px 20px', borderRadius:99, fontWeight:700, zIndex:500, boxShadow:'0 8px 22px rgba(201,169,110,0.3)', display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap', fontSize:'0.88rem' }}>
-            <div className="spinner-small" style={{ borderTopColor:'#000' }} /> Requesting Permission…
+          <div style={{ position:'fixed', top:80, left:'50%', transform:'translateX(-50%)', background:'var(--accent)', color:'#000', padding:'10px 18px', borderRadius:99, fontWeight:700, zIndex:500, boxShadow:'0 8px 22px rgba(201,169,110,0.3)', display:'flex', alignItems:'center', gap:10, whiteSpace:'nowrap', fontSize:'0.88rem' }}>
+            <div className="spinner-small" style={{ borderTopColor:'#000' }} />
+            <span>Requesting Permission…</span>
+            <button 
+              onClick={cancelSaveRequest}
+              style={{ background:'rgba(0,0,0,0.15)', border:'none', borderRadius:99, padding:'3px 8px', color:'#000', fontSize:'0.75rem', fontWeight:800, cursor:'pointer', marginLeft:4 }}
+            >
+              Cancel
+            </button>
           </div>
         )}
 

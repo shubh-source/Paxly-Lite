@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api, { getNotifications, markAllNotificationsRead } from '../services/api';
 import { Icons } from '../components/ui/Icons';
+import { wsService } from '../services/websocket';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function Notifications() {
@@ -30,6 +31,7 @@ export default function Notifications() {
   const handleSaveRespond = async (e, n, allowed) => {
     e.stopPropagation();
     try {
+      wsService.sendMediaSaveResponse(n.data?.sender_id, allowed, n.data?.message_id, n.data?.media_url);
       await api.post('/chat/media-save-respond', {
         request_id: n.data?.sender_id,
         allowed,

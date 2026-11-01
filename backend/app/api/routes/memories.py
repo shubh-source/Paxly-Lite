@@ -15,12 +15,12 @@ from app.core.storage import storage
 router = APIRouter(prefix="/memories", tags=["Memories"])
 
 async def get_user_space_id(cu: User, db: AsyncSession) -> str:
-    if cu.couple_space_id:
-        return cu.couple_space_id
     from app.api.routes.chat import resolve_and_sync_space
     space, _ = await resolve_and_sync_space(cu, db)
     if space and space.id:
-        return space.id
+        return str(space.id)
+    if cu.couple_space_id:
+        return str(cu.couple_space_id)
     raise HTTPException(403, "No couple space. Connect with partner first.")
 
 def ensure_space(cu: User):

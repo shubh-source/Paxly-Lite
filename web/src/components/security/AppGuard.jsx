@@ -51,6 +51,7 @@ export default function AppGuard({ children }) {
 
   const [incomingCall, setIncomingCall] = useState(null);
   const [vaultDownloadRequest, setVaultDownloadRequest] = useState(null);
+  const [mediaSaveRequest, setMediaSaveRequest] = useState(null);
   const [intruderAlert, setIntruderAlert] = useState(null);
 
   useEffect(() => {
@@ -73,12 +74,59 @@ export default function AppGuard({ children }) {
        setVaultDownloadRequest(d);
     });
 
+    const offMediaSave = wsService.on('media_save_request', d => {
+      if (String(d.sender_id) !== String(user?.id)) {
+        setMediaSaveRequest(d);
+      }
+    });
+
+    // Check pending save requests on route change and polling
+    const checkPendingSave = () => {
+      if (!user) return;
+      api.get('/chat/pending-save-requests')
+        .then(res => {
+          if (Array.isArray(res.data) && res.data.length > 0) {
+            setMediaSaveRequest(res.data[0]);
+          } else {
+            setMediaSaveRequest(null);
+          }
+        })
+        .catch(() => {});
+    };
+    checkPendingSave();
+    const savePollInterval = setInterval(checkPendingSave, 5000);
+
     const offIntruder = wsService.on('intruder_alert', d => {
        setIntruderAlert(d);
     });
 
-    return () => { off(); offEnd(); offVault(); offIntruder(); };
+    return () => { 
+      off(); 
+      offEnd(); 
+      offVault(); 
+      offMediaSave();
+      clearInterval(savePollInterval);
+      offIntruder(); 
+    };
   }, [user, pathname]);
+
+  const handleMediaSaveRespond = async (allowed) => {
+    if (!mediaSaveRequest) return;
+    const req = mediaSaveRequest;
+    setMediaSaveRequest(null);
+    wsService.sendMediaSaveResponse(req.sender_id, allowed, req.message_id, req.media_url);
+    try {
+      await api.post('/chat/media-save-respond', {
+        request_id: req.sender_id,
+        allowed,
+        message_id: req.message_id,
+        media_url: req.media_url,
+        notification_id: req.notification_id || null
+      });
+    } catch (e) {
+      console.warn('REST media-save-respond error:', e);
+    }
+  };
 
   const answerCall = () => {
     navigate('/call?action=answer');
@@ -414,6 +462,35 @@ export default function AppGuard({ children }) {
                 wsService.sendVaultDownloadResponse(vaultDownloadRequest.sender_id, true, vaultDownloadRequest.memory_id);
                 setVaultDownloadRequest(null);
               }} style={{ flex: 1, padding: 14, color: '#000', fontWeight: 700 }}>Allow Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Media Save Permission Request Modal */}
+      {mediaSaveRequest && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.88)', zIndex:999999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter: 'blur(12px)' }}>
+          <div className="card" style={{ maxWidth:360, width:'100%', textAlign:'center', border: '1px solid var(--accent, #C9A96E)', padding: 26, background: '#1c1815', boxShadow: '0 16px 48px rgba(0,0,0,0.85)', borderRadius: 20 }}>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={44} color="var(--accent, #C9A96E)" /></div>
+            <h3 style={{ marginBottom: 8, color: '#fff', fontSize: '1.2rem' }}>Save Request</h3>
+            <p style={{ fontSize:'0.92rem', color:'rgba(255,255,255,0.88)', marginBottom: 22, lineHeight: 1.5 }}>
+              <b>{mediaSaveRequest.from || 'Your partner'}</b> wants to save a photo from chat to their phone. Allow?
+            </p>
+            <div style={{ display:'flex', gap: 12 }}>
+              <button 
+                className="btn btn-g" 
+                onClick={() => handleMediaSaveRespond(false)} 
+                style={{ flex: 1, padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer' }}
+              >
+                Deny
+              </button>
+              <button 
+                className="btn btn-p" 
+                onClick={() => handleMediaSaveRespond(true)} 
+                style={{ flex: 1, padding: 14, borderRadius: 12, color: '#000', fontWeight: 700, background: 'var(--accent, #C9A96E)', cursor: 'pointer' }}
+              >
+                Allow Save
+              </button>
             </div>
           </div>
         </div>

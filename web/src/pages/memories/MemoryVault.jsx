@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import api, { getMemories, deleteMemory } from '../../services/api';
+import api, { getMemories, deleteMemory, getSpace } from '../../services/api';
 import { format, parseISO } from 'date-fns';
 import { Icons } from '../../components/ui/Icons';
 import { wsService } from '../../services/websocket';
 import { useAuth } from '../../context/AuthContext';
 import { decryptMessage, decryptMediaBlob } from '../../services/crypto';
 import EncryptedMedia from '../../components/chat/EncryptedMedia';
+import MediaLightboxModal from '../../components/chat/MediaLightboxModal';
+import { getScopedCachedPartner, setScopedCachedPartner, safeGetItem } from '../../services/chatCache';
 import { fixUrl } from '../chat/Chat';
 
 export function MemoryVault() {
@@ -18,13 +20,31 @@ export function MemoryVault() {
   const [saveRequest, setSaveRequest] = useState(null);
   const [requestingSave, setRequestingSave] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [fullscreenMedia, setFullscreenMedia] = useState(null);
   const pendingSaveMsgRef = useRef(null);
+  const saveTimeoutRef = useRef(null);
+
+  const [partnerPk, setPartnerPk] = useState(() => {
+    const cached = getScopedCachedPartner(user?.id, user?.couple_space_id);
+    return cached?.public_key || user?.partner?.public_key || safeGetItem('paxly_partner_pk') || null;
+  });
+
+  useEffect(() => {
+    getSpace().then(d => {
+      if (d?.partner?.public_key) {
+        setPartnerPk(d.partner.public_key);
+        if (user?.id && (d.id || user?.couple_space_id)) {
+          setScopedCachedPartner(user.id, d.id || user.couple_space_id, d.partner);
+        }
+      }
+    }).catch(() => {});
+  }, [user?.id, user?.couple_space_id]);
 
   const saveDecryptedToPhone = async (m) => {
     try {
       const rawUrl = m.image_url;
       if (!rawUrl) return;
-      const token = localStorage.getItem('ros_token');
+      const token = safeGetItem('ros_token') || localStorage.getItem('ros_token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await fetch(fixUrl(rawUrl), { headers });
       if (!res.ok) throw new Error(`Download failed with status ${res.status}`);
@@ -33,6 +53,17 @@ export function MemoryVault() {
       let encryptionKey = null;
       if (m.description && m.description.startsWith('E2EE_KEY:')) {
         encryptionKey = m.description.substring(9);
+      } else if (m.description) {
+        const sk = safeGetItem('paxly_sk') || localStorage.getItem('paxly_sk');
+        const pk = partnerPk || getScopedCachedPartner(user?.id, user?.couple_space_id)?.public_key || user?.partner?.public_key || safeGetItem('paxly_partner_pk');
+        if (sk && pk) {
+          try {
+            const dec = decryptMessage(m.description, sk, pk);
+            if (dec && dec.startsWith('E2EE_KEY:')) {
+              encryptionKey = dec.substring(9);
+            }
+          } catch {}
+        }
       }
       if (encryptionKey) {
         blob = await decryptMediaBlob(blob, encryptionKey);
@@ -61,14 +92,17 @@ export function MemoryVault() {
   };
 
   useEffect(() => { 
-    const sk = localStorage.getItem('paxly_sk');
-    const pk = user?.partner?.public_key;
+    const sk = safeGetItem('paxly_sk') || localStorage.getItem('paxly_sk');
+    const pk = partnerPk || getScopedCachedPartner(user?.id, user?.couple_space_id)?.public_key || user?.partner?.public_key || safeGetItem('paxly_partner_pk');
     
     const decryptItem = (m) => {
-      if (m.description && sk && pk && typeof m.description === 'string' && m.description.startsWith) {
-        try {
-          m.description = decryptMessage(m.description, sk, pk);
-        } catch {}
+      if (m.description && typeof m.description === 'string' && !m.description.startsWith('E2EE_KEY:')) {
+        if (sk && pk) {
+          try {
+            const dec = decryptMessage(m.description, sk, pk);
+            if (dec) m.description = dec;
+          } catch {}
+        }
       }
       return m;
     };
@@ -177,6 +211,12 @@ export function MemoryVault() {
     setVideos(m => m.filter(x => x.id !== id));
   };
 
+  const cancelSaveRequest = () => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    setRequestingSave(false);
+    pendingSaveMsgRef.current = null;
+  };
+
   const requestSave = async (m) => {
     // If it's user's own media, save directly to device gallery
     if (m.created_by === user?.id) {
@@ -186,6 +226,12 @@ export function MemoryVault() {
     // If partner's media, request permission
     pendingSaveMsgRef.current = m;
     setRequestingSave(true);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setRequestingSave(false);
+      pendingSaveMsgRef.current = null;
+    }, 45000);
+
     wsService.sendMediaSaveRequest(m.image_url, m.id);
     api.post('/chat/media-save-request', {
       media_url: m.image_url,
@@ -313,7 +359,10 @@ export function MemoryVault() {
                 background: 'rgba(255,255,255,0.03)',
                 transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
               }}>
-                <div style={{ position: 'relative', overflow: 'hidden' }}>
+                <div 
+                  style={{ position: 'relative', overflow: 'hidden', cursor: m.image_url ? 'pointer' : 'default' }}
+                  onClick={() => m.image_url && setFullscreenMedia({ ...m, media_url: m.image_url, message_type: activeTab === 'videos' ? 'video' : 'image', encryptionKey })}
+                >
                   {m.image_url && (
                     activeTab === 'videos' ? (
                       <EncryptedMedia
@@ -383,6 +432,32 @@ export function MemoryVault() {
           </div>
         )}
       </div>
+      {/* Fullscreen Media Lightbox Modal */}
+      {fullscreenMedia && (
+        <MediaLightboxModal
+          msg={fullscreenMedia}
+          isOwn={fullscreenMedia.created_by === user?.id}
+          encryptionKey={fullscreenMedia.encryptionKey}
+          onClose={() => setFullscreenMedia(null)}
+          onDownload={saveDecryptedToPhone}
+          onRequestSave={requestSave}
+        />
+      )}
+
+      {/* Requesting save banner */}
+      {requestingSave && (
+        <div style={{ position:'fixed', top:80, left:'50%', transform:'translateX(-50%)', background:'var(--accent)', color:'#000', padding:'10px 18px', borderRadius:99, fontWeight:700, zIndex:500, boxShadow:'0 8px 22px rgba(201,169,110,0.3)', display:'flex', alignItems:'center', gap:10, whiteSpace:'nowrap', fontSize:'0.88rem' }}>
+          <div className="spinner-small" style={{ borderTopColor:'#000' }} />
+          <span>Requesting Permission…</span>
+          <button 
+            onClick={cancelSaveRequest}
+            style={{ background:'rgba(0,0,0,0.15)', border:'none', borderRadius:99, padding:'3px 8px', color:'#000', fontSize:'0.75rem', fontWeight:800, cursor:'pointer', marginLeft:4 }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <style>{`
         .card-hover:hover .memory-img { transform: scale(1.05); }
         .card-hover:hover { box-shadow: 0 20px 40px rgba(0,0,0,0.4); }

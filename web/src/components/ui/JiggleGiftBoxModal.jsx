@@ -210,13 +210,26 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
 
               {/* The Jiggling Gift Box */}
               <div className={`gift-wrapper ${phase === 'opening' ? 'shaking' : 'jiggling'}`}>
-                {/* Gift Lid with Ribbon & Bow */}
+                {/* Floating Micro Sparkles around the box */}
+                <div className="box-sparkle s1">✨</div>
+                <div className="box-sparkle s2">⭐</div>
+                <div className="box-sparkle s3">✨</div>
+                <div className="box-sparkle s4">💖</div>
+
+                {/* Gift Lid with Ribbon & Floating Bow */}
                 <div className="gift-lid">
-                  {/* Satin Bow on Top */}
+                  {/* Floating Satin Bow on Top with Flowing Ribbon Streamers */}
                   <div className="gift-bow">
-                    <div className="bow-loop left" />
+                    <div className="bow-loop left">
+                      <div className="bow-inner" />
+                    </div>
+                    <div className="bow-loop right">
+                      <div className="bow-inner" />
+                    </div>
+                    {/* Flowing Floating Ribbon Tails */}
+                    <div className="ribbon-tail left" />
+                    <div className="ribbon-tail right" />
                     <div className="bow-knot" />
-                    <div className="bow-loop right" />
                   </div>
                   {/* Lid Ribbon Cross */}
                   <div className="ribbon-vertical-lid" />
@@ -529,51 +542,118 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
           transform: translateX(-50%);
           width: 24px;
           height: 100%;
-          background: linear-gradient(90deg, #b08d4b 0%, #ffd166 50%, #c9a96e 100%);
-          box-shadow: 0 0 6px rgba(201, 169, 110, 0.4);
+          background: linear-gradient(90deg, #b08d4b 0%, #ffd166 35%, #fff1b8 50%, #ffd166 65%, #c9a96e 100%);
+          background-size: 200% 100%;
+          animation: ribbonGlint 3.6s ease-in-out infinite;
+          box-shadow: 0 0 10px rgba(201, 169, 110, 0.45);
         }
 
-        /* Bow on top */
+        /* 🎀 LUXURY FLOATING SATIN BOW & STREAMERS 🎀 */
         .gift-bow {
           position: absolute;
-          top: -24px;
+          top: -26px;
           left: 50%;
           transform: translateX(-50%);
-          width: 54px;
-          height: 24px;
+          width: 68px;
+          height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
+          z-index: 5;
         }
 
         .bow-knot {
-          width: 16px;
-          height: 16px;
+          position: relative;
+          width: 18px;
+          height: 18px;
           border-radius: 50%;
-          background: #ffe399;
-          border: 2px solid #b08d4b;
-          z-index: 2;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          background: radial-gradient(circle at 35% 35%, #fff1b8 0%, #ffd166 45%, #b08d4b 100%);
+          border: 2px solid #ffe399;
+          z-index: 4;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.45), inset 0 1px 3px rgba(255,255,255,0.7);
         }
 
         .bow-loop {
           position: absolute;
-          top: 2px;
-          width: 24px;
-          height: 16px;
-          border-radius: 50%;
-          border: 3px solid #c9a96e;
-          background: linear-gradient(135deg, #ffd166 0%, #b08d4b 100%);
+          top: 0;
+          width: 32px;
+          height: 22px;
+          border-radius: 50% 50% 30% 30%;
+          border: 2.5px solid #ffe399;
+          background: radial-gradient(ellipse at 40% 40%, #fff1b8 0%, #ffd166 50%, #b08d4b 100%);
+          box-shadow: 0 6px 14px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.45);
+          transform-origin: bottom center;
+          z-index: 2;
         }
 
         .bow-loop.left {
-          left: 2px;
-          transform: rotate(-25deg);
+          left: 4px;
+          animation: bowFloatLeft 2.4s ease-in-out infinite;
         }
 
         .bow-loop.right {
-          right: 2px;
-          transform: rotate(25deg);
+          right: 4px;
+          animation: bowFloatRight 2.6s ease-in-out infinite 0.2s;
+        }
+
+        .bow-inner {
+          position: absolute;
+          inset: 3px;
+          border-radius: 50%;
+          background: rgba(0,0,0,0.24);
+          box-shadow: inset 0 2px 5px rgba(0,0,0,0.55);
+        }
+
+        @keyframes bowFloatLeft {
+          0%, 100% { transform: rotate(-24deg) scale(1) translateY(0); }
+          50% { transform: rotate(-32deg) scale(1.08) translateY(-2px); }
+        }
+
+        @keyframes bowFloatRight {
+          0%, 100% { transform: rotate(24deg) scale(1) translateY(0); }
+          50% { transform: rotate(32deg) scale(1.08) translateY(-2px); }
+        }
+
+        /* 🎀 SILKY FLOWING RIBBON TAILS / STREAMERS 🎀 */
+        .ribbon-tail {
+          position: absolute;
+          top: 10px;
+          width: 15px;
+          height: 58px;
+          background: linear-gradient(180deg, #ffe399 0%, #ffd166 30%, #d4af37 60%, #b08d4b 100%);
+          box-shadow: 0 6px 14px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.5);
+          z-index: 1;
+          clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 50% 86%, 0% 100%);
+          transform-origin: top center;
+          filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
+        }
+
+        .ribbon-tail.left {
+          left: 18px;
+          animation: floatRibbonLeft 2.6s ease-in-out infinite;
+        }
+
+        .ribbon-tail.right {
+          right: 18px;
+          animation: floatRibbonRight 2.9s ease-in-out infinite 0.25s;
+        }
+
+        @keyframes floatRibbonLeft {
+          0%, 100% {
+            transform: rotate(-18deg) skewY(-6deg) translateY(0);
+          }
+          50% {
+            transform: rotate(-28deg) skewY(8deg) translateY(4px) scaleX(1.08);
+          }
+        }
+
+        @keyframes floatRibbonRight {
+          0%, 100% {
+            transform: rotate(18deg) skewY(6deg) translateY(0);
+          }
+          50% {
+            transform: rotate(28deg) skewY(-8deg) translateY(4px) scaleX(1.08);
+          }
         }
 
         .gift-body {
@@ -582,8 +662,8 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
           height: 110px;
           background: linear-gradient(145deg, #800f2f 0%, #590d22 100%);
           border-radius: 6px 6px 12px 12px;
-          box-shadow: 0 16px 36px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 16px 36px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+          border: 1px solid rgba(255, 255, 255, 0.12);
           overflow: hidden;
           z-index: 2;
         }
@@ -594,8 +674,10 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
           transform: translateX(-50%);
           width: 24px;
           height: 100%;
-          background: linear-gradient(90deg, #b08d4b 0%, #ffd166 50%, #c9a96e 100%);
-          box-shadow: 0 0 8px rgba(201, 169, 110, 0.3);
+          background: linear-gradient(90deg, #b08d4b 0%, #ffd166 35%, #fff1b8 50%, #ffd166 65%, #c9a96e 100%);
+          background-size: 200% 100%;
+          animation: ribbonGlint 3.6s ease-in-out infinite;
+          box-shadow: 0 0 10px rgba(201, 169, 110, 0.35);
         }
 
         .ribbon-horizontal-body {
@@ -604,8 +686,42 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
           left: 0;
           width: 100%;
           height: 22px;
-          background: linear-gradient(180deg, #ffd166 0%, #b08d4b 100%);
-          box-shadow: 0 0 6px rgba(201, 169, 110, 0.3);
+          background: linear-gradient(180deg, #ffe399 0%, #ffd166 40%, #b08d4b 100%);
+          background-size: 100% 200%;
+          animation: ribbonGlintH 3.2s linear infinite;
+          box-shadow: 0 0 8px rgba(201, 169, 110, 0.35);
+        }
+
+        @keyframes ribbonGlint {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+
+        @keyframes ribbonGlintH {
+          0% { background-position: 50% 0%; }
+          50% { background-position: 50% 100%; }
+          100% { background-position: 50% 0%; }
+        }
+
+        /* Ambient floating micro sparkles around the box */
+        .box-sparkle {
+          position: absolute;
+          font-size: 0.95rem;
+          pointer-events: none;
+          z-index: 10;
+          opacity: 0;
+          animation: sparkleFloat 3s ease-in-out infinite;
+        }
+        .box-sparkle.s1 { top: 12%; left: 10%; animation-delay: 0s; }
+        .box-sparkle.s2 { top: 22%; right: 8%; animation-delay: 0.8s; font-size: 0.8rem; }
+        .box-sparkle.s3 { bottom: 28%; left: 8%; animation-delay: 1.6s; font-size: 0.85rem; }
+        .box-sparkle.s4 { top: 4%; right: 22%; animation-delay: 2.2s; font-size: 0.75rem; }
+
+        @keyframes sparkleFloat {
+          0% { opacity: 0; transform: translateY(8px) scale(0.6); }
+          50% { opacity: 0.85; transform: translateY(-8px) scale(1.15); filter: drop-shadow(0 0 6px #ffd166); }
+          100% { opacity: 0; transform: translateY(-20px) scale(0.5); }
         }
 
         .box-shine {

@@ -480,16 +480,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif p_type == "media_save_request":
                     payload["from"] = user_name
                     payload["sender_id"] = user_id
-                    # 1. Real-time broadcast to space & partner
-                    await manager.send_to_space(space_id, payload, exclude_user=user_id, exclude_socket=websocket)
-                    if partner_id:
-                        await manager.send_to_user(str(partner_id), payload, exclude_socket=websocket)
+                    msg_id_target = payload.get("message_id")
 
-                    # 2. Persist notification to partner's notification box in database
+                    # 1. Resolve true target partner (owner of the photo or current partner)
                     target_partner_id = partner_id
-                    if not target_partner_id:
-                        try:
-                            async with AsyncSessionLocal() as db:
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            if msg_id_target:
+                                m_res = await db.execute(select(Message).filter(Message.id == msg_id_target))
+                                m_obj = m_res.scalars().first()
+                                if m_obj and m_obj.sender_id and str(m_obj.sender_id) != user_id:
+                                    target_partner_id = str(m_obj.sender_id)
+
+                            if not target_partner_id:
                                 from app.api.routes.chat import resolve_and_sync_space
                                 u_res = await db.execute(select(User).filter(User.id == user_id))
                                 u_obj = u_res.scalars().first()
@@ -499,9 +502,11 @@ async def websocket_endpoint(websocket: WebSocket):
                                         target_partner_id = str(p_obj.id)
                                     elif sp_obj:
                                         target_partner_id = str(sp_obj.user2_id if str(sp_obj.user1_id) == user_id else sp_obj.user1_id)
-                        except Exception as pe:
-                            logger.warning(f"Partner resolution error: {pe}")
+                    except Exception as pe:
+                        logger.warning(f"Partner resolution error: {pe}")
 
+                    # 2. Persist notification to partner's notification box in database
+                    notif_id = None
                     if target_partner_id:
                         try:
                             async with AsyncSessionLocal() as db:
@@ -521,8 +526,17 @@ async def websocket_endpoint(websocket: WebSocket):
                                 )
                                 db.add(notif)
                                 await db.commit()
+                                await db.refresh(notif)
+                                notif_id = notif.id
                         except Exception as ne:
                             logger.warning(f"Failed to record media save notification: {ne}")
+
+                    payload["notification_id"] = notif_id
+
+                    # 3. Real-time broadcast to space & target partner
+                    await manager.send_to_space(space_id, payload, exclude_user=user_id, exclude_socket=websocket)
+                    if target_partner_id:
+                        await manager.send_to_user(str(target_partner_id), payload, exclude_socket=websocket)
 
                 elif p_type == "media_save_response":
                     allowed = payload.get("allowed", False)
