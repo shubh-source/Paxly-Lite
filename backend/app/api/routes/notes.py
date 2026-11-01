@@ -353,6 +353,11 @@ async def open_note(note_id: str, cu: User = Depends(get_current_user), db: Asyn
     if not (is_owner or is_in_space):
         raise HTTPException(status_code=403, detail="Not authorized to open this note")
 
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    note_unlock = _to_naive_utc(note.unlock_at)
+    if note_unlock and note_unlock > now:
+        raise HTTPException(status_code=400, detail="Note is still locked by time capsule")
+
     note.is_opened = True
     await db.commit()
 
@@ -366,7 +371,30 @@ async def open_note(note_id: str, cu: User = Depends(get_current_user), db: Asyn
         except Exception:
             pass
 
-    return {"ok": True}
+    partner_name = "Your partner"
+    if cu.partner_id:
+        p_res = await db.execute(select(User).filter(User.id == cu.partner_id))
+        p = p_res.scalars().first()
+        if p and p.name:
+            partner_name = p.name
+
+    sender_name = (cu.name or "You") if note.created_by == cu.id else partner_name
+
+    return {
+        "ok": True,
+        "note": {
+            "id": note.id,
+            "couple_space_id": note.couple_space_id,
+            "created_by": note.created_by,
+            "sender_name": sender_name,
+            "title": note.title or "💌",
+            "content": decrypt_data(note.content) if note.content else "",
+            "color": note.color or "#ffffff",
+            "is_opened": True,
+            "unlock_at": _to_iso_utc(note_unlock),
+            "created_at": _to_iso_utc(note.created_at) or _to_iso_utc(now),
+        }
+    }
 
 @router.post("/{note_id}/dismiss-alert")
 async def dismiss_dashboard_alert(note_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

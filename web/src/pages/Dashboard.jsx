@@ -356,7 +356,6 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
           note={pendingGiftNote}
           onClose={() => setPendingGiftNote(null)}
           onOpened={(id) => {
-            setPendingGiftNote(null);
             setSharedNotes(prev => prev.filter(n => n.id !== id));
           }}
         />

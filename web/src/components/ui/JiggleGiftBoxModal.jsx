@@ -9,6 +9,11 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
   const nav = useNavigate();
   const [phase, setPhase] = useState('idle'); // 'idle' | 'opening' | 'revealed'
   const [confetti, setConfetti] = useState([]);
+  const [unlockedNote, setUnlockedNote] = useState(note);
+
+  useEffect(() => {
+    setUnlockedNote(note);
+  }, [note]);
 
   useEffect(() => {
     // Generate burst particles ahead of time
@@ -37,10 +42,15 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
       }
     } catch {}
 
-    // Mark as opened in backend
+    let freshNote = unlockedNote;
+    // Mark as opened in backend and fetch fresh decrypted content
     if (note?.id) {
       try {
-        await api.post(`/notes/${note.id}/open`);
+        const res = await api.post(`/notes/${note.id}/open`);
+        if (res.data?.note) {
+          freshNote = { ...freshNote, ...res.data.note, is_opened: true };
+          setUnlockedNote(freshNote);
+        }
       } catch (err) {
         console.error('Failed to mark note opened:', err);
       }
@@ -48,8 +58,9 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
 
     setTimeout(() => {
       setPhase('revealed');
+      // Notify parent to update note in state, but parent should NOT unmount the modal
       if (onOpened && note?.id) {
-        onOpened(note.id);
+        onOpened(note.id, freshNote);
       }
     }, 900);
   };
@@ -166,7 +177,7 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
                 color: 'rgba(255, 255, 255, 0.7)',
                 lineHeight: 1.4
               }}>
-                <strong style={{ color: 'var(--accent)' }}>{note.sender_name || 'Your partner'}</strong> left a secret love note for you.
+                <strong style={{ color: 'var(--accent)' }}>{unlockedNote?.sender_name || 'Your partner'}</strong> left a secret love note for you.
               </p>
             </div>
 
@@ -314,7 +325,7 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
               color: '#fff',
               lineHeight: 1.3
             }}>
-              {note.title || 'Special Note for You'}
+              {unlockedNote?.title || 'Special Note for You'}
             </h3>
 
             {/* Note Parchment Body */}
@@ -336,7 +347,7 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
                 fontFamily: 'var(--font-b, serif)',
                 whiteSpace: 'pre-wrap'
               }}>
-                {note.content}
+                {unlockedNote?.content || 'No text written in this note.'}
               </p>
             </div>
 
@@ -351,7 +362,7 @@ export default function JiggleGiftBoxModal({ note, onClose, onOpened }) {
             }}>
               <div style={{ textAlign: 'left' }}>
                 <span style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>Written with love by</span>
-                <p style={{ margin: 0, fontWeight: 700, color: 'var(--accent)', fontSize: '0.95rem' }}>{note.sender_name || 'Your partner'}</p>
+                <p style={{ margin: 0, fontWeight: 700, color: 'var(--accent)', fontSize: '0.95rem' }}>{unlockedNote?.sender_name || 'Your partner'}</p>
               </div>
               <div style={{
                 width: 38,

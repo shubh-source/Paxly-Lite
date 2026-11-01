@@ -506,10 +506,12 @@ export default function LoveNotes() {
       {activeGiftNote && (
         <JiggleGiftBoxModal
           note={activeGiftNote}
-          onClose={() => setActiveGiftNote(null)}
-          onOpened={(id) => {
+          onClose={() => {
             setActiveGiftNote(null);
-            setNotes(prev => prev.map(n => n.id === id ? { ...n, is_opened: true } : n));
+            fetchNotes();
+          }}
+          onOpened={(id, updatedNote) => {
+            setNotes(prev => prev.map(n => n.id === id ? { ...n, ...(updatedNote || {}), is_opened: true } : n));
           }}
         />
       )}
