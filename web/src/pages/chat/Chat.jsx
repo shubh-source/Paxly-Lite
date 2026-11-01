@@ -2925,7 +2925,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           <ThemePicker
             currentTheme={activeThemeId}
             chatWallpaper={space?.chat_wallpaper}
-            isPremium={user?.is_premium}
+            isPremium={user?.is_premium || partner?.is_premium}
             onSelect={id => { updateTheme(id); setShowThemePicker(false); }}
             onWallpaperUpdate={url => {
               if (!url) {

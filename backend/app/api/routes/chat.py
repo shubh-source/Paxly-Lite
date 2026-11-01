@@ -795,7 +795,10 @@ async def update_theme(data: dict, cu: User = Depends(get_current_user), db: Asy
 
 @router.post("/space/wallpaper")
 async def update_wallpaper(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space, _ = await resolve_and_sync_space(cu, db)
+    space, partner = await resolve_and_sync_space(cu, db)
+    if not (cu.is_premium or (partner and partner.is_premium)):
+        raise HTTPException(402, "Custom backgrounds require a Vlynxly Premium subscription.")
+    
     space_id = space.id
     ext = file.filename.split(".")[-1].lower() if ("." in (file.filename or "")) else "jpg"
     import uuid

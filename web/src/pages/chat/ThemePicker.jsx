@@ -33,9 +33,13 @@ const THEME_ICONS = {
 
 export default function ThemePicker({ currentTheme, chatWallpaper, onSelect, onWallpaperUpdate, isPremium, onClose, onPremiumRequired }) {
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('normal');
+  const [activeTab, setActiveTab] = useState('premium'); // Default or user togglable
 
   const handleWallpaper = async (e) => {
+    if (!isPremium) {
+      if (onPremiumRequired) onPremiumRequired();
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
@@ -70,6 +74,12 @@ export default function ThemePicker({ currentTheme, chatWallpaper, onSelect, onW
   const renderCustomTile = () => (
     <div
       key="custom_photo_tile"
+      onClick={(e) => {
+        if (!isPremium) {
+          e.preventDefault();
+          if (onPremiumRequired) onPremiumRequired();
+        }
+      }}
       style={{
         cursor: 'pointer',
         borderRadius: 16,
@@ -94,14 +104,26 @@ export default function ThemePicker({ currentTheme, chatWallpaper, onSelect, onW
           type="file"
           accept="image/*"
           style={{ display: 'none' }}
-          onClick={(e) => { e.target.value = null; }}
+          onClick={(e) => {
+            if (!isPremium) {
+              e.preventDefault();
+              if (onPremiumRequired) onPremiumRequired();
+              return;
+            }
+            e.target.value = null;
+          }}
           onChange={handleWallpaper}
-          disabled={loading}
+          disabled={loading || !isPremium}
         />
         <span style={{ fontSize: '1.4rem' }}>{loading ? '⏳' : '🖼️'}</span>
         <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#fff', textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
           {loading ? 'Uploading...' : 'Custom Photo'}
         </span>
+        {!isPremium && (
+          <span style={{ position: 'absolute', top: 6, left: 6, display: 'inline-flex', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+            <Icons.Diamond size={12} color="var(--accent)" />
+          </span>
+        )}
         {isCustomActive && (
           <div style={{ position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: '50%', background: '#C9A96E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', color: '#000', fontWeight: 900 }}>
             ✓
@@ -178,7 +200,6 @@ export default function ThemePicker({ currentTheme, chatWallpaper, onSelect, onW
           
           {activeTab === 'normal' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
-              {renderCustomTile()}
               {Object.entries(CHAT_THEMES)
                 .filter(([id, theme]) => !theme.premium && id !== 'custom')
                 .map(([id, theme]) => {
