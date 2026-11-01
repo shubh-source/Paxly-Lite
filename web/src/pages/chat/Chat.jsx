@@ -1655,7 +1655,7 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
   const handleMediaTap = (msg, encKey) => {
     if (msg.is_once_view) return;
     const now = Date.now();
-    if (now - lastTapTime.current < 300) {
+    if (now - lastTapTime.current < 260) {
       if (tapTimeout.current) {
         clearTimeout(tapTimeout.current);
         tapTimeout.current = null;
@@ -1670,7 +1670,7 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
       tapTimeout.current = setTimeout(() => {
         setFullscreenMedia({ ...msg, encryptionKey: encKey });
         tapTimeout.current = null;
-      }, 280);
+      }, 220);
     }
   };
 
@@ -1731,7 +1731,10 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
   };
 
   const requestSave = msg => {
-    if (msg.sender_id === user?.id) return;
+    if (msg.sender_id === user?.id) {
+      downloadMediaDirect(msg);
+      return;
+    }
     pendingSaveMsgRef.current = msg;
     setRequestingSave(true);
     // 1. Send via WebSocket for instant delivery
@@ -2344,7 +2347,12 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           return;
                         }
 
-                        // Tap / Double-Tap detection
+                        if (isMedia) {
+                          // Handled directly on MediaWrap so taps open fullscreen lightbox reliably
+                          return;
+                        }
+
+                        // Tap / Double-Tap detection for text messages
                         const now = Date.now();
                         if (now - lastTapTime.current < 300) {
                           // Double tap: cancel single tap and react with heart ❤️
@@ -2358,13 +2366,6 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                           lastTapTime.current = 0;
                         } else {
                           lastTapTime.current = now;
-                          if (!isSecure && (msg.message_type === 'image' || msg.message_type === 'video')) {
-                            if (tapTimeout.current) clearTimeout(tapTimeout.current);
-                            tapTimeout.current = setTimeout(() => {
-                              setFullscreenMedia({ ...msg, encryptionKey });
-                              tapTimeout.current = null;
-                            }, 280);
-                          }
                         }
                       }}
                       style={{
@@ -2444,17 +2445,18 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         <MediaWrap 
                           blurred={user?.blur_sensitive && !unblurred[msg.id]} 
                           isSending={Boolean(msg.isOptimistic || msg.isUploading)}
-                          onClick={() => handleMediaTap(msg, encryptionKey)}
+                          onClick={(e) => {
+                            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+                            handleMediaTap(msg, encryptionKey);
+                          }}
                         >
                           <EncryptedMedia isVideo src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} controls style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12 }} />
-                          {!me && (
-                            <button
-                              onClick={e => { e.stopPropagation(); requestSave(msg); }}
-                              style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
-                            >
-                              <Icons.Download size={11} /> SAVE
-                            </button>
-                          )}
+                          <button
+                            onClick={e => { e.stopPropagation(); requestSave(msg); }}
+                            style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
+                          >
+                            <Icons.Download size={11} /> SAVE
+                          </button>
                         </MediaWrap>
                       ))}
 
@@ -2469,17 +2471,18 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                         <MediaWrap 
                           blurred={user?.blur_sensitive && !unblurred[msg.id]} 
                           isSending={Boolean(msg.isOptimistic || msg.isUploading)}
-                          onClick={() => handleMediaTap(msg, encryptionKey)}
+                          onClick={(e) => {
+                            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+                            handleMediaTap(msg, encryptionKey);
+                          }}
                         >
                           <EncryptedMedia src={fixUrl(msg.media_url)} encryptionKey={encryptionKey} style={{ width:'100%', maxHeight:360, display:'block', borderRadius:12, cursor:'pointer' }} />
-                          {!me && (
-                            <button
-                              onClick={e => { e.stopPropagation(); requestSave(msg); }}
-                              style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
-                            >
-                              <Icons.Download size={11} /> SAVE
-                            </button>
-                          )}
+                          <button
+                            onClick={e => { e.stopPropagation(); requestSave(msg); }}
+                            style={{ position:'absolute', bottom:8, right:8, background:'rgba(0,0,0,0.55)', border:'none', borderRadius:8, padding:'5px 9px', color:'#fff', fontSize:'0.62rem', cursor:'pointer', display:'flex', alignItems:'center', gap:4, backdropFilter:'blur(8px)' }}
+                          >
+                            <Icons.Download size={11} /> SAVE
+                          </button>
                         </MediaWrap>
                       ))}
 

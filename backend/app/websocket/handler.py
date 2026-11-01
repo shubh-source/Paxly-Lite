@@ -50,6 +50,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     user_id = None
     space_id = None
+    partner_id = None
     partner_name = "Your partner"
     try:
         async with AsyncSessionLocal() as db:
@@ -60,10 +61,15 @@ async def websocket_endpoint(websocket: WebSocket):
 
             from app.api.routes.chat import resolve_and_sync_space
             space, partner = await resolve_and_sync_space(user, db)
-            space_id = space.id
-            user_id = user.id
-            user_name = user.name
-            partner_id = partner.id if partner else user.partner_id
+            space_id = str(space.id)
+            user_id = str(user.id)
+            user_name = user.name or "Partner"
+            partner_id = str(partner.id) if partner else (str(user.partner_id) if user.partner_id else None)
+            if not partner_id and space:
+                cand_partner = space.user2_id if str(space.user1_id) == user_id else space.user1_id
+                if cand_partner:
+                    partner_id = str(cand_partner)
+
             if partner and partner.name:
                 partner_name = partner.name
             elif partner_id:
@@ -200,6 +206,21 @@ async def websocket_endpoint(websocket: WebSocket):
                                             created_at=now_ts
                                         )
                                         db.add(vn)
+
+                                    # Auto-save non-ephemeral images and videos to couple's Memory Vault
+                                    if msg.media_url and not msg.is_once_view and msg.message_type in ("image", "video"):
+                                        from app.models.orm import Memory
+                                        mem = Memory(
+                                            id=str(uuid.uuid4()),
+                                            couple_space_id=space_id,
+                                            title="Chat Photo" if msg.message_type == "image" else "Chat Video",
+                                            description=raw_text or "",
+                                            date=now_ts.strftime("%Y-%m-%d"),
+                                            image_url=msg.media_url,
+                                            created_by=user_id,
+                                            created_at=now_ts
+                                        )
+                                        db.add(mem)
 
                                     db.add(msg)
                                     await db.commit()
@@ -466,8 +487,20 @@ async def websocket_endpoint(websocket: WebSocket):
 
                     # 2. Persist notification to partner's notification box in database
                     target_partner_id = partner_id
-                    if not target_partner_id and space:
-                        target_partner_id = space.user2_id if space.user1_id == user_id else space.user1_id
+                    if not target_partner_id:
+                        try:
+                            async with AsyncSessionLocal() as db:
+                                from app.api.routes.chat import resolve_and_sync_space
+                                u_res = await db.execute(select(User).filter(User.id == user_id))
+                                u_obj = u_res.scalars().first()
+                                if u_obj:
+                                    sp_obj, p_obj = await resolve_and_sync_space(u_obj, db)
+                                    if p_obj:
+                                        target_partner_id = str(p_obj.id)
+                                    elif sp_obj:
+                                        target_partner_id = str(sp_obj.user2_id if str(sp_obj.user1_id) == user_id else sp_obj.user1_id)
+                        except Exception as pe:
+                            logger.warning(f"Partner resolution error: {pe}")
 
                     if target_partner_id:
                         try:

@@ -14,6 +14,15 @@ from app.core.storage import storage
 
 router = APIRouter(prefix="/memories", tags=["Memories"])
 
+async def get_user_space_id(cu: User, db: AsyncSession) -> str:
+    if cu.couple_space_id:
+        return cu.couple_space_id
+    from app.api.routes.chat import resolve_and_sync_space
+    space, _ = await resolve_and_sync_space(cu, db)
+    if space and space.id:
+        return space.id
+    raise HTTPException(403, "No couple space. Connect with partner first.")
+
 def ensure_space(cu: User):
     if not cu.couple_space_id:
         raise HTTPException(403, "No couple space. Connect with partner first.")
@@ -21,7 +30,7 @@ def ensure_space(cu: User):
 
 @router.get("/", response_model=list[MemoryOut])
 async def get_memories(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space_id = await get_user_space_id(cu, db)
     result = await db.execute(
         select(Memory)
         .filter(Memory.couple_space_id == space_id)
@@ -68,7 +77,7 @@ async def create_memory(
     cu: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    space_id = ensure_space(cu)
+    space_id = await get_user_space_id(cu, db)
     
     # Validate title
     clean_title = (title or "").strip()
@@ -143,7 +152,7 @@ async def create_memory(
 
 @router.delete("/{memory_id}")
 async def delete_memory(memory_id: str, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space_id = await get_user_space_id(cu, db)
     await db.execute(delete(Memory).filter(Memory.id == memory_id, Memory.couple_space_id == space_id))
     await db.commit()
     return {"ok": True}
@@ -155,7 +164,7 @@ class SaveMessageRequest(BaseModel):
 
 @router.post("/save-message", response_model=MemoryOut)
 async def save_message_to_vault(req: SaveMessageRequest, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space_id = await get_user_space_id(cu, db)
     
     # Fetch message
     msg_res = await db.execute(select(Message).filter(Message.id == req.message_id, Message.couple_space_id == space_id))
@@ -191,7 +200,9 @@ async def save_message_to_vault(req: SaveMessageRequest, cu: User = Depends(get_
 
 @router.get("/media", response_model=list[MemoryOut])
 async def get_chat_media(type: str = "image", cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    space_id = await get_user_space_id(cu, db)
+    from sqlalchemy import or_
+    from app.api.routes.chat import safe_decrypt_msg
     
     # Query messages with matching type and media_url not null
     # message_type is 'image' or 'video'
@@ -200,7 +211,7 @@ async def get_chat_media(type: str = "image", cu: User = Depends(get_current_use
         .filter(Message.couple_space_id == space_id)
         .filter(Message.message_type == type)
         .filter(Message.media_url.isnot(None))
-        .filter(Message.is_once_view == False)
+        .filter(or_(Message.is_once_view == False, Message.is_once_view.is_(None)))
         .order_by(Message.timestamp.desc())
     )
     mems = result.scalars().all()
@@ -220,8 +231,8 @@ async def get_chat_media(type: str = "image", cu: User = Depends(get_current_use
             
         res_list.append(MemoryOut(
             id=str(m.id),
-            title="Chat Media",
-            description=decrypt_data(m.text) if m.text else "",
+            title="Chat " + ("Photo" if type == "image" else "Video"),
+            description=safe_decrypt_msg(m.text),
             image_url=m.media_url,
             date=m.timestamp.strftime("%Y-%m-%d"),
             created_by=m.sender_id,

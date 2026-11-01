@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { getMemories, deleteMemory } from '../../services/api';
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import api, { getMemories, deleteMemory } from '../../services/api';
 import { format, parseISO } from 'date-fns';
 import { Icons } from '../../components/ui/Icons';
 import { wsService } from '../../services/websocket';
 import { useAuth } from '../../context/AuthContext';
-import { decryptMessage } from '../../services/crypto';
+import { decryptMessage, decryptMediaBlob } from '../../services/crypto';
 import EncryptedMedia from '../../components/chat/EncryptedMedia';
+import { fixUrl } from '../chat/Chat';
 
 export function MemoryVault() {
   const { user } = useAuth();
@@ -16,18 +17,58 @@ export function MemoryVault() {
   const [videos, setVideos] = useState([]);
   const [saveRequest, setSaveRequest] = useState(null);
   const [requestingSave, setRequestingSave] = useState(false);
-  const [partnerName, setPartnerName] = useState('Partner');
   const [loading, setLoading] = useState(true);
+  const pendingSaveMsgRef = useRef(null);
+
+  const saveDecryptedToPhone = async (m) => {
+    try {
+      const rawUrl = m.image_url;
+      if (!rawUrl) return;
+      const token = localStorage.getItem('ros_token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(fixUrl(rawUrl), { headers });
+      if (!res.ok) throw new Error(`Download failed with status ${res.status}`);
+      let blob = await res.blob();
+      
+      let encryptionKey = null;
+      if (m.description && m.description.startsWith('E2EE_KEY:')) {
+        encryptionKey = m.description.substring(9);
+      }
+      if (encryptionKey) {
+        blob = await decryptMediaBlob(blob, encryptionKey);
+      }
+      
+      let ext = 'jpg';
+      const mime = blob.type || '';
+      if (mime.includes('image/png')) ext = 'png';
+      else if (mime.includes('image/jpeg') || mime.includes('image/jpg')) ext = 'jpg';
+      else if (mime.includes('image/webp')) ext = 'webp';
+      else if (mime.includes('video/mp4')) ext = 'mp4';
+      else if (mime.includes('video/webm')) ext = 'webm';
+      else if (m.image_url?.match(/\.(mp4|webm|mov|ogg)$/i)) ext = 'mp4';
+
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `vlynxly_${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 3000);
+    } catch (err) {
+      alert(`Failed to save to device: ${err.message || 'Decryption error'}`);
+    }
+  };
 
   useEffect(() => { 
     const sk = localStorage.getItem('paxly_sk');
     const pk = user?.partner?.public_key;
     
     const decryptItem = (m) => {
-      if (m.description && sk && pk && m.description.startsWith) {
-         try {
-           m.description = decryptMessage(m.description, sk, pk);
-         } catch {}
+      if (m.description && sk && pk && typeof m.description === 'string' && m.description.startsWith) {
+        try {
+          m.description = decryptMessage(m.description, sk, pk);
+        } catch {}
       }
       return m;
     };
@@ -45,13 +86,15 @@ export function MemoryVault() {
         const savedVideos = savedMedia.filter(m => m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
         setPhotos(savedPhotos);
         setVideos(savedVideos);
-        setLoading(false); // Disable loading if cache exists
+        setLoading(false);
       } catch {}
     }
 
-    getMemories().then(async data => {
-      localStorage.setItem('cached_memories', JSON.stringify(data));
-      
+    Promise.all([
+      getMemories().catch(() => []),
+      api.get('/memories/media?type=image').then(r => r.data).catch(() => []),
+      api.get('/memories/media?type=video').then(r => r.data).catch(() => [])
+    ]).then(async ([rawMemories, chatImages, chatVideos]) => {
       const decryptChunked = async (arr) => {
         const result = [];
         for (let i = 0; i < arr.length; i += 20) {
@@ -62,44 +105,64 @@ export function MemoryVault() {
         return result;
       };
 
-      const texts = await decryptChunked(data.filter(m => !m.image_url));
+      const texts = await decryptChunked((rawMemories || []).filter(m => !m.image_url));
       setMemories(texts);
 
-      // Route explicitly saved media into Photos / Videos
-      const savedMedia = await decryptChunked(data.filter(m => m.image_url));
-      const savedPhotos = savedMedia.filter(m => !m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
-      const savedVideos = savedMedia.filter(m => m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
+      const savedPhotos = await decryptChunked((rawMemories || []).filter(m => m.image_url && !m.image_url.match(/\.(mp4|webm|mov|ogg)$/i)));
+      const fetchedPhotos = await decryptChunked(chatImages || []);
+      const allPhotos = [...savedPhotos, ...fetchedPhotos];
+      const uniquePhotos = Array.from(new Map(allPhotos.map(item => [item.image_url, item])).values());
+      setPhotos(uniquePhotos);
 
-      import('../../services/api').then(module => {
-          module.default.get('/memories/media?type=image').then(async res => {
-              const fetchedPhotos = await decryptChunked(res.data);
-              const allPhotos = [...savedPhotos, ...fetchedPhotos];
-              const uniquePhotos = Array.from(new Map(allPhotos.map(item => [item.image_url, item])).values());
-              setPhotos(uniquePhotos);
-          }).catch(console.error);
+      const savedVideos = await decryptChunked((rawMemories || []).filter(m => m.image_url && m.image_url.match(/\.(mp4|webm|mov|ogg)$/i)));
+      const fetchedVideos = await decryptChunked(chatVideos || []);
+      const allVideos = [...savedVideos, ...fetchedVideos];
+      const uniqueVideos = Array.from(new Map(allVideos.map(item => [item.image_url, item])).values());
+      setVideos(uniqueVideos);
 
-          module.default.get('/memories/media?type=video').then(async res => {
-              const fetchedVideos = await decryptChunked(res.data);
-              const allVideos = [...savedVideos, ...fetchedVideos];
-              const uniqueVideos = Array.from(new Map(allVideos.map(item => [item.image_url, item])).values());
-              setVideos(uniqueVideos);
-          }).catch(console.error).finally(() => setLoading(false));
-      }).catch(() => setLoading(false));
+      localStorage.setItem('cached_memories', JSON.stringify(rawMemories || []));
+      setLoading(false);
     }).catch(() => setLoading(false));
+
+    // Check for pending save requests from partner
+    api.get('/chat/media-save-pending').then(res => {
+      if (res.data && res.data.length > 0) {
+        setSaveRequest(res.data[0]);
+      }
+    }).catch(() => {});
     
     const offs = [
-      wsService.on('vault_download_response', d => {
+      wsService.on('media_save_response', async d => {
+        if (d.request_id && String(d.request_id) !== String(user?.id)) return;
+        setRequestingSave(false);
+        if (!d || !d.allowed) {
+          alert(`🚫 ${d.partner_name || 'Partner'} denied your save request.`);
+          return;
+        }
+        const target = pendingSaveMsgRef.current;
+        if (target) {
+          await saveDecryptedToPhone(target);
+        }
+      }),
+      wsService.on('vault_download_response', async d => {
         setRequestingSave(false);
         if (d.allowed) {
-          const memory = [...memories, ...photos, ...videos].find(m => m.id === d.memory_id);
+          const memory = [...memories, ...photos, ...videos].find(m => m.id === d.memory_id) || pendingSaveMsgRef.current;
           if (memory && memory.image_url) {
-            const link = document.createElement('a');
-            link.href = memory.image_url;
-            link.download = `vlynxly_vault_${Date.now()}`;
-            link.click();
+            await saveDecryptedToPhone(memory);
           }
         } else {
           alert(`🚫 ${d.partner_name || 'Partner'} denied your download request.`);
+        }
+      }),
+      wsService.on('media_save_request', d => {
+        if (String(d.sender_id) !== String(user?.id)) {
+          setSaveRequest({ from: d.from || 'Your partner', ...d });
+        }
+      }),
+      wsService.on('vault_download_request', d => {
+        if (String(d.sender_id) !== String(user?.id)) {
+          setSaveRequest({ from: d.from || 'Your partner', ...d });
         }
       })
     ];
@@ -114,9 +177,33 @@ export function MemoryVault() {
     setVideos(m => m.filter(x => x.id !== id));
   };
 
-  const requestSave = (m) => {
+  const requestSave = async (m) => {
+    // If it's user's own media, save directly to device gallery
+    if (m.created_by === user?.id) {
+      await saveDecryptedToPhone(m);
+      return;
+    }
+    // If partner's media, request permission
+    pendingSaveMsgRef.current = m;
     setRequestingSave(true);
-    wsService.sendVaultDownloadRequest(m.id, m.title || 'Photo');
+    wsService.sendMediaSaveRequest(m.image_url, m.id);
+    api.post('/chat/media-save-request', {
+      media_url: m.image_url,
+      message_id: m.id
+    }).catch(e => console.warn('Save request fallback error:', e));
+  };
+
+  const respondSave = (allowed) => {
+    if (!saveRequest) return;
+    wsService.sendMediaSaveResponse(saveRequest.sender_id, allowed, saveRequest.message_id, saveRequest.media_url);
+    api.post('/chat/media-save-respond', {
+      request_id: saveRequest.sender_id,
+      allowed,
+      message_id: saveRequest.message_id,
+      media_url: saveRequest.media_url,
+      notification_id: saveRequest.notification_id || null
+    }).catch(e => console.warn('Save response fallback error:', e));
+    setSaveRequest(null);
   };
 
   const getActiveItems = () => {
@@ -146,6 +233,23 @@ export function MemoryVault() {
         <span className="header-title" style={{ color: 'var(--text)' }}>The Vault</span>
       </header>
 
+      {/* Save Request Modal */}
+      {saveRequest && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.88)', zIndex:9999999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(14px)' }}>
+          <div className="card" style={{ maxWidth:350, width:'100%', textAlign:'center', border:'1px solid var(--accent)', padding:30, background:'#1c1815', borderRadius:22, boxShadow:'0 16px 48px rgba(0,0,0,0.9)' }}>
+            <div style={{ marginBottom:16, display:'flex', justifyContent:'center' }}><Icons.Vault size={44} color="var(--accent)" /></div>
+            <h3 style={{ marginBottom:6, color:'#fff', fontSize:'1.2rem' }}>Save Request</h3>
+            <p style={{ fontSize:'0.92rem', color:'rgba(255,255,255,0.85)', marginBottom:24, lineHeight:1.5 }}>
+              <b>{saveRequest.from || 'Your partner'}</b> wants to save a photo from memories to their phone. Allow?
+            </p>
+            <div style={{ display:'flex', gap:12 }}>
+              <button className="btn btn-g" onClick={() => respondSave(false)} style={{ flex:1, padding:14, borderRadius:12, cursor:'pointer', background:'rgba(255,255,255,0.1)', color:'#fff' }}>Deny</button>
+              <button className="btn btn-p" onClick={() => respondSave(true)} style={{ flex:1, padding:14, borderRadius:12, color:'#000', fontWeight:700, cursor:'pointer', background:'var(--accent)' }}>Allow Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'center', gap: 10, margin: '0 20px 24px' }}>
         {['photos', 'videos', 'messages'].map(t => (
           <button 
@@ -174,6 +278,7 @@ export function MemoryVault() {
           <div className="spinner-small" style={{ borderTopColor: '#000' }} /> Requesting Permission...
         </div>
       )}
+
       <div style={{ padding: '0 20px' }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 100, opacity: 0.7 }}>
@@ -185,8 +290,8 @@ export function MemoryVault() {
             <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}><Icons.Vault size={64} color="var(--accent)" stroke={1} /></div>
             <h3 style={{ marginBottom:12, fontSize: '1.4rem' }}>Empty Vault</h3>
             <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
-              {activeTab === 'photos' && "Photos shared in chat will appear here."}
-              {activeTab === 'videos' && "Videos shared in chat will appear here."}
+              {activeTab === 'photos' && "Photos shared in chat automatically appear here."}
+              {activeTab === 'videos' && "Videos shared in chat automatically appear here."}
               {activeTab === 'messages' && "Messages manually 'Saved to Vault' will appear here."}
             </p>
           </div>
@@ -213,7 +318,7 @@ export function MemoryVault() {
                     activeTab === 'videos' ? (
                       <EncryptedMedia
                         isVideo 
-                        src={m.image_url} 
+                        src={fixUrl(m.image_url)} 
                         encryptionKey={encryptionKey}
                         controls
                         style={{ 
@@ -221,12 +326,11 @@ export function MemoryVault() {
                           height:240, 
                           objectFit:'cover'
                         }} 
-                        onContextMenu={e => !m.allow_download && e.preventDefault()}
                         className="memory-img"
                       />
                     ) : (
                       <EncryptedMedia
-                        src={m.image_url} 
+                        src={fixUrl(m.image_url)} 
                         encryptionKey={encryptionKey}
                         alt={m.title} 
                         style={{ 
@@ -235,7 +339,6 @@ export function MemoryVault() {
                           objectFit:'cover',
                           display: 'block'
                         }}
-                        onContextMenu={e => !m.allow_download && e.preventDefault()}
                         className="memory-img"
                       />
                     )
@@ -246,11 +349,6 @@ export function MemoryVault() {
                     background: 'linear-gradient(to bottom, transparent 60%, rgba(13,13,15,0.9))',
                     pointerEvents: 'none'
                   }} />}
-                  {!m.allow_download && (
-                    <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', padding: '6px 10px', borderRadius: 10, fontSize: '0.65rem', color: '#fff', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <Icons.Shield size={12} color="var(--accent)" /> PRIVATE
-                    </div>
-                  )}
                 </div>
                 <div style={{ padding:20, position: 'relative' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -258,11 +356,26 @@ export function MemoryVault() {
                       <h3 style={{ fontSize:'1.1rem', marginBottom:4, fontWeight: 500 }}>{m.title}</h3>
                       <span style={{ fontSize:'0.75rem', color:'var(--accent)', fontWeight: 600, letterSpacing: '0.5px' }}>{m.date ? format(parseISO(m.date),'MMMM d, yyyy') : ''}</span>
                     </div>
-                    {m.image_url && (
-                      <button onClick={() => requestSave(m)} style={{ background:'rgba(201,169,110,0.1)', border:'none', borderRadius: '50%', cursor:'pointer', color:'var(--accent)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icons.Download size={16} /></button>
-                    )}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button 
+                        onClick={() => del(m.id)} 
+                        style={{ background:'rgba(255,255,255,0.05)', border:'none', borderRadius: '50%', cursor:'pointer', color:'var(--muted)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="Delete memory"
+                      >
+                        <Icons.Trash size={16} />
+                      </button>
+                      {m.image_url && (
+                        <button 
+                          onClick={() => requestSave(m)} 
+                          style={{ background:'rgba(201,169,110,0.15)', border:'none', borderRadius: '50%', cursor:'pointer', color:'var(--accent)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="Save to Phone"
+                        >
+                          <Icons.Download size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {m.description && <p style={{ marginTop:12, fontSize:'0.88rem', lineHeight:1.6, color: 'var(--text)', opacity: 0.7 }}>{m.description}</p>}
+                  {m.description && !isE2EEMedia && <p style={{ marginTop:12, fontSize:'0.88rem', lineHeight:1.6, color: 'var(--text)', opacity: 0.7 }}>{m.description}</p>}
                 </div>
               </div>
               );

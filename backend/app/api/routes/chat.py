@@ -319,6 +319,21 @@ async def send_message_rest(data: MessageCreate, cu: User = Depends(get_current_
         )
         db.add(vn)
 
+    # Auto-save non-ephemeral images and videos to couple's Memory Vault
+    if msg.media_url and not msg.is_once_view and msg.message_type in ("image", "video"):
+        from app.models.orm import Memory
+        mem = Memory(
+            id=str(uuid.uuid4()),
+            couple_space_id=space_id,
+            title="Chat Photo" if msg.message_type == "image" else "Chat Video",
+            description=data.text or "",
+            date=msg.timestamp.strftime("%Y-%m-%d"),
+            image_url=msg.media_url,
+            created_by=cu.id,
+            created_at=msg.timestamp
+        )
+        db.add(mem)
+
     db.add(msg)
     await db.commit()
     await db.refresh(msg)
@@ -806,23 +821,23 @@ async def create_media_save_request(
     if not space:
         raise HTTPException(400, "No couple space found.")
     
-    space_id = space.id
-    target_partner_id = partner.id if partner else cu.partner_id
+    space_id = str(space.id)
+    target_partner_id = str(partner.id) if partner else (str(cu.partner_id) if cu.partner_id else None)
     if not target_partner_id:
-        target_partner_id = space.user2_id if space.user1_id == cu.id else space.user1_id
+        target_partner_id = str(space.user2_id if str(space.user1_id) == str(cu.id) else space.user1_id)
 
     payload = {
         "type": "media_save_request",
         "media_url": data.media_url,
         "message_id": data.message_id,
         "from": cu.name or "Partner",
-        "sender_id": cu.id
+        "sender_id": str(cu.id)
     }
 
     # 1. Real-time broadcast to space & partner
     try:
         from app.websocket.manager import manager
-        await manager.send_to_space(space_id, payload, exclude_user=cu.id)
+        await manager.send_to_space(space_id, payload, exclude_user=str(cu.id))
         if target_partner_id:
             await manager.send_to_user(str(target_partner_id), payload)
     except Exception as e:
@@ -837,7 +852,7 @@ async def create_media_save_request(
             title="Photo Save Request",
             body=f"{cu.name or 'Partner'} requested permission to save a photo from chat.",
             data={
-                "sender_id": cu.id,
+                "sender_id": str(cu.id),
                 "from": cu.name or "Partner",
                 "message_id": data.message_id,
                 "media_url": data.media_url,
@@ -925,6 +940,7 @@ async def respond_media_save_request(
     return {"ok": True, "allowed": data.allowed}
 
 @router.get("/pending-save-requests")
+@router.get("/media-save-pending")
 async def get_pending_save_requests(
     cu: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
