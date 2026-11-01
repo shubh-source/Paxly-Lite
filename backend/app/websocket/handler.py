@@ -487,7 +487,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     try:
                         async with AsyncSessionLocal() as db:
                             if msg_id_target:
-                                m_res = await db.execute(select(Message).filter(Message.id == msg_id_target))
+                                m_res = await db.execute(select(Message).filter(or_(Message.id == msg_id_target, Message.temp_id == msg_id_target)))
                                 m_obj = m_res.scalars().first()
                                 if m_obj and m_obj.sender_id and str(m_obj.sender_id) != user_id:
                                     target_partner_id = str(m_obj.sender_id)
@@ -551,9 +551,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             from app.models.orm import Notification
                             notifs_res = await db.execute(
                                 select(Notification).filter(
-                                    Notification.user_id == user_id,
-                                    Notification.type == "media_save_request",
-                                    Notification.read == False
+                                    Notification.user_id == str(user_id),
+                                    Notification.type == "media_save_request"
                                 )
                             )
                             for n in notifs_res.scalars().all():

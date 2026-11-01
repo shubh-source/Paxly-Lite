@@ -864,7 +864,7 @@ async def create_media_save_request(
     space_id = str(space.id)
     target_partner_id = None
     if data.message_id:
-        msg_res = await db.execute(select(Message).filter(Message.id == data.message_id))
+        msg_res = await db.execute(select(Message).filter(or_(Message.id == data.message_id, Message.temp_id == data.message_id)))
         msg_obj = msg_res.scalars().first()
         if msg_obj and msg_obj.sender_id and str(msg_obj.sender_id) != str(cu.id):
             target_partner_id = str(msg_obj.sender_id)
@@ -928,7 +928,7 @@ async def respond_media_save_request(
     from app.models.orm import Notification
     # Mark notification as read and updated
     if data.notification_id:
-        stmt = select(Notification).filter(Notification.id == data.notification_id, Notification.user_id == cu.id)
+        stmt = select(Notification).filter(Notification.id == data.notification_id, Notification.user_id == str(cu.id))
         res = await db.execute(stmt)
         n = res.scalars().first()
         if n:
@@ -937,9 +937,8 @@ async def respond_media_save_request(
     else:
         # Mark all pending save requests from this requester as resolved
         stmt = select(Notification).filter(
-            Notification.user_id == cu.id,
-            Notification.type == "media_save_request",
-            Notification.read == False
+            Notification.user_id == str(cu.id),
+            Notification.type == "media_save_request"
         )
         res = await db.execute(stmt)
         for n in res.scalars().all():

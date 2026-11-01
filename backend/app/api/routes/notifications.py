@@ -39,14 +39,14 @@ async def subscribe(data: PushSubscription, cu: User = Depends(get_current_user)
 @router.get("/")
 async def get_notifications(cu=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Notification).where(Notification.user_id == cu.id).order_by(Notification.created_at.desc()).limit(30)
+        select(Notification).where(Notification.user_id == str(cu.id)).order_by(Notification.created_at.desc()).limit(30)
     )
     return result.scalars().all()
 
 @router.put("/{notif_id}/read")
 async def mark_read(notif_id: int, cu=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await db.execute(
-        update(Notification).where(Notification.id == notif_id, Notification.user_id == cu.id).values(read=True)
+        update(Notification).where(Notification.id == notif_id, Notification.user_id == str(cu.id)).values(read=True)
     )
     await db.commit()
     return {"ok": True}
@@ -54,7 +54,7 @@ async def mark_read(notif_id: int, cu=Depends(get_current_user), db: AsyncSessio
 @router.put("/read-all")
 async def mark_all_read(cu=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await db.execute(
-        update(Notification).where(Notification.user_id == cu.id, Notification.read == False).values(read=True)
+        update(Notification).where(Notification.user_id == str(cu.id), Notification.read == False).values(read=True)
     )
     await db.commit()
     return {"ok": True}

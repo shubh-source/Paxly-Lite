@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /features
+Allow: /pricing
+Allow: /explore
+Disallow: /admin
+Disallow: /chat
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /memories
+Disallow: /dates
+
+Sitemap: https://paxly-lite.vercel.app/sitemap.xml
