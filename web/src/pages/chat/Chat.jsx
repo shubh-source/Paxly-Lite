@@ -836,6 +836,20 @@ export default function Chat() {
           };
         }));
       }),
+      wsService.on('theme_updated', d => {
+        setSpace(p => ({
+          ...p,
+          theme_id: d.theme_id,
+          chat_wallpaper: d.chat_wallpaper
+        }));
+        try {
+          if (currentUserId) {
+            const cached = getScopedCachedSpace(currentUserId) || {};
+            cached.space = { ...(cached.space || {}), theme_id: d.theme_id, chat_wallpaper: d.chat_wallpaper };
+            setScopedCachedSpace(currentUserId, cached);
+          }
+        } catch {}
+      }),
       wsService.on('media_save_request', d => {
         if (String(d.sender_id) !== String(user?.id))
           setSaveRequest({ from: d.from || partner?.name || 'Partner', ...d });
@@ -1650,7 +1664,16 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
       console.warn('Theme save to server failed (UI already updated):', err?.response?.data || err.message);
     }
   };
-  const updateWallpaper = url => setSpace(p => ({ ...p, theme_id: 'custom', chat_wallpaper: url }));
+  const updateWallpaper = url => {
+    setSpace(p => ({ ...p, theme_id: 'custom', chat_wallpaper: url }));
+    try {
+      if (currentUserId) {
+        const cached = getScopedCachedSpace(currentUserId) || {};
+        cached.space = { ...(cached.space || {}), theme_id: 'custom', chat_wallpaper: url };
+        setScopedCachedSpace(currentUserId, cached);
+      }
+    } catch {}
+  };
 
   const handleMediaTap = (msg, encKey) => {
     if (msg.is_once_view) return;
@@ -2018,7 +2041,7 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         <div style={{ position:'absolute', inset:0, zIndex:0, pointerEvents:'none' }}>
           {space?.chat_wallpaper ? (
             <>
-              <div style={{ width:'100%', height:'100%', background:`url(${space.chat_wallpaper}) center/cover` }} />
+              <div style={{ width:'100%', height:'100%', background:`url(${fixUrl(space.chat_wallpaper)}) center/cover no-repeat` }} />
               <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.3)', backdropFilter:'blur(4px)' }} />
             </>
           ) : (
@@ -2901,9 +2924,17 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
         {showThemePicker && (
           <ThemePicker
             currentTheme={activeThemeId}
+            chatWallpaper={space?.chat_wallpaper}
             isPremium={user?.is_premium}
             onSelect={id => { updateTheme(id); setShowThemePicker(false); }}
-            onWallpaperUpdate={url => { updateWallpaper(url); setShowThemePicker(false); }}
+            onWallpaperUpdate={url => {
+              if (!url) {
+                setSpace(p => ({ ...p, theme_id: 'classic', chat_wallpaper: null }));
+              } else {
+                updateWallpaper(url);
+              }
+              setShowThemePicker(false);
+            }}
             onClose={() => setShowThemePicker(false)}
             onPremiumRequired={() => {
               setShowThemePicker(false);

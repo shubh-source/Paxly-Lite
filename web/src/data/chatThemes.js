@@ -1,4 +1,20 @@
 export const CHAT_THEMES = {
+  custom: {
+    name: 'Custom Theme',
+    bg: '#0E0C11',
+    bubbleMe: 'linear-gradient(135deg, #C9A96E 0%, #B89355 100%)',
+    textMe: '#000',
+    bubbleOther: 'rgba(255,255,255,0.14)',
+    textOther: '#ffffff',
+    accent: '#C9A96E',
+    borderMe: '1px solid rgba(255,255,255,0.15)',
+    borderOther: '1px solid rgba(255,255,255,0.1)',
+    backdropBlur: 'blur(16px)',
+    boxShadowMe: '0 8px 24px rgba(0,0,0,0.5)',
+    boxShadowOther: '0 8px 24px rgba(0,0,0,0.5)',
+    elements: 'none'
+  },
+
   classic: {
     name: 'Classic Dark',
     bg: '#0D0D0F',

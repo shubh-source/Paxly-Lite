@@ -780,25 +780,62 @@ async def update_theme(data: dict, cu: User = Depends(get_current_user), db: Asy
     theme_id = data.get("theme_id", "classic")
     await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(theme_id=theme_id, chat_wallpaper=None))
     await db.commit()
+
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, {
+            "type": "theme_updated",
+            "theme_id": theme_id,
+            "chat_wallpaper": None
+        })
+    except Exception as we:
+        print(f"Theme broadcast error: {we}")
+
     return {"theme_id": theme_id}
 
 @router.post("/space/wallpaper")
 async def update_wallpaper(file: UploadFile = File(...), cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not cu.is_premium:
-        raise HTTPException(402, "Custom backgrounds require a Vlynxly Premium subscription.")
-    
     space, _ = await resolve_and_sync_space(cu, db)
     space_id = space.id
-    ext = file.filename.split(".")[-1].lower()
+    ext = file.filename.split(".")[-1].lower() if ("." in (file.filename or "")) else "jpg"
     import uuid
     filename = f"wp_{space_id}_{uuid.uuid4().hex[:8]}.{ext}"
-    path = os.path.join(settings.MEDIA_DIR, "chat", filename)
     
     content = await file.read()
     url = await storage.upload_file(content, filename, "chat")
     await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(chat_wallpaper=url, theme_id="custom"))
     await db.commit()
+
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, {
+            "type": "theme_updated",
+            "theme_id": "custom",
+            "chat_wallpaper": url
+        })
+    except Exception as we:
+        print(f"Wallpaper broadcast error: {we}")
+
     return {"chat_wallpaper": url}
+
+@router.delete("/space/wallpaper")
+async def delete_wallpaper(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    space, _ = await resolve_and_sync_space(cu, db)
+    space_id = space.id
+    await db.execute(update(CoupleSpace).where(CoupleSpace.id == space_id).values(chat_wallpaper=None, theme_id="classic"))
+    await db.commit()
+
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(space_id, {
+            "type": "theme_updated",
+            "theme_id": "classic",
+            "chat_wallpaper": None
+        })
+    except Exception as we:
+        print(f"Wallpaper delete broadcast error: {we}")
+
+    return {"ok": True}
 
 class MediaSaveRequestData(BaseModel):
     media_url: str
