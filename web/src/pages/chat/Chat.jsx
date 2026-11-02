@@ -204,6 +204,37 @@ export default function Chat() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const pendingSendsRef = useRef(new Map());
 
+  const syncMediaToMemoriesCache = (msg) => {
+    if (!msg?.media_url || msg.is_once_view) return;
+    try {
+      const raw = localStorage.getItem('cached_memories');
+      let parsed = null;
+      if (raw) parsed = JSON.parse(raw);
+      const isVideo = msg.message_type === 'video' || String(msg.media_url).match(/\.(mp4|webm|mov|ogg)$/i);
+      const item = {
+        id: msg.id || msg.temp_id || `chat_${Date.now()}`,
+        title: isVideo ? 'Chat Video' : 'Chat Photo',
+        description: msg.text || '',
+        image_url: msg.media_url,
+        date: new Date().toISOString().split('T')[0],
+        created_by: msg.sender_id || user?.id,
+        created_at: msg.timestamp || new Date().toISOString()
+      };
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed)) {
+          if (!parsed.some(m => m.image_url === item.image_url)) {
+            parsed.unshift(item);
+            localStorage.setItem('cached_memories', JSON.stringify(parsed));
+          }
+        } else {
+          const key = isVideo ? 'videos' : 'photos';
+          parsed[key] = [item, ...(parsed[key] || []).filter(m => m.image_url !== item.image_url)];
+          localStorage.setItem('cached_memories', JSON.stringify(parsed));
+        }
+      }
+    } catch {}
+  };
+
   const handleEmojiSelect = (targetMsg, emoji, forceSet = false) => {
     if (!targetMsg || !emoji) return;
     const currentReactions = parseSafeReactions(targetMsg.reactions);
@@ -764,6 +795,9 @@ export default function Chat() {
             isOptimistic: false,
             failed: false
           };
+          if (finalMsg.media_url && !finalMsg.is_once_view && (finalMsg.message_type === 'image' || finalMsg.message_type === 'video')) {
+            syncMediaToMemoriesCache(finalMsg);
+          }
           return [...p, finalMsg];
         });
       }),
@@ -1641,6 +1675,16 @@ const compressImageForChat = async (file, maxWidth = 1920, maxHeight = 1920, qua
         pendingSendsRef.current.set(tempMsg.id, { timer: fallbackTimer, sendRestFallback: sendMediaViaRest });
       } else {
         sendMediaViaRest();
+      }
+      if (!isOnceView) {
+        syncMediaToMemoriesCache({
+          media_url: finalUrl,
+          message_type: type,
+          text: payloadText,
+          sender_id: user?.id,
+          is_once_view: false,
+          id: tempMsg.id
+        });
       }
       setReplyingTo(null);
     } catch (err) {

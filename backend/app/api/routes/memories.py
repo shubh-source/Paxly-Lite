@@ -2,14 +2,16 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete
+from sqlalchemy import delete, or_
 from app.models.schemas import MemoryOut
 from app.models.orm import User, Memory, CoupleSpace, Message
 from app.core.security import get_current_user
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.encryption import decrypt_data
-import os, uuid, re
+import os, uuid, re, logging
+
+logger = logging.getLogger(__name__)
 from app.core.storage import storage
 
 router = APIRouter(prefix="/memories", tags=["Memories"])
@@ -31,10 +33,53 @@ def ensure_space(cu: User):
 @router.get("/", response_model=list[MemoryOut])
 async def get_memories(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     space_id = await get_user_space_id(cu, db)
+    from app.api.routes.chat import safe_decrypt_msg
+
+    # 1. Auto-sync any chat images/videos from messages table to memories table so memories are never lost
+    try:
+        chat_msgs_res = await db.execute(
+            select(Message)
+            .filter(
+                Message.couple_space_id == space_id,
+                Message.media_url.isnot(None),
+                Message.message_type.in_(["image", "video"]),
+                or_(Message.is_once_view == False, Message.is_once_view.is_(None))
+            )
+        )
+        chat_msgs = chat_msgs_res.scalars().all()
+
+        existing_urls_res = await db.execute(
+            select(Memory.image_url).filter(Memory.couple_space_id == space_id, Memory.image_url.isnot(None))
+        )
+        existing_urls = set(existing_urls_res.scalars().all())
+
+        new_added = False
+        for cm in chat_msgs:
+            if cm.media_url and cm.media_url not in existing_urls:
+                new_m = Memory(
+                    id=str(uuid.uuid4()),
+                    couple_space_id=space_id,
+                    title="Chat " + ("Photo" if cm.message_type == "image" else "Video"),
+                    description=safe_decrypt_msg(cm.text) or "",
+                    date=cm.timestamp.strftime("%Y-%m-%d") if cm.timestamp else datetime.utcnow().strftime("%Y-%m-%d"),
+                    image_url=cm.media_url,
+                    created_by=cm.sender_id,
+                    created_at=cm.timestamp or datetime.utcnow()
+                )
+                db.add(new_m)
+                existing_urls.add(cm.media_url)
+                new_added = True
+
+        if new_added:
+            await db.commit()
+    except Exception as sync_err:
+        logger.warning(f"Memories auto-sync error: {sync_err}")
+
+    # 2. Query all memories for this couple space
     result = await db.execute(
         select(Memory)
         .filter(Memory.couple_space_id == space_id)
-        .order_by(Memory.date.desc())
+        .order_by(Memory.created_at.desc(), Memory.date.desc())
     )
     mems = result.scalars().all()
     

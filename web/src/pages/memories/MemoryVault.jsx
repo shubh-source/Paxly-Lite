@@ -29,12 +29,37 @@ export function MemoryVault() {
     return cached?.public_key || user?.partner?.public_key || safeGetItem('paxly_partner_pk') || null;
   });
 
+  const getPartnerPublicKey = () => {
+    if (partnerPk) return partnerPk;
+    const cached = getScopedCachedPartner(user?.id, user?.couple_space_id);
+    if (cached?.public_key) return cached.public_key;
+    return user?.partner?.public_key || safeGetItem('paxly_partner_pk') || null;
+  };
+
+  const resolveEncryptionKey = (desc) => {
+    if (!desc || typeof desc !== 'string') return null;
+    if (desc.startsWith('E2EE_KEY:')) return desc.substring(9);
+    const sk = safeGetItem('paxly_sk') || localStorage.getItem('paxly_sk');
+    const pk = getPartnerPublicKey();
+    if (sk && pk) {
+      try {
+        const dec = decryptMessage(desc, sk, pk);
+        if (dec && dec.startsWith('E2EE_KEY:')) {
+          return dec.substring(9);
+        }
+      } catch {}
+    }
+    return null;
+  };
+
   useEffect(() => {
     getSpace().then(d => {
-      if (d?.partner?.public_key) {
-        setPartnerPk(d.partner.public_key);
-        if (user?.id && (d.id || user?.couple_space_id)) {
-          setScopedCachedPartner(user.id, d.id || user.couple_space_id, d.partner);
+      const pk = d?.partner?.public_key;
+      if (pk) {
+        setPartnerPk(pk);
+        const sId = d.space_id || d.id || user?.couple_space_id;
+        if (user?.id && sId) {
+          setScopedCachedPartner(user.id, sId, d.partner);
         }
       }
     }).catch(() => {});
@@ -50,21 +75,7 @@ export function MemoryVault() {
       if (!res.ok) throw new Error(`Download failed with status ${res.status}`);
       let blob = await res.blob();
       
-      let encryptionKey = null;
-      if (m.description && m.description.startsWith('E2EE_KEY:')) {
-        encryptionKey = m.description.substring(9);
-      } else if (m.description) {
-        const sk = safeGetItem('paxly_sk') || localStorage.getItem('paxly_sk');
-        const pk = partnerPk || getScopedCachedPartner(user?.id, user?.couple_space_id)?.public_key || user?.partner?.public_key || safeGetItem('paxly_partner_pk');
-        if (sk && pk) {
-          try {
-            const dec = decryptMessage(m.description, sk, pk);
-            if (dec && dec.startsWith('E2EE_KEY:')) {
-              encryptionKey = dec.substring(9);
-            }
-          } catch {}
-        }
-      }
+      const encryptionKey = resolveEncryptionKey(m.description);
       if (encryptionKey) {
         blob = await decryptMediaBlob(blob, encryptionKey);
       }
@@ -92,16 +103,11 @@ export function MemoryVault() {
   };
 
   useEffect(() => { 
-    const sk = safeGetItem('paxly_sk') || localStorage.getItem('paxly_sk');
-    const pk = partnerPk || getScopedCachedPartner(user?.id, user?.couple_space_id)?.public_key || user?.partner?.public_key || safeGetItem('paxly_partner_pk');
-    
     const decryptItem = (m) => {
       if (m.description && typeof m.description === 'string' && !m.description.startsWith('E2EE_KEY:')) {
-        if (sk && pk) {
-          try {
-            const dec = decryptMessage(m.description, sk, pk);
-            if (dec) m.description = dec;
-          } catch {}
+        const decKey = resolveEncryptionKey(m.description);
+        if (decKey) {
+          m.description = `E2EE_KEY:${decKey}`;
         }
       }
       return m;
@@ -112,15 +118,22 @@ export function MemoryVault() {
     if (cached) {
       try {
         const data = JSON.parse(cached);
-        const texts = data.filter(m => !m.image_url).map(m => decryptItem({...m}));
-        setMemories(texts);
-        
-        const savedMedia = data.filter(m => m.image_url).map(m => decryptItem({...m}));
-        const savedPhotos = savedMedia.filter(m => !m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
-        const savedVideos = savedMedia.filter(m => m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
-        setPhotos(savedPhotos);
-        setVideos(savedVideos);
-        setLoading(false);
+        if (Array.isArray(data)) {
+          const texts = data.filter(m => !m.image_url).map(m => decryptItem({...m}));
+          setMemories(texts);
+          
+          const savedMedia = data.filter(m => m.image_url).map(m => decryptItem({...m}));
+          const savedPhotos = savedMedia.filter(m => !m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
+          const savedVideos = savedMedia.filter(m => m.image_url.match(/\.(mp4|webm|mov|ogg)$/i));
+          setPhotos(savedPhotos);
+          setVideos(savedVideos);
+          setLoading(false);
+        } else if (data && typeof data === 'object') {
+          if (data.texts) setMemories(data.texts.map(m => decryptItem({...m})));
+          if (data.photos) setPhotos(data.photos.map(m => decryptItem({...m})));
+          if (data.videos) setVideos(data.videos.map(m => decryptItem({...m})));
+          setLoading(false);
+        }
       } catch {}
     }
 
@@ -154,7 +167,11 @@ export function MemoryVault() {
       const uniqueVideos = Array.from(new Map(allVideos.map(item => [item.image_url, item])).values());
       setVideos(uniqueVideos);
 
-      localStorage.setItem('cached_memories', JSON.stringify(rawMemories || []));
+      localStorage.setItem('cached_memories', JSON.stringify({
+        texts,
+        photos: uniquePhotos,
+        videos: uniqueVideos
+      }));
       setLoading(false);
     }).catch(() => setLoading(false));
 
@@ -166,6 +183,25 @@ export function MemoryVault() {
     }).catch(() => {});
     
     const offs = [
+      wsService.on('chat_message', msg => {
+        if (msg.media_url && !msg.is_once_view && (msg.message_type === 'image' || msg.message_type === 'video')) {
+          const isVideo = msg.message_type === 'video' || msg.media_url.match(/\.(mp4|webm|mov|ogg)$/i);
+          const newMedia = decryptItem({
+            id: msg.id || msg.temp_id,
+            title: isVideo ? 'Chat Video' : 'Chat Photo',
+            description: msg.text || '',
+            image_url: msg.media_url,
+            date: format(new Date(), 'yyyy-MM-dd'),
+            created_by: msg.sender_id,
+            created_at: new Date().toISOString()
+          });
+          if (isVideo) {
+            setVideos(prev => [newMedia, ...prev.filter(v => v.image_url !== msg.media_url)]);
+          } else {
+            setPhotos(prev => [newMedia, ...prev.filter(p => p.image_url !== msg.media_url)]);
+          }
+        }
+      }),
       wsService.on('media_save_response', async d => {
         if (d.request_id && String(d.request_id) !== String(user?.id)) return;
         setRequestingSave(false);
@@ -201,7 +237,7 @@ export function MemoryVault() {
       })
     ];
     return () => offs.forEach(off => off());
-  }, [user?.id]);
+  }, [user?.id, partnerPk]);
 
   const del = async (id) => {
     if (!confirm('Delete this memory?')) return;
@@ -348,8 +384,8 @@ export function MemoryVault() {
             gap:24 
           }}>
             {items.map(m => {
-              const isE2EEMedia = m.description && m.description.startsWith('E2EE_KEY:');
-              const encryptionKey = isE2EEMedia ? m.description.substring(9) : null;
+              const encryptionKey = resolveEncryptionKey(m.description);
+              const isE2EEMedia = Boolean(encryptionKey);
               
               return (
               <div key={m.id} className="card card-hover" style={{ 
@@ -424,7 +460,7 @@ export function MemoryVault() {
                       )}
                     </div>
                   </div>
-                  {m.description && !isE2EEMedia && <p style={{ marginTop:12, fontSize:'0.88rem', lineHeight:1.6, color: 'var(--text)', opacity: 0.7 }}>{m.description}</p>}
+                  {m.description && !isE2EEMedia && !m.description.startsWith('E2EE_KEY:') && (m.description.length < 60 || m.description.includes(' ')) && <p style={{ marginTop:12, fontSize:'0.88rem', lineHeight:1.6, color: 'var(--text)', opacity: 0.7 }}>{m.description}</p>}
                 </div>
               </div>
               );
