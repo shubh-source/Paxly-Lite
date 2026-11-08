@@ -17,6 +17,36 @@ const CORE_QUICK = [
   { to: '/ai',      icon: <Icons.Aura size={24} color="var(--accent)" />, label: 'Aura AI',     sub: 'Your best friend', full: true },
 ];
 
+const MOOD_EMOJI_MAP = {
+  happy: '😊',
+  calm: '😌',
+  neutral: '😐',
+  low: '😔',
+  support: '🤗',
+  loving: '😍',
+  love: '❤️',
+  romantic: '💖',
+  angry: '😤',
+  laughing: '🤣',
+  bored: '😴',
+  sad: '😢',
+  excited: '🤩',
+  tired: '🥱',
+  playful: '😜',
+  stressed: '😣',
+  sick: '🤒',
+};
+
+export function resolveMoodEmoji(moodType) {
+  if (!moodType) return null;
+  const str = String(moodType).trim();
+  if (/\p{Extended_Pictographic}/u.test(str)) {
+    return str;
+  }
+  const key = str.toLowerCase();
+  return MOOD_EMOJI_MAP[key] || '😊';
+}
+
 export default function Dashboard() {
   const { user, partner: authPartner } = useAuth();
   const nav = useNavigate();
@@ -26,8 +56,6 @@ export default function Dashboard() {
   const [suggestion, setSuggestion] = useState(null);
   const [hasUnread, setHasUnread] = useState(false);
   const [pendingGiftNote, setPendingGiftNote] = useState(null);
-
-  const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'}, low:{emoji:'😔'}, support:{emoji:'🤗'} };
 
   useEffect(() => {
     if (authPartner) setPartner(authPartner);
@@ -90,11 +118,22 @@ export default function Dashboard() {
     const fetchMoods = () => {
       getTodayMoods().then(data => {
         if (Array.isArray(data)) {
-          const myMoodObj = data.find(m => m.user_id === user?.id);
-          const partnerMoodObj = data.find(m => m.user_id !== user?.id);
+          const myId = String(user?.id || '').toLowerCase();
+          const myMoodObj = data.find(m => myId && String(m.user_id).toLowerCase() === myId);
+          const partnerMoodObj = data.find(m => myId && String(m.user_id).toLowerCase() !== myId);
           setMoods({
-            my_mood: myMoodObj ? { ...MOODS[myMoodObj.mood_type], user_name: myMoodObj.user_name } : null,
-            partner_mood: partnerMoodObj ? { ...MOODS[partnerMoodObj.mood_type], user_name: partnerMoodObj.user_name } : null
+            my_mood: myMoodObj ? { 
+              mood_type: myMoodObj.mood_type,
+              emoji: resolveMoodEmoji(myMoodObj.mood_type), 
+              user_name: myMoodObj.user_name,
+              note: myMoodObj.note 
+            } : null,
+            partner_mood: partnerMoodObj ? { 
+              mood_type: partnerMoodObj.mood_type,
+              emoji: resolveMoodEmoji(partnerMoodObj.mood_type), 
+              user_name: partnerMoodObj.user_name,
+              note: partnerMoodObj.note 
+            } : null
           });
           if (partnerMoodObj?.user_name && partnerMoodObj.user_name !== 'Unknown' && partnerMoodObj.user_name !== 'Partner') {
             setPartner(prev => {
@@ -111,18 +150,20 @@ export default function Dashboard() {
     // Instant real-time listener for mood_update WebSocket broadcast (<50ms)
     const offMood = wsService.on('mood_update', (d) => {
       if (!d) return;
-      const isPartner = d.user_id ? d.user_id !== user?.id : true;
-      const moodObj = MOODS[d.mood_type] || { emoji: '😊' };
+      const myId = String(user?.id || '').toLowerCase();
+      const senderId = String(d.user_id || '').toLowerCase();
+      const isPartner = senderId ? senderId !== myId : true;
+      const emoji = resolveMoodEmoji(d.mood_type);
       setMoods(prev => {
         if (isPartner) {
           return {
             ...(prev || {}),
-            partner_mood: { ...moodObj, user_name: d.user_name || partner?.name || 'Partner' }
+            partner_mood: { mood_type: d.mood_type, emoji, user_name: d.user_name || partner?.name || 'Partner', note: d.note }
           };
         } else {
           return {
             ...(prev || {}),
-            my_mood: { ...moodObj, user_name: user?.name || 'You' }
+            my_mood: { mood_type: d.mood_type, emoji, user_name: user?.name || 'You', note: d.note }
           };
         }
       });
@@ -304,10 +345,30 @@ export default function Dashboard() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-                {moods?.my_mood?.emoji ? <span style={{fontSize: '2rem'}}>{moods.my_mood.emoji}</span> : <Icons.Smile size={32} color="var(--accent)" />}
+              <div 
+                onClick={() => nav('/mood')}
+                title="Tap to update your vibe"
+                style={{ 
+                  width: 64, height: 64, borderRadius: 20, 
+                  background: 'rgba(255,255,255,0.03)', 
+                  border: '1px solid rgba(255,255,255,0.08)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  margin: '0 auto 8px', cursor: 'pointer',
+                  transition: 'transform 0.2s'
+                }}
+              >
+                {moods?.my_mood?.emoji ? (
+                  <span style={{ fontSize: '2.2rem' }}>{moods.my_mood.emoji}</span>
+                ) : (
+                  <span style={{ fontSize: '2.2rem' }}>😊</span>
+                )}
               </div>
               <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--accent)', fontWeight: 700, letterSpacing: 1 }}>YOU</p>
+              {moods?.my_mood?.mood_type && (
+                <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#fff', opacity: 0.9, textTransform: 'capitalize', fontWeight: 600 }}>
+                  {moods.my_mood.mood_type}
+                </p>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -320,12 +381,12 @@ export default function Dashboard() {
               <div style={{ 
                 width: 64, height: 64, borderRadius: 20, 
                 background: 'rgba(255,255,255,0.03)', 
-                border: '1px solid rgba(255,255,255,0.05)', 
+                border: '1px solid rgba(255,255,255,0.08)', 
                 display: 'flex', alignItems: 'center', justifyContent: 'center', 
                 margin: '0 auto 8px', overflow: 'hidden' 
               }}>
                 {moods?.partner_mood?.emoji ? (
-                  <span style={{ fontSize: '2rem' }}>{moods.partner_mood.emoji}</span>
+                  <span style={{ fontSize: '2.2rem' }}>{moods.partner_mood.emoji}</span>
                 ) : partner?.avatar_url ? (
                   <img src={partner.avatar_url} alt={partnerDisplayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : partnerDisplayName !== 'PARTNER' ? (
@@ -342,6 +403,11 @@ export default function Dashboard() {
                 )}
               </div>
               <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 700, letterSpacing: 1 }}>{partnerDisplayName}</p>
+              {moods?.partner_mood?.mood_type && (
+                <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 600, textTransform: 'capitalize' }}>
+                  {moods.partner_mood.mood_type}
+                </p>
+              )}
             </div>
           </div>
           <Link to="/mood" style={{ 

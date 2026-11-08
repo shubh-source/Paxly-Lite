@@ -11,17 +11,14 @@ from typing import List
 
 router = APIRouter(prefix="/mood", tags=["Mood"])
 
-def ensure_space(cu: User):
-    if not cu.couple_space_id:
-        raise HTTPException(403, "No couple space. Connect with partner first.")
-    return cu.couple_space_id
-
 @router.post("/set", response_model=MoodOut)
 async def set_mood(data: MoodCreate, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    from app.api.routes.chat import resolve_and_sync_space
+    space, partner = await resolve_and_sync_space(cu, db)
+    space_id = str(space.id) if space else (cu.couple_space_id or "default")
     
     new_mood = Mood(
-        user_id=cu.id,
+        user_id=str(cu.id),
         mood_type=data.mood_type,
         note=data.note
     )
@@ -32,7 +29,7 @@ async def set_mood(data: MoodCreate, cu: User = Depends(get_current_user), db: A
     # Broadcast to couple space via WebSocket immediately for instant real-time sync (<50ms)
     try:
         from app.websocket.manager import manager
-        await manager.send_to_space(str(space_id), {
+        await manager.send_to_space(space_id, {
             "type": "mood_update",
             "user_id": str(cu.id),
             "user_name": cu.name or "Partner",
@@ -45,24 +42,25 @@ async def set_mood(data: MoodCreate, cu: User = Depends(get_current_user), db: A
         pass
     
     return {
-        "id": new_mood.id,
-        "user_id": new_mood.user_id,
+        "id": str(new_mood.id),
+        "user_id": str(new_mood.user_id),
         "user_name": cu.name or "Partner",
         "mood_type": new_mood.mood_type,
-        "note": new_mood.note,
+        "note": new_mood.note or "",
         "date": new_mood.timestamp.strftime("%Y-%m-%d"),
         "timestamp": new_mood.timestamp
     }
 
 @router.get("/today", response_model=List[MoodOut])
 async def get_today_moods(cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    from app.api.routes.chat import resolve_and_sync_space
+    space, partner = await resolve_and_sync_space(cu, db)
     
-    # Get all users in this space
-    u_res = await db.execute(select(User).filter(User.couple_space_id == space_id))
-    space_users = u_res.scalars().all()
-    user_ids = [u.id for u in space_users]
-    user_map = {u.id: u.name for u in space_users}
+    user_ids = [str(cu.id)]
+    user_map = {str(cu.id): cu.name or "You"}
+    if partner:
+        user_ids.append(str(partner.id))
+        user_map[str(partner.id)] = partner.name or "Partner"
     
     # Get moods ordered by most recent first
     result = await db.execute(
@@ -75,24 +73,26 @@ async def get_today_moods(cu: User = Depends(get_current_user), db: AsyncSession
     
     return [
         {
-            "id": m.id,
-            "user_id": m.user_id,
-            "user_name": user_map.get(m.user_id, "Partner" if m.user_id != cu.id else (cu.name or "You")),
+            "id": str(m.id),
+            "user_id": str(m.user_id),
+            "user_name": user_map.get(str(m.user_id), "Partner" if str(m.user_id) != str(cu.id) else (cu.name or "You")),
             "mood_type": m.mood_type,
-            "note": m.note,
-            "date": m.timestamp.strftime("%Y-%m-%d"),
-            "timestamp": m.timestamp
+            "note": m.note or "",
+            "date": m.timestamp.strftime("%Y-%m-%d") if m.timestamp else datetime.utcnow().strftime("%Y-%m-%d"),
+            "timestamp": m.timestamp or datetime.utcnow()
         } for m in moods
     ]
 
 @router.get("/history", response_model=List[MoodOut])
 async def mood_history(limit: int = 30, cu: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    space_id = ensure_space(cu)
+    from app.api.routes.chat import resolve_and_sync_space
+    space, partner = await resolve_and_sync_space(cu, db)
     
-    u_res = await db.execute(select(User).filter(User.couple_space_id == space_id))
-    space_users = u_res.scalars().all()
-    user_ids = [u.id for u in space_users]
-    user_map = {u.id: u.name for u in space_users}
+    user_ids = [str(cu.id)]
+    user_map = {str(cu.id): cu.name or "You"}
+    if partner:
+        user_ids.append(str(partner.id))
+        user_map[str(partner.id)] = partner.name or "Partner"
 
     result = await db.execute(
         select(Mood)
@@ -104,12 +104,12 @@ async def mood_history(limit: int = 30, cu: User = Depends(get_current_user), db
     
     return [
         {
-            "id": m.id,
-            "user_id": m.user_id,
-            "user_name": user_map.get(m.user_id, "Partner" if m.user_id != cu.id else (cu.name or "You")),
+            "id": str(m.id),
+            "user_id": str(m.user_id),
+            "user_name": user_map.get(str(m.user_id), "Partner" if str(m.user_id) != str(cu.id) else (cu.name or "You")),
             "mood_type": m.mood_type,
-            "note": m.note,
-            "date": m.timestamp.strftime("%Y-%m-%d"),
-            "timestamp": m.timestamp
+            "note": m.note or "",
+            "date": m.timestamp.strftime("%Y-%m-%d") if m.timestamp else datetime.utcnow().strftime("%Y-%m-%d"),
+            "timestamp": m.timestamp or datetime.utcnow()
         } for m in moods
     ]
