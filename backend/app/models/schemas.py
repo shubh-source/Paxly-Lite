@@ -150,7 +150,7 @@ class AuraSettingsSchema(BaseModel):
     defaultLanguage: Optional[str] = "Hinglish"
     defaultResponseLength: Optional[str] = "Balanced"
     defaultAiMode: Optional[str] = "Auto"
-    startupBehavior: Optional[str] = "Restore previous session"
+    startupBehavior: Optional[str] = "New session"
     defaultLandingPage: Optional[str] = "Chat"
     autoSaveConversations: Optional[bool] = True
     sendWithEnter: Optional[bool] = True

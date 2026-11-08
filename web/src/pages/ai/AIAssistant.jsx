@@ -22,7 +22,12 @@ export default function AIAssistant() {
   const settingsKey = getAuraSettingsStorageKey(user?.id);
   const personalityKey = getAuraPersonalityStorageKey(user?.id);
 
-  const [threads, setThreads] = useState([]);
+  const [threads, setThreads] = useState(() => {
+    try {
+      const cached = localStorage.getItem(threadsKey);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [msgs, setMsgs] = useState([]);
 
@@ -43,7 +48,15 @@ export default function AIAssistant() {
   const [auraSettings, setAuraSettings] = useState(() => {
     try {
       const saved = localStorage.getItem(settingsKey);
-      return saved ? JSON.parse(saved) : DEFAULT_AURA_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.startupBehavior === 'Restore previous session' && !parsed._userCustomizedStartup) {
+          parsed.startupBehavior = 'New session';
+          localStorage.setItem(settingsKey, JSON.stringify(parsed));
+        }
+        return { ...DEFAULT_AURA_SETTINGS, ...parsed };
+      }
+      return DEFAULT_AURA_SETTINGS;
     } catch { return DEFAULT_AURA_SETTINGS; }
   });
   const [showPersonalityModal, setShowPersonalityModal] = useState(false);
@@ -101,7 +114,12 @@ export default function AIAssistant() {
     try {
       const localCached = localStorage.getItem(settingsKey);
       if (localCached) {
-        setAuraSettings({ ...DEFAULT_AURA_SETTINGS, ...JSON.parse(localCached) });
+        const parsed = JSON.parse(localCached);
+        if (parsed.startupBehavior === 'Restore previous session' && !parsed._userCustomizedStartup) {
+          parsed.startupBehavior = 'New session';
+          localStorage.setItem(settingsKey, JSON.stringify(parsed));
+        }
+        setAuraSettings({ ...DEFAULT_AURA_SETTINGS, ...parsed });
       }
       const localPers = localStorage.getItem(personalityKey);
       if (localPers) {
@@ -113,6 +131,9 @@ export default function AIAssistant() {
       .then(cloud => {
         if (isCancelled || !cloud || typeof cloud !== 'object') return;
         const merged = { ...DEFAULT_AURA_SETTINGS, ...cloud };
+        if (merged.startupBehavior === 'Restore previous session' && !merged._userCustomizedStartup) {
+          merged.startupBehavior = 'New session';
+        }
         setAuraSettings(merged);
         localStorage.setItem(settingsKey, JSON.stringify(merged));
         if (merged.customInstructions) {
@@ -133,68 +154,39 @@ export default function AIAssistant() {
 
     let isCancelled = false;
 
+    // Fast-path: immediately populate threads state from local storage so drawer has history
+    try {
+      const cachedThisUser = localStorage.getItem(threadsKey);
+      if (cachedThisUser) {
+        const parsed = JSON.parse(cachedThisUser);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setThreads(parsed);
+        }
+      }
+    } catch (_) {}
+
     const initThreads = async () => {
       try {
         const { data } = await api.get('/ai/threads');
         if (isCancelled) return;
 
-        if (data && data.length > 0) {
-          setThreads(data);
-          const startFresh = auraSettings?.startupBehavior === 'New session';
-          if (startFresh) {
-            setActiveThreadId(null);
-            setMsgs([]);
-          } else {
-            setActiveThreadId(prev => prev || data[0].id);
-            setMsgs(prev => (prev && prev.length > 0 ? prev : (data[0].messages || [])));
-          }
-          localStorage.setItem(threadsKey, JSON.stringify(data));
+        if (Array.isArray(data) && data.length > 0) {
+          setThreads(prev => {
+            const serverIds = new Set(data.map(d => d.id));
+            const localUnsynced = prev.filter(p => !serverIds.has(p.id));
+            const merged = [...localUnsynced, ...data];
+            localStorage.setItem(threadsKey, JSON.stringify(merged));
+            return merged;
+          });
         } else {
-          // Server has no threads for this user - do NOT inherit previous user's cached threads!
-          const cachedThisUser = localStorage.getItem(threadsKey);
-          if (cachedThisUser) {
-            try {
-              const parsed = JSON.parse(cachedThisUser);
-              if (parsed && parsed.length > 0) {
-                setThreads(parsed);
-                const startFresh = auraSettings?.startupBehavior === 'New session';
-                if (startFresh) {
-                  setActiveThreadId(null);
-                  setMsgs([]);
-                } else {
-                  setActiveThreadId(parsed[0].id);
-                  setMsgs(parsed[0].messages || []);
-                }
-                return;
-              }
-            } catch (e) {}
+          // Server has no threads for this user
+          if (!localStorage.getItem(threadsKey)) {
+            setThreads([]);
           }
-          // Clean state for fresh user
-          setThreads([]);
-          setActiveThreadId(null);
-          setMsgs([]);
         }
       } catch (err) {
         if (isCancelled) return;
         console.error("Failed to load threads from server", err);
-        // Load only this user's local cache on offline/error
-        const cachedThreads = localStorage.getItem(threadsKey);
-        if (cachedThreads) {
-          try {
-            const parsed = JSON.parse(cachedThreads);
-            setThreads(parsed);
-            if (parsed.length > 0) {
-              const startFresh = auraSettings?.startupBehavior === 'New session';
-              if (startFresh) {
-                setActiveThreadId(null);
-                setMsgs([]);
-              } else {
-                setActiveThreadId(parsed[0].id);
-                setMsgs(parsed[0].messages || []);
-              }
-            }
-          } catch(e) {}
-        }
       }
     };
 

@@ -3,7 +3,7 @@ export const DEFAULT_AURA_SETTINGS = {
   defaultLanguage: 'Hinglish',
   defaultResponseLength: 'Balanced',
   defaultAiMode: 'Auto',
-  startupBehavior: 'Restore previous session',
+  startupBehavior: 'New session',
   defaultLandingPage: 'Chat',
   autoSaveConversations: true,
   sendWithEnter: true,

@@ -319,12 +319,15 @@ export default function AuraSettingsModal({ isOpen, onClose, onSettingsChange, o
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: 6, fontWeight: 600 }}>Startup Behavior</label>
                         <select
-                          value={settings.startupBehavior}
-                          onChange={e => updateSetting('startupBehavior', e.target.value)}
+                          value={settings.startupBehavior || 'New session'}
+                          onChange={e => {
+                            updateSetting('startupBehavior', e.target.value);
+                            updateSetting('_userCustomizedStartup', true);
+                          }}
                           style={{ width: '100%', background: '#202024', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: 8, padding: '8px 10px', fontSize: '0.85rem' }}
                         >
+                          <option value="New session">Start new session (Recommended)</option>
                           <option value="Restore previous session">Restore previous session</option>
-                          <option value="New session">Start new session</option>
                         </select>
                       </div>
 
