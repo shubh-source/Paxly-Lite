@@ -18,18 +18,38 @@ const CORE_QUICK = [
 ];
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, partner: authPartner } = useAuth();
   const nav = useNavigate();
   const [moods, setMoods] = useState(null);
-  const [partner, setPartner] = useState(null);
+  const [partner, setPartner] = useState(() => authPartner || (user?.id ? getScopedCachedPartner(user.id, user.couple_space_id) : null));
   const [sharedNotes, setSharedNotes] = useState([]);
   const [suggestion, setSuggestion] = useState(null);
   const [hasUnread, setHasUnread] = useState(false);
   const [pendingGiftNote, setPendingGiftNote] = useState(null);
 
-const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'}, low:{emoji:'😔'}, support:{emoji:'🤗'} };
+  const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'}, low:{emoji:'😔'}, support:{emoji:'🤗'} };
 
   useEffect(() => {
+    if (authPartner) setPartner(authPartner);
+  }, [authPartner]);
+
+  useEffect(() => {
+    // 1. Immediate fallback from cache if not yet loaded
+    if (user?.id) {
+      const cached = getScopedCachedPartner(user.id, user.couple_space_id);
+      if (cached) setPartner(cached);
+    }
+
+    // 2. Fetch fresh space data directly to guarantee latest partner profile
+    getSpace().then(d => {
+      if (d?.partner) {
+        setPartner(d.partner);
+        if (user?.id) {
+          setScopedCachedPartner(user.id, d.space?.id || user.couple_space_id, d.partner);
+        }
+      }
+    }).catch(() => {});
+
     getNotifications().then(data => {
       if (data.some(n => !n.read)) setHasUnread(true);
     }).catch(() => {});
@@ -57,21 +77,32 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
         .catch(() => {});
     });
 
+    // Real-time listener for partner presence (which sends partner user_name)
+    const offPresence = wsService.on('presence', (d) => {
+      if (d && d.user_name && d.user_id !== user?.id) {
+        setPartner(prev => {
+          if (prev && prev.name && prev.name !== 'Partner') return prev;
+          return { ...(prev || {}), id: d.user_id, name: d.user_name };
+        });
+      }
+    });
+
     getTodayMoods().then(data => {
       if (Array.isArray(data)) {
         const myMoodObj = data.find(m => m.user_id === user?.id);
         const partnerMoodObj = data.find(m => m.user_id !== user?.id);
         setMoods({
-          my_mood: myMoodObj ? MOODS[myMoodObj.mood_type] : null,
-          partner_mood: partnerMoodObj ? MOODS[partnerMoodObj.mood_type] : null
+          my_mood: myMoodObj ? { ...MOODS[myMoodObj.mood_type], user_name: myMoodObj.user_name } : null,
+          partner_mood: partnerMoodObj ? { ...MOODS[partnerMoodObj.mood_type], user_name: partnerMoodObj.user_name } : null
         });
+        if (partnerMoodObj?.user_name && partnerMoodObj.user_name !== 'Unknown' && partnerMoodObj.user_name !== 'Partner') {
+          setPartner(prev => {
+            if (prev?.name && prev.name !== 'Partner') return prev;
+            return { ...(prev || {}), name: partnerMoodObj.user_name };
+          });
+        }
       }
     }).catch(() => {});
-
-    try {
-      const p = getScopedCachedPartner(user?.id, user?.couple_space_id);
-      if (p) setPartner(p);
-    } catch {}
     
     // Fetch shared note alerts
     api.get('/notes/dashboard-alerts')
@@ -96,10 +127,11 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
         return diff >= 0 && diff <= 7;
       });
       if (upcoming) {
+        const pName = partner?.name && partner.name !== 'Partner' ? partner.name : null;
         setSuggestion({
           type: 'milestone',
           title: `Upcoming: ${upcoming.title}`,
-          body: `It's almost time for your ${upcoming.title.toLowerCase()}! Want me to design a surprise Vibe Site for ${partner?.name || 'your partner'}?`,
+          body: `It's almost time for your ${upcoming.title.toLowerCase()}! Want me to design a surprise Vibe Site for ${pName || 'your partner'}?`,
           action: '/website/vibe'
         });
       }
@@ -114,8 +146,9 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
 
     return () => {
       offGift();
+      offPresence();
     };
-  }, [partner?.name]);
+  }, [user?.id, user?.couple_space_id, partner?.name]);
 
   const dismissNote = async (id) => {
     try {
@@ -126,6 +159,16 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const partnerRawName = (partner?.name && partner.name.toLowerCase() !== 'partner')
+    ? partner.name
+    : (moods?.partner_mood?.user_name && moods.partner_mood.user_name !== 'Unknown' && moods.partner_mood.user_name.toLowerCase() !== 'partner'
+      ? moods.partner_mood.user_name
+      : null);
+
+  const partnerDisplayName = partnerRawName
+    ? partnerRawName.trim().split(' ')[0].toUpperCase()
+    : 'PARTNER';
 
   return (
     <div className="page" style={{ paddingBottom: 100 }}>
@@ -235,10 +278,31 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
             </div>
 
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-                {moods?.partner_mood?.emoji ? <span style={{fontSize: '2rem'}}>{moods.partner_mood.emoji}</span> : <Icons.User size={32} color="var(--muted)" />}
+              <div style={{ 
+                width: 64, height: 64, borderRadius: 20, 
+                background: 'rgba(255,255,255,0.03)', 
+                border: '1px solid rgba(255,255,255,0.05)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                margin: '0 auto 8px', overflow: 'hidden' 
+              }}>
+                {moods?.partner_mood?.emoji ? (
+                  <span style={{ fontSize: '2rem' }}>{moods.partner_mood.emoji}</span>
+                ) : partner?.avatar_url ? (
+                  <img src={partner.avatar_url} alt={partnerDisplayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : partnerDisplayName !== 'PARTNER' ? (
+                  <div style={{ 
+                    width: '100%', height: '100%', 
+                    background: 'linear-gradient(135deg, rgba(201,169,110,0.25), rgba(124,111,205,0.25))',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent)'
+                  }}>
+                    {partnerDisplayName[0]}
+                  </div>
+                ) : (
+                  <Icons.User size={32} color="var(--muted)" />
+                )}
               </div>
-              <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 700, letterSpacing: 1 }}>{partner?.name?.split(' ')[0]?.toUpperCase() || 'PARTNER'}</p>
+              <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 700, letterSpacing: 1 }}>{partnerDisplayName}</p>
             </div>
           </div>
           <Link to="/mood" style={{ 
@@ -292,7 +356,7 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
             }}>
             <Icons.LoveNote size={36} color="var(--accent)" />
               <div style={{ flex: 1 }}>
-                <p style={{ margin: '0 0 2px', fontSize: '0.8rem', color: 'var(--muted)' }}>{partner?.name || 'Partner'} shared a note</p>
+                <p style={{ margin: '0 0 2px', fontSize: '0.8rem', color: 'var(--muted)' }}>{(partnerRawName || 'Partner')} shared a note</p>
                 <p style={{ margin: 0, fontWeight: 700, color: 'var(--accent)' }}>"{note.title}"</p>
               </div>
               <Link to="/notes" onClick={() => dismissNote(note.id)} style={{ 

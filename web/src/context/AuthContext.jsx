@@ -3,13 +3,25 @@ import api, { getMe, getSpace } from '../services/api';
 import { wsService } from '../services/websocket';
 import { clearUserBrowserStorage } from '../services/auraStorage';
 import { showInstantPresenceNotification } from '../services/systemNotification';
-import { setScopedCachedSpace, setScopedCachedPartner, cleanupLegacyGlobalChatKeys } from '../services/chatCache';
+import { setScopedCachedSpace, setScopedCachedPartner, getScopedCachedPartner, cleanupLegacyGlobalChatKeys } from '../services/chatCache';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser]       = useState(() => {
     try { return JSON.parse(localStorage.getItem('ros_user')) || null; } catch { return null; }
+  });
+  const [partner, setPartner] = useState(() => {
+    try {
+      const cached = localStorage.getItem('ros_user');
+      if (cached) {
+        const u = JSON.parse(cached);
+        if (u?.id) return getScopedCachedPartner(u.id, u.couple_space_id) || null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   });
   const [loading, setLoading] = useState(true);
 
@@ -25,6 +37,10 @@ export const AuthProvider = ({ children }) => {
         parsedUser = JSON.parse(cachedUser);
         setUser(parsedUser); 
         isCached = true;
+        if (parsedUser?.id) {
+          const cp = getScopedCachedPartner(parsedUser.id, parsedUser.couple_space_id);
+          if (cp) setPartner(cp);
+        }
         // 3s artificial delay so the premium splash screen animation can fully complete
         setTimeout(() => setLoading(false), 600);
       } catch (e) {}
@@ -47,6 +63,9 @@ export const AuthProvider = ({ children }) => {
         wsService.connect(token, u.couple_space_id);
         
         if (spaceData) {
+          if (spaceData.partner) {
+            setPartner(spaceData.partner);
+          }
           setScopedCachedSpace(u.id, spaceData);
           setScopedCachedPartner(u.id, spaceData.space?.id || u.couple_space_id, spaceData.partner);
         }
@@ -72,6 +91,7 @@ export const AuthProvider = ({ children }) => {
         if (err.response && (err.response.status === 401 || err.response.status === 403)) {
           clearUserBrowserStorage();
           setUser(null);
+          setPartner(null);
         }
       })
       .finally(() => {
@@ -128,30 +148,53 @@ export const AuthProvider = ({ children }) => {
     const currentUserId = user?.id;
     if (currentUserId && userData?.id && currentUserId !== userData.id) {
       clearUserBrowserStorage();
+      setPartner(null);
     }
     localStorage.setItem('ros_token', token);
     localStorage.setItem('ros_user', JSON.stringify(userData));
     setUser(userData);
     wsService.connect(token, userData.couple_space_id);
+
+    if (userData?.id) {
+      const cp = getScopedCachedPartner(userData.id, userData.couple_space_id);
+      if (cp) setPartner(cp);
+    }
+    getSpace().then(spaceData => {
+      if (spaceData?.partner) {
+        setPartner(spaceData.partner);
+        setScopedCachedPartner(userData.id, spaceData.space?.id || userData.couple_space_id, spaceData.partner);
+      }
+      if (spaceData) {
+        setScopedCachedSpace(userData.id, spaceData);
+      }
+    }).catch(() => {});
   };
 
   const logoutUser = () => {
     clearUserBrowserStorage();
     setUser(null);
+    setPartner(null);
     wsService.disconnect();
   };
 
   const refreshUser = async () => {
     try {
-      const u = await getMe();
+      const [u, spaceData] = await Promise.all([
+        getMe(),
+        getSpace().catch(() => null)
+      ]);
       setUser(u);
       localStorage.setItem('ros_user', JSON.stringify(u));
+      if (spaceData?.partner) {
+        setPartner(spaceData.partner);
+        setScopedCachedPartner(u.id, spaceData.space?.id || u.couple_space_id, spaceData.partner);
+      }
       return u;
     } catch {}
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginUser, logoutUser, refreshUser, setUser }}>
+    <AuthContext.Provider value={{ user, partner, setPartner, loading, loginUser, logoutUser, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

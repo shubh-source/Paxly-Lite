@@ -16,7 +16,7 @@ const MOODS = [
 ];
 
 export default function MoodSync() {
-  const { user } = useAuth();
+  const { user, partner } = useAuth();
   const nav = useNavigate();
   const [todayMoods, setTodayMoods] = useState([]);
   const [selected, setSelected] = useState('');
@@ -33,16 +33,19 @@ export default function MoodSync() {
           user_id: data.user_id,
           mood_type: data.mood_type,
           note: data.note,
-          user_name: 'Partner' // Fallback
+          user_name: partner?.name || 'Partner' // Fallback
         }];
       });
     });
 
     return () => off();
-  }, []);
+  }, [partner?.name]);
 
   const myMood = todayMoods.find(m => m.user_id === user?.id);
   const partnerMood = todayMoods.find(m => m.user_id !== user?.id);
+  const partnerName = (partnerMood?.user_name && partnerMood.user_name !== 'Partner' && partnerMood.user_name !== 'Unknown')
+    ? partnerMood.user_name
+    : (partner?.name || 'Partner');
   const getMeta = k => MOODS.find(m => m.key === k);
 
   const submit = async () => {
@@ -72,7 +75,7 @@ export default function MoodSync() {
       <div className="content">
         {partnerMood && (
           <div className="card" style={{ textAlign:'center', marginBottom:22, borderColor:'rgba(201,169,110,0.2)' }}>
-            <p style={{ fontSize:'0.78rem', marginBottom:8 }}>{partnerMood.user_name} is feeling</p>
+            <p style={{ fontSize:'0.78rem', marginBottom:8 }}>{partnerName} is feeling</p>
             <div style={{ color: getMeta(partnerMood.mood_type)?.color, marginBottom:10, display: 'flex', justifyContent: 'center' }}>
               {getMeta(partnerMood.mood_type)?.icon && React.cloneElement(getMeta(partnerMood.mood_type).icon, { size: 48 })}
             </div>
@@ -92,7 +95,7 @@ export default function MoodSync() {
         ) : (
           <div>
             <h3 style={{ marginBottom:6 }}>How are you feeling?</h3>
-            <p style={{ marginBottom:18 }}>Your partner will see this.</p>
+            <p style={{ marginBottom:18 }}>{partner?.name && partner.name !== 'Partner' ? `${partner.name} will see this.` : 'Your partner will see this.'}</p>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8, marginBottom:18 }}>
               {MOODS.map(m => (
                 <button key={m.key} onClick={() => setSelected(m.key)} style={{ background: selected===m.key ? `${m.color}20` : 'var(--s1)', border:`2px solid ${selected===m.key ? m.color : 'var(--border)'}`, borderRadius:12, padding:'12px 6px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:8, transition:'var(--t)' }}>

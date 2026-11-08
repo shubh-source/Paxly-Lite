@@ -9,7 +9,7 @@ import { Icons } from '../../components/ui/Icons';
 const MOODS = { happy:{emoji:'😊',color:'#F59E0B',label:'Happy'}, calm:{emoji:'😌',color:'#6EE7B7',label:'Calm'}, neutral:{emoji:'😐',color:'#94A3B8',label:'Neutral'}, low:{emoji:'😔',color:'#818CF8',label:'Low'}, support:{emoji:'🤗',color:'#F87171',label:'Need Support'} };
 
 export default function MoodHistory() {
-  const { user } = useAuth();
+  const { user, partner } = useAuth();
   const [moods, setMoods] = useState([]);
   const [filter, setFilter] = useState('both');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -66,7 +66,7 @@ export default function MoodHistory() {
       </header>
       <div className="content">
         <div style={{ display:'flex', gap:8, marginBottom:20 }}>
-          {[['both','Both'],['me','Me'],['partner','Partner']].map(([k,l]) => (
+          {[['both','Both'],['me','Me'],['partner', (partner?.name && partner.name !== 'Partner' ? partner.name.split(' ')[0] : 'Partner')]].map(([k,l]) => (
             <button key={k} onClick={() => setFilter(k)} className="btn" style={{ padding:'6px 14px', fontSize:'0.82rem', background: filter===k?'var(--accent)':'var(--s2)', color: filter===k?'#0D0D0F':'var(--muted)', border:'1px solid var(--border)' }}>{l}</button>
           ))}
         </div>
