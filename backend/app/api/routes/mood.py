@@ -29,6 +29,21 @@ async def set_mood(data: MoodCreate, cu: User = Depends(get_current_user), db: A
     await db.commit()
     await db.refresh(new_mood)
     
+    # Broadcast to couple space via WebSocket immediately for instant real-time sync (<50ms)
+    try:
+        from app.websocket.manager import manager
+        await manager.send_to_space(str(space_id), {
+            "type": "mood_update",
+            "user_id": str(cu.id),
+            "user_name": cu.name or "Partner",
+            "mood_type": new_mood.mood_type,
+            "note": new_mood.note or "",
+            "date": new_mood.timestamp.strftime("%Y-%m-%d"),
+            "timestamp": new_mood.timestamp.isoformat()
+        })
+    except Exception:
+        pass
+    
     return {
         "id": new_mood.id,
         "user_id": new_mood.user_id,
@@ -49,9 +64,7 @@ async def get_today_moods(cu: User = Depends(get_current_user), db: AsyncSession
     user_ids = [u.id for u in space_users]
     user_map = {u.id: u.name for u in space_users}
     
-    # Get moods for today
-    today = datetime.now(timezone.utc).date()
-    # Filter by created_at date
+    # Get moods ordered by most recent first
     result = await db.execute(
         select(Mood)
         .filter(Mood.user_id.in_(user_ids))
@@ -64,7 +77,7 @@ async def get_today_moods(cu: User = Depends(get_current_user), db: AsyncSession
         {
             "id": m.id,
             "user_id": m.user_id,
-            "user_name": user_map.get(m.user_id, "Unknown"),
+            "user_name": user_map.get(m.user_id, "Partner" if m.user_id != cu.id else (cu.name or "You")),
             "mood_type": m.mood_type,
             "note": m.note,
             "date": m.timestamp.strftime("%Y-%m-%d"),
@@ -93,7 +106,7 @@ async def mood_history(limit: int = 30, cu: User = Depends(get_current_user), db
         {
             "id": m.id,
             "user_id": m.user_id,
-            "user_name": user_map.get(m.user_id, "Unknown"),
+            "user_name": user_map.get(m.user_id, "Partner" if m.user_id != cu.id else (cu.name or "You")),
             "mood_type": m.mood_type,
             "note": m.note,
             "date": m.timestamp.strftime("%Y-%m-%d"),

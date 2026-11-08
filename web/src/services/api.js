@@ -147,10 +147,10 @@ export const submitMood = (mood_type, note = '') =>
   api.post('/mood/set', { mood_type, note }).then(r => r.data);
 
 export const getTodayMoods = () =>
-  api.get('/mood/today').then(r => r.data);
+  api.get('/mood/today', { params: { _t: Date.now() } }).then(r => r.data);
 
 export const getMoodHistory = (limit = 30) =>
-  api.get('/mood/history', { params: { limit } }).then(r => r.data);
+  api.get('/mood/history', { params: { limit, _t: Date.now() } }).then(r => r.data);
 
 // Memories
 export const getMemories = () =>

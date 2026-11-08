@@ -473,9 +473,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 elif p_type == "mood_update":
                     await manager.send_to_space(space_id, {
-                        "type": "mood_update", "user_id": user_id, 
-                        "mood_type": payload.get("mood_type"), "note": payload.get("note")
-                    }, exclude_user=user_id)
+                        "type": "mood_update",
+                        "user_id": user_id,
+                        "user_name": user_name,
+                        "mood_type": payload.get("mood_type"),
+                        "note": payload.get("note", "")
+                    }, exclude_socket=websocket)
 
                 elif p_type == "media_save_request":
                     payload["from"] = user_name

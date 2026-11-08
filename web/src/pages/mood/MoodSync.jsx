@@ -24,21 +24,35 @@ export default function MoodSync() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => { 
-    getTodayMoods().then(setTodayMoods); 
+    const fetchMoods = () => {
+      getTodayMoods().then(setTodayMoods).catch(() => {});
+    };
+    fetchMoods();
 
     const off = wsService.on('mood_update', (data) => {
+      if (!data) return;
       setTodayMoods(prev => {
         const others = prev.filter(m => m.user_id !== data.user_id);
-        return [...others, {
+        return [{
           user_id: data.user_id,
           mood_type: data.mood_type,
           note: data.note,
-          user_name: partner?.name || 'Partner' // Fallback
-        }];
+          user_name: data.user_name || partner?.name || 'Partner'
+        }, ...others];
       });
     });
 
-    return () => off();
+    const onFocus = () => fetchMoods();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    const interval = setInterval(fetchMoods, 6000);
+
+    return () => {
+      off();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+      clearInterval(interval);
+    };
   }, [partner?.name]);
 
   const myMood = todayMoods.find(m => m.user_id === user?.id);
@@ -53,8 +67,10 @@ export default function MoodSync() {
     setLoading(true);
     try {
       const m = await submitMood(selected, note);
-      wsService.send({ type:'mood_update', mood_type: selected, note });
-      setTodayMoods(prev => [...prev.filter(x => x.user_id !== user?.id), m]);
+      try {
+        wsService.send({ type:'mood_update', mood_type: selected, note, user_name: user?.name });
+      } catch (_) {}
+      setTodayMoods(prev => [m, ...prev.filter(x => x.user_id !== user?.id)]);
     } finally { setLoading(false); }
   };
 

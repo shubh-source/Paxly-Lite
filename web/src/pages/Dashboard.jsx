@@ -87,22 +87,57 @@ export default function Dashboard() {
       }
     });
 
-    getTodayMoods().then(data => {
-      if (Array.isArray(data)) {
-        const myMoodObj = data.find(m => m.user_id === user?.id);
-        const partnerMoodObj = data.find(m => m.user_id !== user?.id);
-        setMoods({
-          my_mood: myMoodObj ? { ...MOODS[myMoodObj.mood_type], user_name: myMoodObj.user_name } : null,
-          partner_mood: partnerMoodObj ? { ...MOODS[partnerMoodObj.mood_type], user_name: partnerMoodObj.user_name } : null
-        });
-        if (partnerMoodObj?.user_name && partnerMoodObj.user_name !== 'Unknown' && partnerMoodObj.user_name !== 'Partner') {
-          setPartner(prev => {
-            if (prev?.name && prev.name !== 'Partner') return prev;
-            return { ...(prev || {}), name: partnerMoodObj.user_name };
+    const fetchMoods = () => {
+      getTodayMoods().then(data => {
+        if (Array.isArray(data)) {
+          const myMoodObj = data.find(m => m.user_id === user?.id);
+          const partnerMoodObj = data.find(m => m.user_id !== user?.id);
+          setMoods({
+            my_mood: myMoodObj ? { ...MOODS[myMoodObj.mood_type], user_name: myMoodObj.user_name } : null,
+            partner_mood: partnerMoodObj ? { ...MOODS[partnerMoodObj.mood_type], user_name: partnerMoodObj.user_name } : null
           });
+          if (partnerMoodObj?.user_name && partnerMoodObj.user_name !== 'Unknown' && partnerMoodObj.user_name !== 'Partner') {
+            setPartner(prev => {
+              if (prev?.name && prev.name !== 'Partner') return prev;
+              return { ...(prev || {}), name: partnerMoodObj.user_name };
+            });
+          }
         }
+      }).catch(() => {});
+    };
+
+    fetchMoods();
+
+    // Instant real-time listener for mood_update WebSocket broadcast (<50ms)
+    const offMood = wsService.on('mood_update', (d) => {
+      if (!d) return;
+      const isPartner = d.user_id ? d.user_id !== user?.id : true;
+      const moodObj = MOODS[d.mood_type] || { emoji: '😊' };
+      setMoods(prev => {
+        if (isPartner) {
+          return {
+            ...(prev || {}),
+            partner_mood: { ...moodObj, user_name: d.user_name || partner?.name || 'Partner' }
+          };
+        } else {
+          return {
+            ...(prev || {}),
+            my_mood: { ...moodObj, user_name: user?.name || 'You' }
+          };
+        }
+      });
+      if (isPartner && d.user_name && d.user_name !== 'Unknown' && d.user_name !== 'Partner') {
+        setPartner(prev => ({ ...(prev || {}), id: d.user_id || prev?.id, name: d.user_name }));
       }
-    }).catch(() => {});
+    });
+
+    // Auto-refresh when app comes to foreground or tab gains focus
+    const onForeground = () => fetchMoods();
+    window.addEventListener('focus', onForeground);
+    document.addEventListener('visibilitychange', onForeground);
+
+    // Fast safety net polling every 6 seconds in case mobile connection drops
+    const moodPollTimer = setInterval(fetchMoods, 6000);
     
     // Fetch shared note alerts
     api.get('/notes/dashboard-alerts')
@@ -147,6 +182,10 @@ export default function Dashboard() {
     return () => {
       offGift();
       offPresence();
+      offMood();
+      window.removeEventListener('focus', onForeground);
+      document.removeEventListener('visibilitychange', onForeground);
+      clearInterval(moodPollTimer);
     };
   }, [user?.id, user?.couple_space_id, partner?.name]);
 
