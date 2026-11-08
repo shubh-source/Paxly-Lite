@@ -1,0 +1,1 @@
+import{W as e}from"./index-BVeEVlu2.js";import"./vendor-ByMBBIRH.js";class m extends e{async enable(){throw this.unimplemented("Not implemented on web.")}async disable(){throw this.unimplemented("Not implemented on web.")}}export{m as PrivacyScreenWeb};

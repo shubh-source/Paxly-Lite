@@ -9,12 +9,12 @@ import { getScopedCachedPartner } from '../services/chatCache';
 import JiggleGiftBoxModal from '../components/ui/JiggleGiftBoxModal';
 
 const CORE_QUICK = [
-  { to: '/chat',    icon: <Icons.Chat size={32} color="var(--accent)" />, label: 'Secret Chat',  sub: 'Encrypted & Private', full: true },
-  { to: '/voice',   icon: <Icons.Mic size={32} color="var(--purple)" />, label: 'Voice Notes', sub: 'Audio memories', full: false },
-  { to: '/memories',icon: <Icons.Vault size={32} color="var(--purple)" />, label: 'Our Vault',   sub: 'Saved moments', full: false },
-  { to: '/notes',   icon: <Icons.LoveNote size={32} color="var(--accent)" />, label: 'Love Notes',  sub: 'Secret letters', full: false },
-  { to: '/dates',   icon: <Icons.Milestone size={32} color="var(--purple)" />, label: 'Important Dates',  sub: 'Never forget', full: false },
-  { to: '/ai',      icon: <Icons.Aura size={32} color="var(--accent)" />, label: 'Aura AI',     sub: 'Your best friend', full: true },
+  { to: '/chat',    icon: <Icons.Chat size={24} color="var(--accent)" />, label: 'Secret Chat',  sub: 'Encrypted & Private', full: true },
+  { to: '/voice',   icon: <Icons.Mic size={20} color="var(--purple)" />, label: 'Voice Notes', sub: 'Audio memories', full: false },
+  { to: '/memories',icon: <Icons.Vault size={20} color="var(--purple)" />, label: 'Our Vault',   sub: 'Saved moments', full: false },
+  { to: '/notes',   icon: <Icons.LoveNote size={20} color="var(--accent)" />, label: 'Love Notes',  sub: 'Secret letters', full: false },
+  { to: '/dates',   icon: <Icons.Milestone size={20} color="var(--purple)" />, label: 'Important Dates',  sub: 'Never forget', full: false },
+  { to: '/ai',      icon: <Icons.Aura size={24} color="var(--accent)" />, label: 'Aura AI',     sub: 'Your best friend', full: true },
 ];
 
 export default function Dashboard() {
@@ -143,7 +143,7 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       )}
 
       {/* Hero Header */}
-      <div style={{ padding: '40px 24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+      <div style={{ padding: '36px 18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
         <div>
           <p style={{ margin: '0 0 4px', fontSize: '0.9rem', color: 'var(--muted)', fontWeight: 500, letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
             {greeting.toUpperCase()}
@@ -210,7 +210,7 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       </div>
 
       {/* Mood Sync Status (Premium Glass) */}
-      <div style={{ padding: '0 24px 32px', position: 'relative', zIndex: 1 }}>
+      <div style={{ padding: '0 18px 28px', position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
         <div style={{ 
           background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)', 
           backdropFilter: 'blur(24px)',
@@ -251,7 +251,7 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
 
       {/* Proactive AI Suggestion */}
       {suggestion && (
-        <div style={{ padding: '0 24px 24px', position: 'relative', zIndex: 1 }}>
+        <div style={{ padding: '0 18px 20px', position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
           <div className="card" style={{ 
             background: 'linear-gradient(145deg, rgba(124,111,205,0.08) 0%, rgba(124,111,205,0.02) 100%)', 
             backdropFilter: 'blur(12px)',
@@ -268,9 +268,9 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
               <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.95rem', color: '#fff' }}>{suggestion.title}</p>
               <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>{suggestion.body}</p>
               <Link to={suggestion.action} style={{ 
-                display: 'inline-block', background: 'var(--purple)', color: '#fff', 
+                display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--purple)', color: '#fff', 
                 padding: '8px 18px', borderRadius: 12, fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' 
-              }}>Try Now <Icons.Back size={14} color="#fff" style={{ transform: 'rotate(180deg)', display: 'inline-block', verticalAlign: 'middle' }} /></Link>
+              }}>Try Now <Icons.ChevronRight size={14} color="#fff" /></Link>
             </div>
             <button onClick={() => setSuggestion(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', alignSelf: 'flex-start' }}><Icons.Back size={20} /></button>
           </div>
@@ -279,7 +279,7 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
 
       {/* Shared Note Alerts */}
       {sharedNotes.length > 0 && (
-        <div style={{ padding: '0 24px 24px', position: 'relative', zIndex: 1 }}>
+        <div style={{ padding: '0 18px 20px', position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
           {sharedNotes.map(note => (
             <div key={note.id} className="card" style={{ 
               background: 'linear-gradient(145deg, rgba(201,169,110,0.08) 0%, rgba(201,169,110,0.02) 100%)', 
@@ -305,46 +305,83 @@ const MOODS = { happy:{emoji:'😊'}, calm:{emoji:'😌'}, neutral:{emoji:'😐'
       )}
 
       {/* Feature Grid */}
-      <div style={{ padding: '0 24px', position: 'relative', zIndex: 1 }}>
+      <div style={{ padding: '0 18px', position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
         <p style={{ margin: '0 0 16px 4px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5 }}>QUICK ACCESS</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', 
+          gap: 12,
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
           {CORE_QUICK.map((item, i) => (
             <Link 
               key={i} 
               to={item.to} 
               className="card card-hover" 
               style={{ 
-                gridColumn: item.full ? '1 / -1' : 'auto', 
-                padding: '22px', 
+                gridColumn: item.full ? '1 / -1' : 'span 1', 
+                padding: item.full ? '18px 20px' : '15px 12px', 
                 display: 'flex', 
                 alignItems: 'center', 
-                gap: 16, 
+                gap: item.full ? 14 : 10, 
                 textDecoration: 'none', 
                 color: 'var(--text)',
                 background: 'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%)',
                 backdropFilter: 'blur(10px)',
                 WebkitBackdropFilter: 'blur(10px)',
-                borderRadius: 24,
+                borderRadius: 22,
                 border: user?.role === 'admin' ? '1px solid rgba(201,169,110,0.2)' : '1px solid rgba(255,255,255,0.06)',
-                boxShadow: user?.role === 'admin' ? '0 10px 30px rgba(201,169,110,0.08)' : '0 8px 32px rgba(0,0,0,0.2)'
+                boxShadow: user?.role === 'admin' ? '0 10px 30px rgba(201,169,110,0.08)' : '0 8px 32px rgba(0,0,0,0.2)',
+                minWidth: 0,
+                overflow: 'hidden',
+                boxSizing: 'border-box'
               }}
             >
                 <div style={{ 
                   background: 'rgba(255,255,255,0.04)', 
-                  width: item.full ? 56 : 48, 
-                  height: item.full ? 56 : 48, 
-                  borderRadius: 16, 
+                  width: item.full ? 48 : 38, 
+                  height: item.full ? 48 : 38, 
+                  minWidth: item.full ? 48 : 38, 
+                  minHeight: item.full ? 48 : 38, 
+                  flexShrink: 0,
+                  borderRadius: 14, 
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: item.full ? '1.8rem' : '1.5rem',
                   boxShadow: '0 8px 20px rgba(0,0,0,0.2)'
                 }}>
                   {item.icon}
                 </div>
-                <div>
-                  <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: item.full ? '1.1rem' : '0.95rem', color: '#fff' }}>{item.label}</p>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 500 }}>{item.sub}</p>
+                <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                  <p style={{ 
+                    margin: '0 0 2px', 
+                    fontWeight: 700, 
+                    fontSize: item.full ? '1.05rem' : '0.86rem', 
+                    color: '#fff',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: 1.2
+                  }}>
+                    {item.label}
+                  </p>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: item.full ? '0.75rem' : '0.7rem', 
+                    color: 'var(--muted)', 
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: 1.2
+                  }}>
+                    {item.sub}
+                  </p>
                 </div>
-                {item.full && <span style={{ marginLeft: 'auto', color: 'var(--muted)', display: 'flex', opacity: 0.5 }}><Icons.Back size={18} style={{ transform: 'rotate(180deg)' }} /></span>}
+                {item.full && (
+                  <span style={{ marginLeft: 'auto', color: 'var(--muted)', display: 'flex', opacity: 0.6, flexShrink: 0, paddingLeft: 4 }}>
+                    <Icons.ChevronRight size={18} />
+                  </span>
+                )}
             </Link>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const IconWrapper = ({ children, size = 24, color = 'currentColor', stroke = 2, className = '' }) => (
+const IconWrapper = ({ children, size = 24, color = 'currentColor', stroke = 2, className = '', style = {} }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width={size}
@@ -12,13 +12,23 @@ const IconWrapper = ({ children, size = 24, color = 'currentColor', stroke = 2, 
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
-    style={{ display: 'inline-block', verticalAlign: 'middle' }}
+    style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}
   >
     {children}
   </svg>
 );
 
 export const Icons = {
+  ChevronRight: (props) => (
+    <IconWrapper {...props}>
+      <path d="m9 18 6-6-6-6" />
+    </IconWrapper>
+  ),
+  ChevronLeft: (props) => (
+    <IconWrapper {...props}>
+      <path d="m15 18-6-6 6-6" />
+    </IconWrapper>
+  ),
   MoreVertical: (props) => (
     <IconWrapper {...props}>
       <circle cx="12" cy="12" r="1" />
