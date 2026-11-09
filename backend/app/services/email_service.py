@@ -39,6 +39,15 @@ class EmailService:
     def sender_email(self):
         return os.environ.get("SENDER_EMAIL") or getattr(settings, "SENDER_EMAIL", "") or self.smtp_user
 
+    @property
+    def resend_api_key(self):
+        return os.environ.get("RESEND_API_KEY") or getattr(settings, "RESEND_API_KEY", "") 
+
+    @property
+    def resend_from(self):
+        return os.environ.get("RESEND_FROM", "Paxly <onboarding@resend.dev>")
+
+
     async def send_reset_link(self, email: str, name: str, reset_link: str):
         """Sends a beautiful recovery email to the user."""
         subject = "Secure Your Sanctuary: Password Recovery"
@@ -158,7 +167,33 @@ class EmailService:
         await self._send_email(email, subject, html)
 
     async def _send_email(self, to_email: str, subject: str, html_content: str):
-        """Core logic to send email using SMTP."""
+        """Core logic to send email using Resend HTTP API (Port 443) with SMTP fallback."""
+        # 1. Primary: Send via Resend HTTPS REST API (Port 443 is never blocked by cloud firewalls)
+        if self.resend_api_key:
+            try:
+                import httpx
+                payload = {
+                    "from": self.resend_from,
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": html_content
+                }
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(
+                        "https://api.resend.com/emails",
+                        headers={
+                            "Authorization": f"Bearer {self.resend_api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json=payload
+                    )
+                    if resp.status_code in [200, 201]:
+                        print(f"DEBUG: Email to {to_email} successfully delivered via Resend API! Response: {resp.text}", flush=True)
+                        return
+                    else:
+                        print(f"DEBUG: Resend API returned status {resp.status_code}: {resp.text}", flush=True)
+            except Exception as resend_err:
+                print(f"DEBUG: Resend API call exception: {resend_err}", flush=True)
         if not self.smtp_user or not self.smtp_password:
             print(f"DEBUG: Email would be sent to {to_email} with subject '{subject}'")
             return
