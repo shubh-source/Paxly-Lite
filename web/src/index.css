@@ -27,7 +27,11 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { 
+html {
+  overflow-x: clip;
+  min-height: 100%;
+}
+body { 
   background: var(--bg); 
   color: var(--text); 
   font-family: var(--font-b); 
@@ -36,15 +40,14 @@ html, body {
   min-height: 100vh; 
   -webkit-font-smoothing: antialiased; 
   overscroll-behavior-x: auto; 
-  overscroll-behavior-y: none; 
-  overflow-x: hidden;
+  overscroll-behavior-y: auto; 
+  overflow-x: clip;
   max-width: 100%;
 }
 #root { 
   min-height: 100vh; 
   display: flex; 
   flex-direction: column; 
-  overflow-x: hidden;
   max-width: 100%;
 }
 
@@ -59,7 +62,6 @@ a  { color: inherit; text-decoration: none; }
   min-height: 100vh; 
   display: flex; 
   flex-direction: column; 
-  overflow-x: hidden;
   max-width: 100%;
 }
 .content { flex: 1; padding: 24px; max-width: 720px; margin: 0 auto; width: 100%; }
