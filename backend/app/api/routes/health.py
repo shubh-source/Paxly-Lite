@@ -73,22 +73,25 @@ async def smtp_diag(to: str = "shubhkatiyar0109@gmail.com"):
     pwd = email_service.smtp_password
     logs.append(f"User: {user}, Pwd length: {len(pwd) if pwd else 0}")
     
+    from app.services.email_service import IPv4ForcedSocket
     # 1. Test Port 465
     try:
-        s465 = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-        s465.login(user, pwd)
-        s465.quit()
-        logs.append("Port 465 SSL Login: SUCCESS")
+        with IPv4ForcedSocket():
+            s465 = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
+            s465.login(user, pwd)
+            s465.quit()
+        logs.append("Port 465 SSL Login (IPv4): SUCCESS")
     except Exception as e:
         logs.append(f"Port 465 SSL Login FAILED: {type(e).__name__}: {e}")
 
     # 2. Test Port 587
     try:
-        s587 = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
-        s587.starttls()
-        s587.login(user, pwd)
-        s587.quit()
-        logs.append("Port 587 STARTTLS Login: SUCCESS")
+        with IPv4ForcedSocket():
+            s587 = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
+            s587.starttls()
+            s587.login(user, pwd)
+            s587.quit()
+        logs.append("Port 587 STARTTLS Login (IPv4): SUCCESS")
     except Exception as e:
         logs.append(f"Port 587 STARTTLS Login FAILED: {type(e).__name__}: {e}")
 
@@ -100,3 +103,4 @@ async def smtp_diag(to: str = "shubhkatiyar0109@gmail.com"):
         logs.append(f"send_signup_otp FAILED: {type(e).__name__}: {e}")
 
     return {"status": "diag_complete", "logs": logs}
+    

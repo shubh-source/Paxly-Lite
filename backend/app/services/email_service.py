@@ -1,3 +1,14 @@
+import socket
+
+class IPv4ForcedSocket:
+    """Forces getaddrinfo to return AF_INET (IPv4) only to prevent Linux/Render [Errno 101] Network is unreachable on IPv6."""
+    def __enter__(self):
+        self._orig = socket.getaddrinfo
+        socket.getaddrinfo = lambda h, p, f=0, t=0, pr=0, fl=0: self._orig(h, p, socket.AF_INET, t, pr, fl)
+        return self
+    def __exit__(self, *a):
+        socket.getaddrinfo = self._orig
+
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -163,31 +174,32 @@ class EmailService:
         
         def blocking_send():
             errors = []
-            # Try Port 465 (SSL) first - standard for cloud environments
-            try:
-                print(f"DEBUG: Attempting SSL connection on port 465 to {self.smtp_server} for {to_email}...", flush=True)
-                server = smtplib.SMTP_SSL(self.smtp_server, 465, timeout=12)
-                server.login(self.smtp_user, self.smtp_password)
-                server.send_message(msg)
-                server.quit()
-                print(f"DEBUG: Email successfully sent to {to_email} via Port 465 SSL!", flush=True)
-                return
-            except Exception as e465:
-                errors.append(f"Port 465 SSL failed: {e465}")
-                print(f"DEBUG: Port 465 SSL failed ({e465}), trying Port 587...", flush=True)
+            with IPv4ForcedSocket():
+                # Try Port 465 (SSL) first - standard for cloud environments
+                try:
+                    print(f"DEBUG: Attempting SSL connection on port 465 to {self.smtp_server} for {to_email} (IPv4)...", flush=True)
+                    server = smtplib.SMTP_SSL(self.smtp_server, 465, timeout=12)
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(msg)
+                    server.quit()
+                    print(f"DEBUG: Email successfully sent to {to_email} via Port 465 SSL!", flush=True)
+                    return
+                except Exception as e465:
+                    errors.append(f"Port 465 SSL failed: {e465}")
+                    print(f"DEBUG: Port 465 SSL failed ({e465}), trying Port 587...", flush=True)
 
-            # Fallback to Port 587 (STARTTLS)
-            try:
-                server = smtplib.SMTP(self.smtp_server, 587, timeout=12)
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_password)
-                server.send_message(msg)
-                server.quit()
-                print(f"DEBUG: Email successfully sent to {to_email} via Port 587 STARTTLS!", flush=True)
-                return
-            except Exception as e587:
-                errors.append(f"Port 587 STARTTLS failed: {e587}")
-                raise RuntimeError("; ".join(errors))
+                # Fallback to Port 587 (STARTTLS)
+                try:
+                    server = smtplib.SMTP(self.smtp_server, 587, timeout=12)
+                    server.starttls()
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(msg)
+                    server.quit()
+                    print(f"DEBUG: Email successfully sent to {to_email} via Port 587 STARTTLS!", flush=True)
+                    return
+                except Exception as e587:
+                    errors.append(f"Port 587 STARTTLS failed: {e587}")
+                    raise RuntimeError("; ".join(errors))
 
         try:
             await asyncio.to_thread(blocking_send)
