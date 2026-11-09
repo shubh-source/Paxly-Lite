@@ -39,3 +39,13 @@ services:
         value: https://paxly-lite.onrender.com
       - key: FRONTEND_URL
         value: https://paxly-lite.vercel.app
+      - key: SMTP_SERVER
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SENDER_EMAIL
+        sync: false
