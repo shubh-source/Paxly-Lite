@@ -3,10 +3,20 @@ from typing import Optional, List, Dict
 from datetime import datetime
 
 # ── User ──────────────────────────────────────────────────────
+class SendSignupOTPRequest(BaseModel):
+    name: str
+    email: EmailStr
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
+    public_key: Optional[str] = None
+    role: Optional[str] = "user"
+
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    otp: Optional[str] = None
     public_key: Optional[str] = None
     role: Optional[str] = "user"
     business_category: Optional[str] = None # theatre | restaurant | cafe

@@ -80,8 +80,14 @@ if (typeof window !== 'undefined') {
 // ──────────────────────────────────────────────────────────────────────────
 
 // Auth
-export const register = (name, email, password, public_key) =>
-  api.post('/auth/register', { name, email, password, public_key }).then(r => r.data);
+export const sendSignupOTP = (name, email) =>
+  api.post('/auth/send-signup-otp', { name, email }).then(r => r.data);
+
+export const register = (name, email, password, public_key, otp) =>
+  api.post('/auth/register', { name, email, password, public_key, otp }).then(r => r.data);
+
+export const googleAuth = (credential, public_key) =>
+  api.post('/auth/google', { credential, public_key }).then(r => r.data);
 
 export const login = (email, password, public_key) =>
   api.post('/auth/login', { email, password, public_key }).then(r => r.data);

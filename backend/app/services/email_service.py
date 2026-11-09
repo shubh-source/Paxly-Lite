@@ -94,6 +94,41 @@ class EmailService:
         """
         await self._send_email(admin_email, subject, html)
 
+    async def send_signup_otp(self, email: str, name: str, otp: str):
+        """Sends a 6-digit verification code to verify a new user's Gmail."""
+        subject = f"{otp} is your Paxly verification code"
+        if not self.smtp_user or not self.smtp_password:
+            print(f"\n[DEV MODE SIGNUP OTP] To: {email} | OTP: {otp}\n", flush=True)
+
+        html = f"""
+        <div style="background-color: #050505; color: #fff; padding: 40px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center;">
+            <h1 style="color: #c9a96e; font-size: 26px; letter-spacing: 3px; font-family: serif; margin-bottom: 5px;">PAXLY</h1>
+            <p style="color: #c9a96e; letter-spacing: 2px; font-size: 11px; text-transform: uppercase; margin-top: 0;">Private World for Two</p>
+            
+            <div style="margin: 35px auto; max-width: 460px; padding: 32px; background: rgba(255,255,255,0.03); border: 1px solid rgba(201,169,110,0.25); border-radius: 20px;">
+                <h2 style="font-weight: 300; font-size: 20px; color: #fff; margin-top: 0;">Verify Your Gmail Address</h2>
+                <p style="color: rgba(255,255,255,0.65); line-height: 1.6; font-size: 14px;">
+                    Hello <strong>{name or 'there'}</strong>,<br/>
+                    Enter this 6-digit verification code to complete your signup and secure your account:
+                </p>
+                
+                <div style="margin: 25px auto; padding: 16px 24px; background: #0d0b08; border: 1px dashed #c9a96e; border-radius: 12px; display: inline-block; font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #c9a96e;">
+                    {otp}
+                </div>
+                
+                <p style="margin-top: 20px; font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.5;">
+                    This code will expire in <strong>10 minutes</strong>.<br/>
+                    If you did not request this, you can safely ignore this email.
+                </p>
+            </div>
+            
+            <p style="font-size: 11px; color: rgba(255,255,255,0.25); letter-spacing: 2px;">
+                END-TO-END ENCRYPTED • PRIVACY BY DESIGN • PAXLY
+            </p>
+        </div>
+        """
+        await self._send_email(email, subject, html)
+
     async def _send_email(self, to_email: str, subject: str, html_content: str):
         """Core logic to send email using SMTP."""
         if not self.smtp_user or not self.smtp_password:

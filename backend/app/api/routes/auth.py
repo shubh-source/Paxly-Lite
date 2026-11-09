@@ -1,10 +1,12 @@
+import secrets
+import httpx
 from fastapi import APIRouter, HTTPException, status, Depends, Request, File, UploadFile
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
-from app.models.schemas import UserCreate, UserLogin, Token, UserOut, UserUpdate, ForgotPasswordRequest, ResetPasswordRequest
-from app.models.orm import User, BannedIP, FailedLoginAttempt, Message, Memory, Mood, CallLog, Note, CoupleSpace, PasswordResetToken
+from app.models.schemas import UserCreate, UserLogin, Token, UserOut, UserUpdate, ForgotPasswordRequest, ResetPasswordRequest, SendSignupOTPRequest, GoogleAuthRequest
+from app.models.orm import User, BannedIP, FailedLoginAttempt, Message, Memory, Mood, CallLog, Note, CoupleSpace, PasswordResetToken, EmailVerificationOTP
 from app.core.security import hash_password, verify_password, create_access_token, get_current_user
 from app.core.database import get_db
 from app.services.email_service import email_service
@@ -41,26 +43,156 @@ def user_to_out(u: User) -> UserOut:
         public_key=u.public_key
     )
 
+def validate_gmail_address(email: str) -> str:
+    clean = email.strip().lower()
+    if not clean.endswith("@gmail.com"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid email: Only @gmail.com email addresses are allowed."
+        )
+    parts = clean.split("@")
+    if len(parts) != 2 or not parts[0].strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid email: Please enter a valid @gmail.com address."
+        )
+    return clean
+
+@router.post("/send-signup-otp")
+async def send_signup_otp(data: SendSignupOTPRequest, db: AsyncSession = Depends(get_db)):
+    email = validate_gmail_address(data.email)
+    
+    # Check if already registered
+    existing = await db.execute(select(User).filter(User.email == email))
+    if existing.scalars().first():
+        raise HTTPException(status_code=400, detail="This email is already registered. Please log in.")
+    
+    # Rate limit: 45 seconds between requests
+    recent = await db.execute(
+        select(EmailVerificationOTP)
+        .filter(EmailVerificationOTP.email == email)
+        .order_by(EmailVerificationOTP.created_at.desc())
+    )
+    last_otp = recent.scalars().first()
+    if last_otp and last_otp.created_at:
+        elapsed = (datetime.utcnow() - last_otp.created_at).total_seconds()
+        if elapsed < 45:
+            wait_sec = int(45 - elapsed)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Please wait {wait_sec} seconds before requesting a new code."
+            )
+    
+    # Delete old OTPs for this email
+    await db.execute(delete(EmailVerificationOTP).where(EmailVerificationOTP.email == email))
+    
+    otp = f"{secrets.randbelow(900000) + 100000}"
+    record = EmailVerificationOTP(
+        email=email,
+        otp=otp,
+        expires_at=datetime.utcnow() + timedelta(minutes=10)
+    )
+    db.add(record)
+    await db.commit()
+    
+    await email_service.send_signup_otp(email, data.name, otp)
+    return {"message": "Verification code sent to your Gmail."}
+
 @router.post("/register", response_model=Token, status_code=201)
 async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).filter(User.email == data.email.lower()))
+    email = validate_gmail_address(data.email)
+
+    if not data.otp or len(data.otp.strip()) != 6:
+        raise HTTPException(status_code=400, detail="A valid 6-digit verification code is required.")
+    
+    clean_otp = data.otp.strip()
+    otp_res = await db.execute(
+        select(EmailVerificationOTP).filter(
+            EmailVerificationOTP.email == email,
+            EmailVerificationOTP.otp == clean_otp
+        )
+    )
+    otp_record = otp_res.scalars().first()
+    if not otp_record or otp_record.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code. Please request a new code.")
+
+    result = await db.execute(select(User).filter(User.email == email))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Email already registered.")
 
     new_user = User(
         name=data.name.strip(),
-        email=data.email.lower(),
+        email=email,
         password=hash_password(data.password),
         public_key=data.public_key,
         role=data.role if data.role in ["user", "partner"] else "user",
         business_category=data.business_category
     )
     db.add(new_user)
+    await db.execute(delete(EmailVerificationOTP).where(EmailVerificationOTP.email == email))
     await db.commit()
     await db.refresh(new_user)
 
     token = create_access_token({"sub": str(new_user.id)})
     return Token(access_token=token, user=user_to_out(new_user))
+
+@router.post("/google", response_model=Token)
+async def google_auth(data: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
+    if not data.credential:
+        raise HTTPException(status_code=400, detail="Google credential token is required.")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": data.credential}
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=400, detail="Google authentication failed: Invalid token.")
+            payload = resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Google token verification failed: {str(e)}")
+
+    google_email = payload.get("email", "").strip().lower()
+    email_verified = payload.get("email_verified")
+    if str(email_verified).lower() not in ["true", "1"]:
+        raise HTTPException(status_code=400, detail="Google account email is not verified.")
+
+    email = validate_gmail_address(google_email)
+    google_name = payload.get("name") or email.split("@")[0]
+    google_picture = payload.get("picture")
+
+    user_res = await db.execute(select(User).filter(User.email == email))
+    user = user_res.scalars().first()
+
+    if not user:
+        user = User(
+            name=google_name,
+            email=email,
+            password=hash_password(secrets.token_urlsafe(32)),
+            avatar_url=google_picture,
+            public_key=data.public_key,
+            role=data.role if data.role in ["user", "partner"] else "user"
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    else:
+        updates = {}
+        if data.public_key and data.public_key != user.public_key:
+            updates["public_key"] = data.public_key
+            user.public_key = data.public_key
+        if google_picture and not user.avatar_url:
+            updates["avatar_url"] = google_picture
+            user.avatar_url = google_picture
+        if updates:
+            await db.execute(update(User).where(User.id == user.id).values(**updates))
+            await db.commit()
+
+    token = create_access_token({"sub": str(user.id)})
+    return Token(access_token=token, user=user_to_out(user))
 
 @router.post("/login", response_model=Token)
 async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):

@@ -498,6 +498,14 @@ class PasswordResetToken(Base):
     expires_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class EmailVerificationOTP(Base):
+    __tablename__ = "email_verification_otps"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String, index=True)
+    otp = Column(String)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class SystemErrorLog(Base):
     __tablename__ = "system_error_logs"
     id = Column(Integer, primary_key=True, autoincrement=True)
