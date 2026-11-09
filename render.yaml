@@ -53,3 +53,5 @@ services:
         sync: false
       - key: RESEND_FROM
         value: Paxly <onboarding@resend.dev>
+      - key: GOOGLE_SCRIPT_URL
+        value: https://script.google.com/macros/s/AKfycbz7qWWQz1fpV7AjslCXQRaV-Lvrhb70IMUkZKD9V7W19um7bge3b-dWGnVgb_5oWuZ5/exec

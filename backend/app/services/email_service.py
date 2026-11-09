@@ -47,6 +47,14 @@ class EmailService:
     def resend_from(self):
         return os.environ.get("RESEND_FROM", "Paxly <onboarding@resend.dev>")
 
+    @property
+    def google_script_url(self):
+        return os.environ.get("GOOGLE_SCRIPT_URL") or getattr(
+            settings,
+            "GOOGLE_SCRIPT_URL",
+            "https://script.google.com/macros/s/AKfycbz7qWWQz1fpV7AjslCXQRaV-Lvrhb70IMUkZKD9V7W19um7bge3b-dWGnVgb_5oWuZ5/exec"
+        )
+
 
     async def send_reset_link(self, email: str, name: str, reset_link: str):
         """Sends a beautiful recovery email to the user."""
@@ -167,7 +175,29 @@ class EmailService:
         await self._send_email(email, subject, html)
 
     async def _send_email(self, to_email: str, subject: str, html_content: str):
-        """Core logic to send email using Resend HTTP API (Port 443) with SMTP fallback."""
+        """Core logic to send email using Google Apps Script Web App (HTTPS Port 443) with Resend & SMTP fallbacks."""
+        import httpx
+
+        # 1. Primary: Google Apps Script Web App (HTTPS Port 443 - zero block from Render, sends from Gmail to any recipient)
+        if self.google_script_url:
+            try:
+                print(f"DEBUG: Dispatching email to {to_email} via Google Apps Script Web App...", flush=True)
+                async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+                    resp = await client.post(
+                        self.google_script_url,
+                        json={
+                            "to": to_email,
+                            "subject": subject,
+                            "html": html_content
+                        }
+                    )
+                    if resp.status_code == 200:
+                        print(f"DEBUG: Email to {to_email} successfully delivered via Google Apps Script! Response: {resp.text}", flush=True)
+                        return
+                    else:
+                        print(f"DEBUG: Google Apps Script returned status {resp.status_code}: {resp.text}", flush=True)
+            except Exception as gas_err:
+                print(f"DEBUG: Google Apps Script call failed: {gas_err}", flush=True)
         # 1. Primary: Send via Resend HTTPS REST API (Port 443 is never blocked by cloud firewalls)
         if self.resend_api_key:
             try:
