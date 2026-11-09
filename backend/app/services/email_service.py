@@ -1,15 +1,32 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import settings
 
 class EmailService:
-    def __init__(self):
-        self.smtp_server = settings.SMTP_SERVER if hasattr(settings, "SMTP_SERVER") else "smtp.gmail.com"
-        self.smtp_port = settings.SMTP_PORT if hasattr(settings, "SMTP_PORT") else 587
-        self.smtp_user = settings.SMTP_USER if hasattr(settings, "SMTP_USER") else ""
-        self.smtp_password = settings.SMTP_PASSWORD if hasattr(settings, "SMTP_PASSWORD") else ""
-        self.sender_email = settings.SENDER_EMAIL if hasattr(settings, "SENDER_EMAIL") else "support@vlynxly.com"
+    @property
+    def smtp_server(self):
+        return os.environ.get("SMTP_SERVER", getattr(settings, "SMTP_SERVER", "smtp.gmail.com"))
+
+    @property
+    def smtp_port(self):
+        try:
+            return int(os.environ.get("SMTP_PORT", getattr(settings, "SMTP_PORT", 587)))
+        except Exception:
+            return 587
+
+    @property
+    def smtp_user(self):
+        return os.environ.get("SMTP_USER") or getattr(settings, "SMTP_USER", "") or "vlynxlyofficial@gmail.com"
+
+    @property
+    def smtp_password(self):
+        return os.environ.get("SMTP_PASSWORD") or getattr(settings, "SMTP_PASSWORD", "") or "esuzwnsyujgjlelc"
+
+    @property
+    def sender_email(self):
+        return os.environ.get("SENDER_EMAIL") or getattr(settings, "SENDER_EMAIL", "") or self.smtp_user
 
     async def send_reset_link(self, email: str, name: str, reset_link: str):
         """Sends a beautiful recovery email to the user."""
@@ -135,8 +152,9 @@ class EmailService:
             print(f"DEBUG: Email would be sent to {to_email} with subject '{subject}'")
             return
 
+        sender = self.sender_email or self.smtp_user or "vlynxlyofficial@gmail.com"
         msg = MIMEMultipart()
-        msg['From'] = self.sender_email
+        msg['From'] = f"Paxly <{sender}>"
         msg['To'] = to_email
         msg['Subject'] = subject
         msg.attach(MIMEText(html_content, 'html'))
@@ -155,6 +173,20 @@ class EmailService:
         try:
             await asyncio.to_thread(blocking_send)
         except Exception as e:
-            print(f"FAILED TO SEND EMAIL: {e}", flush=True)
+            err_msg = f"FAILED TO SEND EMAIL to {to_email}: {e}"
+            print(err_msg, flush=True)
+            try:
+                from app.core.database import async_session_factory
+                from app.models.orm import SystemErrorLog
+                import traceback
+                async with async_session_factory() as db_session:
+                    db_session.add(SystemErrorLog(
+                        error_message=err_msg,
+                        stack_trace=traceback.format_exc(),
+                        source="Backend (EmailService)"
+                    ))
+                    await db_session.commit()
+            except Exception:
+                pass
 
 email_service = EmailService()
