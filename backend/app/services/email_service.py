@@ -162,13 +162,32 @@ class EmailService:
         import asyncio
         
         def blocking_send():
-            print(f"DEBUG: Starting SMTP connection to {self.smtp_server}:{self.smtp_port}...", flush=True)
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10)
-            server.starttls()
-            server.login(self.smtp_user, self.smtp_password)
-            server.send_message(msg)
-            server.quit()
-            print("DEBUG: Email successfully sent!", flush=True)
+            errors = []
+            # Try Port 465 (SSL) first - standard for cloud environments
+            try:
+                print(f"DEBUG: Attempting SSL connection on port 465 to {self.smtp_server} for {to_email}...", flush=True)
+                server = smtplib.SMTP_SSL(self.smtp_server, 465, timeout=12)
+                server.login(self.smtp_user, self.smtp_password)
+                server.send_message(msg)
+                server.quit()
+                print(f"DEBUG: Email successfully sent to {to_email} via Port 465 SSL!", flush=True)
+                return
+            except Exception as e465:
+                errors.append(f"Port 465 SSL failed: {e465}")
+                print(f"DEBUG: Port 465 SSL failed ({e465}), trying Port 587...", flush=True)
+
+            # Fallback to Port 587 (STARTTLS)
+            try:
+                server = smtplib.SMTP(self.smtp_server, 587, timeout=12)
+                server.starttls()
+                server.login(self.smtp_user, self.smtp_password)
+                server.send_message(msg)
+                server.quit()
+                print(f"DEBUG: Email successfully sent to {to_email} via Port 587 STARTTLS!", flush=True)
+                return
+            except Exception as e587:
+                errors.append(f"Port 587 STARTTLS failed: {e587}")
+                raise RuntimeError("; ".join(errors))
 
         try:
             await asyncio.to_thread(blocking_send)
@@ -176,17 +195,17 @@ class EmailService:
             err_msg = f"FAILED TO SEND EMAIL to {to_email}: {e}"
             print(err_msg, flush=True)
             try:
-                from app.core.database import async_session_factory
+                from app.core.database import AsyncSessionLocal
                 from app.models.orm import SystemErrorLog
                 import traceback
-                async with async_session_factory() as db_session:
+                async with AsyncSessionLocal() as db_session:
                     db_session.add(SystemErrorLog(
                         error_message=err_msg,
                         stack_trace=traceback.format_exc(),
                         source="Backend (EmailService)"
                     ))
                     await db_session.commit()
-            except Exception:
-                pass
+            except Exception as log_err:
+                print(f"Error saving to SystemErrorLog: {log_err}", flush=True)
 
 email_service = EmailService()
