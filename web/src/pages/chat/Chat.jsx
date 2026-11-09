@@ -76,7 +76,7 @@ export const parseSafeReactions = (val) => {
 };
 
 export default function Chat() {
-  const { user } = useAuth();
+  const { user, partner: authPartner } = useAuth();
   const navigate = useNavigate();
   const currentUserId = user?.id || null;
   const currentSpaceId = user?.couple_space_id || null;
@@ -92,8 +92,12 @@ export default function Chat() {
   });
   const [text, setText] = useState(() => getScopedChatDraft(user?.id, user?.couple_space_id));
   const [partner, setPartner] = useState(() => {
-    return getScopedCachedPartner(user?.id, user?.couple_space_id);
+    return authPartner || getScopedCachedPartner(user?.id, user?.couple_space_id);
   });
+
+  useEffect(() => {
+    if (authPartner) setPartner(authPartner);
+  }, [authPartner]);
   const [typing, setTyping]           = useState(false);
   const [pinnedMsg, setPinnedMsg]     = useState(null);
   const [partnerOnline, setPartnerOnline] = useState(false);
@@ -648,9 +652,12 @@ export default function Chat() {
 
     getSpace()
       .then(d => {
-        setPartner(d.partner);
-        if (currentUserId && (d.id || currentSpaceId)) {
-          setScopedCachedPartner(currentUserId, d.id || currentSpaceId, d.partner);
+        if (d?.partner) {
+          setPartner(d.partner);
+        }
+        const resolvedSpaceId = d?.space?.id || d?.id || currentSpaceId;
+        if (currentUserId && resolvedSpaceId && d?.partner) {
+          setScopedCachedPartner(currentUserId, resolvedSpaceId, d.partner);
         }
         setSpace(d.space);
         if (currentUserId) {

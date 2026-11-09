@@ -229,8 +229,13 @@ def invalidate_ip_ban_cache(ip: str = None):
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "http://localhost:8000",
     "http://localhost",
+    "https://localhost",
     "capacitor://localhost",
+    "ionic://localhost",
+    "http://127.0.0.1",
+    "https://127.0.0.1",
     "https://paxly-lite.vercel.app",
     "https://vlynxly.vercel.app",
     "https://vlynxly-web.vercel.app",
@@ -250,6 +255,7 @@ if custom_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|capacitor://localhost|ionic://localhost)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

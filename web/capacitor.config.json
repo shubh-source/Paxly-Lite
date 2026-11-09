@@ -1,5 +1,9 @@
 {
   "appId": "com.vlynxly.app",
   "appName": "Vlynxly",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
 }

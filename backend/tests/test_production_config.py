@@ -55,6 +55,43 @@ def test_cors_middleware_credentialed_requests():
     assert res.headers.get("access-control-allow-origin") == "https://paxly-lite.vercel.app"
     assert res.headers.get("access-control-allow-credentials") == "true"
 
+    # 2b. Trusted origin: Android Capacitor APK (https://localhost) preflight & GET request
+    res = client.options(
+        "/api/health/ping",
+        headers={
+            "Origin": "https://localhost",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "Authorization"
+        }
+    )
+    assert res.status_code == 200
+    assert res.headers.get("access-control-allow-origin") == "https://localhost"
+    assert res.headers.get("access-control-allow-credentials") == "true"
+
+    res = client.get(
+        "/api/health/ping",
+        headers={
+            "Origin": "https://localhost",
+            "Authorization": "Bearer test-token"
+        }
+    )
+    assert res.status_code == 200
+    assert res.headers.get("access-control-allow-origin") == "https://localhost"
+    assert res.headers.get("access-control-allow-credentials") == "true"
+
+    # 2c. Trusted origin: iOS Capacitor (capacitor://localhost) preflight & GET request
+    res = client.options(
+        "/api/health/ping",
+        headers={
+            "Origin": "capacitor://localhost",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "Authorization"
+        }
+    )
+    assert res.status_code == 200
+    assert res.headers.get("access-control-allow-origin") == "capacitor://localhost"
+    assert res.headers.get("access-control-allow-credentials") == "true"
+
     # 3. Untrusted origin: arbitrary malicious third party preflight
     res = client.options(
         "/api/health/ping",
