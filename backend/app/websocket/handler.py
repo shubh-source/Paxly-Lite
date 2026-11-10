@@ -26,6 +26,7 @@ async def get_user_from_token(token: str, db: AsyncSession):
     except Exception: return None
 
 last_presence_touch = {}
+active_watch_parties = {}
 _background_tasks = set()
 
 @router.websocket("/ws")
@@ -674,6 +675,81 @@ async def websocket_endpoint(websocket: WebSocket):
                         await manager.send_to_space(space_id, {
                             "type": "presence", "user_id": user_id, "online": True, "user_name": user_name
                         }, exclude_user=user_id)
+
+                elif p_type == "watch_party_sync":
+                    action = payload.get("action")  # "load", "play", "pause", "seek", "reaction", "close"
+                    current_time = float(payload.get("time", 0.0) or 0.0)
+                    video_id = payload.get("video_id")
+                    video_title = payload.get("video_title", "")
+                    reaction = payload.get("reaction")
+
+                    now_time = datetime.utcnow().timestamp()
+
+                    if action == "load":
+                        active_watch_parties[space_id] = {
+                            "video_id": video_id,
+                            "video_title": video_title,
+                            "is_playing": True,
+                            "current_time": current_time,
+                            "updated_at": now_time,
+                            "last_user_name": user_name
+                        }
+                    elif action == "play":
+                        if space_id in active_watch_parties:
+                            active_watch_parties[space_id]["is_playing"] = True
+                            active_watch_parties[space_id]["current_time"] = current_time
+                            active_watch_parties[space_id]["updated_at"] = now_time
+                    elif action == "pause":
+                        if space_id in active_watch_parties:
+                            active_watch_parties[space_id]["is_playing"] = False
+                            active_watch_parties[space_id]["current_time"] = current_time
+                            active_watch_parties[space_id]["updated_at"] = now_time
+                    elif action == "seek":
+                        if space_id in active_watch_parties:
+                            active_watch_parties[space_id]["current_time"] = current_time
+                            active_watch_parties[space_id]["updated_at"] = now_time
+                    elif action == "close":
+                        active_watch_parties.pop(space_id, None)
+
+                    # Enrich and forward to partner in space
+                    payload["from_id"] = user_id
+                    payload["from_name"] = user_name
+                    await manager.send_to_space(space_id, payload, exclude_socket=websocket)
+
+                    # If this was a "load" (new watch party started) and partner is offline, send push notification
+                    if action == "load" and partner_id:
+                        async def _send_watch_push():
+                            try:
+                                await push_service.send_push_to_user(
+                                    user_id=partner_id,
+                                    title="Watch Party Started 🍿",
+                                    body=f"{user_name} started watching '{video_title or 'a video'}' with you ❤️",
+                                    url="/chat?watch=true"
+                                )
+                            except Exception:
+                                pass
+                        t_watch_push = asyncio.create_task(_send_watch_push())
+                        _background_tasks.add(t_watch_push)
+                        t_watch_push.add_done_callback(_background_tasks.discard)
+
+                elif p_type == "watch_party_get_state":
+                    # Partner requests room state upon joining
+                    room_state = active_watch_parties.get(space_id)
+                    if room_state:
+                        calc_time = room_state.get("current_time", 0.0)
+                        if room_state.get("is_playing"):
+                            calc_time += (datetime.utcnow().timestamp() - room_state.get("updated_at", datetime.utcnow().timestamp()))
+                        try:
+                            await websocket.send_json({
+                                "type": "watch_party_state",
+                                "video_id": room_state.get("video_id"),
+                                "video_title": room_state.get("video_title"),
+                                "is_playing": room_state.get("is_playing"),
+                                "time": max(0.0, calc_time),
+                                "last_user_name": room_state.get("last_user_name")
+                            })
+                        except Exception:
+                            pass
 
             except Exception as e:
                 print(f"WS Handler Error: {e}")

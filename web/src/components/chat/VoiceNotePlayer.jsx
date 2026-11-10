@@ -6,8 +6,10 @@ export default function VoiceNotePlayer({ src, isMe, theme, encryptionKey }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [localSrc, setLocalSrc] = useState(src);
   const audioRef = useRef(null);
+  const progressRef = useRef(null);
 
   useEffect(() => {
     if (!src) return;
@@ -88,6 +90,25 @@ export default function VoiceNotePlayer({ src, isMe, theme, encryptionKey }) {
     setIsPlaying(!isPlaying);
   };
 
+  const toggleSpeed = (e) => {
+    e.stopPropagation();
+    if (!audioRef.current) return;
+    const nextRate = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    audioRef.current.playbackRate = nextRate;
+    setPlaybackRate(nextRate);
+  };
+
+  const handleSeek = (e) => {
+    e.stopPropagation();
+    if (!audioRef.current || !duration || !progressRef.current) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const newTime = ratio * duration;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
   const formatTime = (s) => {
     if (isNaN(s) || s < 0) return '0:00';
     const m = Math.floor(s / 60);
@@ -100,7 +121,7 @@ export default function VoiceNotePlayer({ src, isMe, theme, encryptionKey }) {
   const accentColor = isMe ? 'rgba(0,0,0,0.6)' : (theme.accent || '#b3945a');
   
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 220 }} onClick={e => e.stopPropagation()}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 230 }} onClick={e => e.stopPropagation()}>
       <audio ref={audioRef} src={localSrc} preload="metadata" />
       
       {/* Play/Pause Button */}
@@ -121,21 +142,31 @@ export default function VoiceNotePlayer({ src, isMe, theme, encryptionKey }) {
 
       {/* Visualizer & Timer */}
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 26, padding: '0 4px' }}>
+        <div 
+          ref={progressRef}
+          onClick={handleSeek}
+          style={{ display: 'flex', alignItems: 'center', gap: 3, height: 26, padding: '0 4px', cursor: 'pointer' }}
+          title="Click to seek"
+        >
           {/* Animated beats */}
-          {[0.9, 0.7, 1.1, 0.8, 1.0, 1.2, 0.85, 1.05, 0.75, 1.15].map((dur, i) => (
-            <div 
-              key={i} 
-              style={{ 
-                flex: 1, maxWidth: 3, background: accentColor, borderRadius: 2, 
-                height: '100%', transformOrigin: 'center',
-                animation: isPlaying ? `audioWave ${dur}s infinite ease-in-out ${dur * 0.5}s` : 'none',
-                transform: 'scaleY(0.15)',
-                opacity: isPlaying ? 1 : 0.4,
-                transition: 'opacity 0.2s'
-              }} 
-            />
-          ))}
+          {[0.9, 0.7, 1.1, 0.8, 1.0, 1.2, 0.85, 1.05, 0.75, 1.15].map((dur, i) => {
+            const barProgress = (i + 1) / 10;
+            const currentProgress = duration > 0 ? (currentTime / duration) : 0;
+            const isPassed = currentProgress >= barProgress;
+            return (
+              <div 
+                key={i} 
+                style={{ 
+                  flex: 1, maxWidth: 3, background: accentColor, borderRadius: 2, 
+                  height: '100%', transformOrigin: 'center',
+                  animation: isPlaying ? `audioWave ${dur}s infinite ease-in-out ${dur * 0.5}s` : 'none',
+                  transform: 'scaleY(0.25)',
+                  opacity: isPlaying ? 1 : isPassed ? 0.9 : 0.35,
+                  transition: 'opacity 0.2s'
+                }} 
+              />
+            );
+          })}
         </div>
         
         {/* Progress Text */}
@@ -145,10 +176,25 @@ export default function VoiceNotePlayer({ src, isMe, theme, encryptionKey }) {
         </div>
       </div>
       
-      {/* Mic Icon Avatar */}
-      <div style={{ width: 30, height: 30, borderRadius: '50%', background: isMe ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icons.Mic size={14} color={accentColor} />
-      </div>
+      {/* 1x / 1.5x / 2x Speed Toggle */}
+      <button 
+        onClick={toggleSpeed} 
+        style={{ 
+          padding: '4px 7px', 
+          borderRadius: 8, 
+          background: isMe ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)', 
+          border: 'none', 
+          color: fgColor,
+          fontSize: '0.68rem',
+          fontWeight: 700,
+          cursor: 'pointer',
+          flexShrink: 0,
+          userSelect: 'none'
+        }}
+        title="Tap to change speed (1x, 1.5x, 2x)"
+      >
+        {playbackRate}x
+      </button>
     </div>
   );
 }

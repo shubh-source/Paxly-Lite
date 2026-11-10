@@ -285,6 +285,22 @@ class WSService {
   sendVaultDownloadResponse(requestId, allowed, memoryId) {
     this.send({ type: 'vault_download_response', request_id: requestId, allowed, memory_id: memoryId });
   }
+
+  // Watch Party (Couple Cinema) Sync
+  sendWatchPartySync({ action, video_id, video_title, time, reaction }) {
+    this.send({
+      type: 'watch_party_sync',
+      action,
+      video_id,
+      video_title,
+      time,
+      reaction
+    });
+  }
+
+  requestWatchPartyState() {
+    this.send({ type: 'watch_party_get_state' });
+  }
 }
 
 export const wsService = new WSService();

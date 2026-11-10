@@ -10,6 +10,7 @@ import JiggleGiftBoxModal from '../components/ui/JiggleGiftBoxModal';
 
 const CORE_QUICK = [
   { to: '/chat',    icon: <Icons.Chat size={24} color="var(--accent)" />, label: 'Secret Chat',  sub: 'Encrypted & Private', full: true },
+  { to: '/theatre', icon: <Icons.Video size={20} color="var(--accent)" />, label: 'Watch Party 🍿', sub: 'Sync YouTube Together', full: false },
   { to: '/voice',   icon: <Icons.Mic size={20} color="var(--purple)" />, label: 'Voice Notes', sub: 'Audio memories', full: false },
   { to: '/memories',icon: <Icons.Vault size={20} color="var(--purple)" />, label: 'Our Vault',   sub: 'Saved moments', full: false },
   { to: '/notes',   icon: <Icons.LoveNote size={20} color="var(--accent)" />, label: 'Love Notes',  sub: 'Secret letters', full: false },

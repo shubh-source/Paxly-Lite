@@ -66,13 +66,12 @@ export default function AttachmentSheet({ isOpen, onClose, onFileSelect, onActio
           }}
         >
           {/* Quick Actions Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-            
-            <ActionIcon icon={<Icons.Gallery size={28} color="#fff" />} label="Gallery" color="#bf59cf" onClick={() => onAction('gallery')} />
-            <ActionIcon icon={<Icons.Camera size={28} color="#fff" />} label="Camera" color="#e83f5e" onClick={() => onAction('camera')} />
-            <ActionIcon icon={<Icons.File size={28} color="#fff" />} label="Document" color="#5a68d4" onClick={() => onAction('document')} />
-            <ActionIcon icon={<Icons.Sparkles size={28} color="#fff" />} label="AI Images" color="#16a085" onClick={() => onAction('ai')} />
-            
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
+            <ActionIcon icon={<Icons.Gallery size={26} color="#fff" />} label="Gallery" color="#bf59cf" onClick={() => onAction('gallery')} />
+            <ActionIcon icon={<Icons.Camera size={26} color="#fff" />} label="Camera" color="#e83f5e" onClick={() => onAction('camera')} />
+            <ActionIcon icon={<span style={{ fontSize: '1.4rem' }}>🍿</span>} label="Cinema" color="#C9A96E" onClick={() => onAction('watch_party')} />
+            <ActionIcon icon={<Icons.File size={26} color="#fff" />} label="Document" color="#5a68d4" onClick={() => onAction('document')} />
+            <ActionIcon icon={<Icons.Sparkles size={26} color="#fff" />} label="AI Images" color="#16a085" onClick={() => onAction('ai')} />
           </div>
 
           {/* Recent Photos Horizontal Strip (Mobile Only) */}

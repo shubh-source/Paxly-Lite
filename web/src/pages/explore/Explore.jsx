@@ -109,7 +109,7 @@ export function Explore() {
     { key: 'movies', icon: <Icons.Video size={22} />, label: 'Movies' },
     { key: 'restaurants', icon: <Icons.Utensils size={22} />, label: 'Dine' },
     { key: 'activities', icon: <Icons.Target size={22} />, label: 'Activities' },
-    { key: 'theatre', icon: <Icons.Home size={22} />, label: 'Private' },
+    { key: 'theatre', icon: <Icons.Video size={22} />, label: 'Cinema 🍿' },
   ];
 
   return (

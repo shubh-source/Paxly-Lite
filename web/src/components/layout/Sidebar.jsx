@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 
 export default function Sidebar({ isOpen, onClose }) {
   const items = [
+    { to: '/theatre', icon: '🍿', label: 'Watch Party', sub: 'Watch YouTube together' },
     { to: '/call?view=history', icon: '📋', label: 'Call History', sub: 'Previous conversations' },
     { to: '/dates',  icon: '📅', label: 'Dates',      sub: 'Special days' },
     { to: '/bucket', icon: '🎯', label: 'Bucket List',sub: 'Dreams together' },

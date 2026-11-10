@@ -130,6 +130,7 @@ import IconShowcase   from './pages/debug/IconShowcase';
 import Legal          from './pages/Legal';
 import AuraPerks      from './pages/premium/AuraPerks';
 import AdminPanel     from './pages/admin/AdminPanel';
+import PrivateTheatre  from './pages/explore/PrivateTheatre';
 
 function Guard({ children, needsPartner = false }) {
   const { user, loading } = useAuth();
@@ -231,6 +232,8 @@ function AnimatedRoutes() {
         <Route path="/shop"       element={<Guard needsPartner><Layout><LoveShop /></Layout></Guard>} />
         <Route path="/shop/checkout" element={<Guard needsPartner><Layout><Checkout /></Layout></Guard>} />
         <Route path="/voice"         element={<Guard needsPartner><Layout><VoiceNotes /></Layout></Guard>} />
+        <Route path="/theatre"       element={<Guard needsPartner><Layout><PrivateTheatre /></Layout></Guard>} />
+        <Route path="/watch"         element={<Guard needsPartner><Layout><PrivateTheatre /></Layout></Guard>} />
         <Route path="/notes"         element={<Guard needsPartner><Layout><LoveNotes /></Layout></Guard>} />
         <Route path="/shop/success"  element={<Guard needsPartner><Layout><OrderSuccess /></Layout></Guard>} />
         

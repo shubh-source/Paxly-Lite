@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 const TABS = [
   { path: '/dashboard', icon: '🏠', label: 'Dashboard' },
   { path: '/chat',      icon: '💬', label: 'Chat'      },
+  { path: '/theatre',   icon: '🍿', label: 'Cinema'    },
   { path: '/memories',  icon: '📸', label: 'Memories'  },
   { path: '/voice',     icon: '🎙️', label: 'Voice'     },
   { path: '/ai',        icon: '✨', label: 'AI'        },

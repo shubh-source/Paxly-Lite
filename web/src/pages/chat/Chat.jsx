@@ -35,6 +35,7 @@ import axios from 'axios';
 import { Icons } from '../../components/ui/Icons';
 import SecureMediaOverlay from '../../components/chat/SecureMediaOverlay';
 import AskAuraModal from '../../components/chat/AskAuraModal';
+import WatchTogetherModal from '../../components/theatre/WatchTogetherModal';
 
 export const parseSafeDate = (val) => {
   if (!val) return new Date();
@@ -183,6 +184,22 @@ export default function Chat() {
   const [selfMood]                              = useState('neutral');
   const [showingStudio, setShowingStudio]       = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
+  const [isWatchModalOpen, setIsWatchModalOpen] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('watch') === 'true';
+    } catch { return false; }
+  });
+  const [watchPartyInvite, setWatchPartyInvite] = useState(null);
+
+  useEffect(() => {
+    const handleIncomingWatchSync = (data) => {
+      if (data?.action === 'load') {
+        setWatchPartyInvite(data);
+      }
+    };
+    wsService.on('watch_party_sync', handleIncomingWatchSync);
+    return () => wsService.off('watch_party_sync', handleIncomingWatchSync);
+  }, []);
   
   // History Pagination (CHAT-012)
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -2179,8 +2196,16 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             </div>
           </div>
 
-          {/* Call icons */}
+          {/* Call & Watch Together icons */}
           <div style={{ display:'flex', gap:14, flexShrink:0, alignItems: 'center' }}>
+            <button
+              className="chat-icon-btn"
+              style={{ color: activeTheme.accent || 'var(--accent)', position: 'relative' }}
+              onClick={() => setIsWatchModalOpen(true)}
+              title="Watch Together 🍿"
+            >
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>🍿</span>
+            </button>
             <button
               className="chat-icon-btn"
               style={{ color: activeTheme.accent || 'var(--accent)' }}
@@ -2199,6 +2224,74 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
             </button>
           </div>
         </div>
+
+        {/* Watch Party Incoming Invite Banner */}
+        {watchPartyInvite && !isWatchModalOpen && (
+          <div style={{
+            position: 'fixed',
+            top: '84px',
+            left: '16px',
+            right: '16px',
+            padding: '10px 16px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, rgba(20, 18, 14, 0.95), rgba(10, 10, 12, 0.95))',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: `1px solid rgba(201, 169, 110, 0.5)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            zIndex: 999,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            animation: 'fadeInDown 0.3s ease-out'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+              <span style={{ fontSize: '1.4rem' }}>🍿</span>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#C9A96E' }}>
+                  {watchPartyInvite.from_name || partner?.name || 'Partner'} started a Watch Party!
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#ccc', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  {watchPartyInvite.video_title || 'Watching YouTube Together'}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <button
+                onClick={() => {
+                  setIsWatchModalOpen(true);
+                  setWatchPartyInvite(null);
+                }}
+                style={{
+                  background: '#C9A96E',
+                  color: '#000',
+                  border: 'none',
+                  padding: '6px 14px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Join Now ✨
+              </button>
+              <button
+                onClick={() => setWatchPartyInvite(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#888',
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Pinned Message Banner */}
         {pinnedMsg && (
@@ -2929,7 +3022,8 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
                   }}
                   onAction={(action) => {
                     setShowAttachmentSheet(false);
-                    if (action === 'camera') setShowingStudio(true);
+                    if (action === 'watch_party') setIsWatchModalOpen(true);
+                    else if (action === 'camera') setShowingStudio(true);
                     else if (action === 'gallery' || action === 'document' || action === 'ai') {
                       window.triggerFilePick(fileRef);
                     }
@@ -3410,6 +3504,12 @@ gba(255,255,255,0.06), var(--theme-accent) 15%, transparent);
           }}
         />
       )}
+
+      {/* Watch Party (Couple Cinema) Modal */}
+      <WatchTogetherModal
+        isOpen={isWatchModalOpen}
+        onClose={() => setIsWatchModalOpen(false)}
+      />
       </div>
     </>
   );
