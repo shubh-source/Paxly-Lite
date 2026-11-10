@@ -34,7 +34,10 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -46,8 +49,23 @@ export default function Signup() {
   const passwordRef = useRef(null);
   const otpRef = useRef(null);
   const googleBtnRef = useRef(null);
+  const precomputedKeysRef = useRef(null);
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+  // Background E2EE key derivation helper (precomputed so verify step takes 0ms)
+  const triggerPrecomputingKeys = (pwd, mail) => {
+    if (!pwd || !mail) return;
+    precomputedKeysRef.current = (async () => {
+      try {
+        const derivedKey = await deriveKeyFromPassword(pwd, mail);
+        return generateKeyPair(derivedKey);
+      } catch (err) {
+        console.warn('Precomputing keypair failed:', err);
+        return null;
+      }
+    })();
+  };
 
   // Countdown timer for OTP resend
   useEffect(() => {
@@ -97,6 +115,7 @@ export default function Signup() {
   // ── Step 1: Send OTP to Gmail ─────────────────────────────────────
   const handleRequestOTP = async (e) => {
     if (e) e.preventDefault();
+    if (sendingOtp) return;
     setError('');
     setSuccessMsg('');
 
@@ -127,7 +146,10 @@ export default function Signup() {
       return;
     }
 
-    setLoading(true);
+    // Start background key derivation immediately while OTP is being sent & entered
+    triggerPrecomputingKeys(password, cleanEmail);
+
+    setSendingOtp(true);
     try {
       await sendSignupOTP(name.trim(), cleanEmail);
       setStep('otp');
@@ -136,29 +158,55 @@ export default function Signup() {
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to send verification code. Please try again.');
     } finally {
-      setLoading(false);
+      setSendingOtp(false);
     }
   };
 
-  // ── Step 2: Verify OTP & Create User ──────────────────────────────
-  const handleVerifyOTP = async (e) => {
+  // ── Step 1b: Resend OTP (Isolated loading state) ─────────────────
+  const handleResendOTP = async () => {
+    if (resendingOtp || countdown > 0) return;
+    setError('');
+    setSuccessMsg('');
+    setResendingOtp(true);
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      await sendSignupOTP(name.trim(), cleanEmail);
+      setCountdown(45);
+      setSuccessMsg(`A fresh 6-digit verification code has been sent to ${cleanEmail}.`);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to resend verification code. Please try again.');
+    } finally {
+      setResendingOtp(false);
+    }
+  };
+
+  // ── Step 2: Verify OTP & Create User (Ultra-fast with precomputed keys) ──
+  const handleVerifyOTP = async (e, customOtp = null) => {
     if (e) e.preventDefault();
+    if (verifying) return;
     setError('');
 
-    const cleanOtp = otp.trim();
+    const cleanOtp = (customOtp || otp).trim();
     if (cleanOtp.length !== 6) {
       setError('Please enter the 6-digit verification code.');
       otpRef.current?.focus();
       return;
     }
 
-    setLoading(true);
+    setVerifying(true);
     try {
       const cleanEmail = email.trim().toLowerCase();
 
-      // 1. E2EE Key Generation
-      const derivedKey = await deriveKeyFromPassword(password, cleanEmail);
-      const { publicKey, secretKey } = generateKeyPair(derivedKey);
+      // 1. Instant E2EE Key Retrieval (already precomputed in background)
+      let keyPair = null;
+      if (precomputedKeysRef.current) {
+        keyPair = await precomputedKeysRef.current;
+      }
+      if (!keyPair) {
+        const derivedKey = await deriveKeyFromPassword(password, cleanEmail);
+        keyPair = generateKeyPair(derivedKey);
+      }
+      const { publicKey, secretKey } = keyPair;
 
       // 2. Register user with OTP
       const data = await register(name.trim(), cleanEmail, password, publicKey, cleanOtp);
@@ -171,7 +219,7 @@ export default function Signup() {
     } catch (err) {
       setError(err.response?.data?.detail || 'Verification failed. Please check the code.');
     } finally {
-      setLoading(false);
+      setVerifying(false);
     }
   };
 
@@ -179,7 +227,7 @@ export default function Signup() {
   const handleGoogleCredentialResponse = async (response) => {
     if (!response || !response.credential) return;
 
-    setLoading(true);
+    setGoogleLoading(true);
     setError('');
 
     try {
@@ -190,7 +238,7 @@ export default function Signup() {
 
       if (!googleEmail.endsWith('@gmail.com')) {
         setError('Invalid email: Only @gmail.com Google accounts are allowed.');
-        setLoading(false);
+        setGoogleLoading(false);
         return;
       }
 
@@ -207,7 +255,7 @@ export default function Signup() {
     } catch (err) {
       setError(err.response?.data?.detail || 'Google sign-in failed. Please try again.');
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -348,7 +396,7 @@ export default function Signup() {
                   <button
                     type="button"
                     onClick={handleCustomGoogleClick}
-                    disabled={loading}
+                    disabled={googleLoading || sendingOtp || verifying}
                     style={{
                       width: '100%',
                       padding: '14px 20px',
@@ -358,7 +406,7 @@ export default function Signup() {
                       color: '#fff',
                       fontSize: '0.92rem',
                       fontWeight: 500,
-                      cursor: loading ? 'not-allowed' : 'pointer',
+                      cursor: (googleLoading || sendingOtp || verifying) ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -498,21 +546,21 @@ export default function Signup() {
                 <motion.button
                   variants={itemVariants}
                   type="submit"
-                  disabled={loading}
-                  whileHover={!loading ? { scale: 1.01, filter: 'brightness(1.1)', boxShadow: '0 0 25px rgba(201,169,110,0.25)' } : {}}
-                  whileTap={!loading ? { scale: 0.99 } : {}}
+                  disabled={sendingOtp}
+                  whileHover={!sendingOtp ? { scale: 1.01, filter: 'brightness(1.1)', boxShadow: '0 0 25px rgba(201,169,110,0.25)' } : {}}
+                  whileTap={!sendingOtp ? { scale: 0.99 } : {}}
                   style={{ 
                     marginTop: '8px', width: '100%', padding: '16px', borderRadius: '14px', 
-                    backgroundColor: loading ? '#555' : 'var(--accent, #b3945a)', 
+                    backgroundColor: sendingOtp ? '#555' : 'var(--accent, #b3945a)', 
                     color: '#1a1610', 
                     border: 'none', 
-                    fontWeight: 700, fontSize: '0.92rem', cursor: loading ? 'not-allowed' : 'pointer', 
+                    fontWeight: 700, fontSize: '0.92rem', cursor: sendingOtp ? 'not-allowed' : 'pointer', 
                     textTransform: 'uppercase', letterSpacing: '2px',
                     boxShadow: '0 8px 25px rgba(0,0,0,0.4)',
                     transition: 'all 0.3s ease'
                   }}
                 >
-                  {loading ? 'Sending Code...' : 'Get Verification Code'}
+                  {sendingOtp ? 'Sending Code...' : 'Get Verification Code'}
                 </motion.button>
               </form>
             </motion.div>
@@ -550,10 +598,11 @@ export default function Signup() {
                     placeholder="••••••"
                     value={otp}
                     onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
                       setOtp(val);
                       if (val.length === 6) {
                         setError('');
+                        handleVerifyOTP(null, val);
                       }
                     }}
                     style={{ 
@@ -577,18 +626,26 @@ export default function Signup() {
 
                 {/* Resend Link & Timer */}
                 <div style={{ textAlign: 'center', fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)' }}>
-                  {countdown > 0 ? (
+                  {resendingOtp ? (
+                    <span style={{ color: 'var(--accent, #c9a96e)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <svg style={{ animation: 'spin 1s linear infinite' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" strokeOpacity="0.25"></circle>
+                        <path d="M12 2a10 10 0 0 1 10 10"></path>
+                      </svg>
+                      Sending new code...
+                    </span>
+                  ) : countdown > 0 ? (
                     <span>Resend code in <strong style={{ color: 'var(--accent, #c9a96e)' }}>{countdown}s</strong></span>
                   ) : (
                     <button
                       type="button"
-                      onClick={handleRequestOTP}
-                      disabled={loading}
+                      onClick={handleResendOTP}
+                      disabled={verifying || resendingOtp}
                       style={{
                         background: 'none',
                         border: 'none',
                         color: 'var(--accent, #c9a96e)',
-                        cursor: 'pointer',
+                        cursor: (verifying || resendingOtp) ? 'not-allowed' : 'pointer',
                         fontSize: '0.82rem',
                         textDecoration: 'underline',
                         fontWeight: 600
@@ -601,22 +658,22 @@ export default function Signup() {
 
                 <motion.button
                   type="submit"
-                  disabled={loading || otp.length !== 6}
-                  whileHover={!loading && otp.length === 6 ? { scale: 1.01, filter: 'brightness(1.1)', boxShadow: '0 0 25px rgba(201,169,110,0.25)' } : {}}
-                  whileTap={!loading && otp.length === 6 ? { scale: 0.99 } : {}}
+                  disabled={verifying || otp.length !== 6}
+                  whileHover={!verifying && otp.length === 6 ? { scale: 1.01, filter: 'brightness(1.1)', boxShadow: '0 0 25px rgba(201,169,110,0.25)' } : {}}
+                  whileTap={!verifying && otp.length === 6 ? { scale: 0.99 } : {}}
                   style={{ 
                     marginTop: '8px', width: '100%', padding: '16px', borderRadius: '14px', 
-                    backgroundColor: (loading || otp.length !== 6) ? '#444' : 'var(--accent, #b3945a)', 
-                    color: (loading || otp.length !== 6) ? '#888' : '#1a1610', 
+                    backgroundColor: (verifying || otp.length !== 6) ? '#444' : 'var(--accent, #b3945a)', 
+                    color: (verifying || otp.length !== 6) ? '#888' : '#1a1610', 
                     border: 'none', 
                     fontWeight: 700, fontSize: '0.92rem', 
-                    cursor: (loading || otp.length !== 6) ? 'not-allowed' : 'pointer', 
+                    cursor: (verifying || otp.length !== 6) ? 'not-allowed' : 'pointer', 
                     textTransform: 'uppercase', letterSpacing: '2px',
                     boxShadow: '0 8px 25px rgba(0,0,0,0.4)',
                     transition: 'all 0.3s ease'
                   }}
                 >
-                  {loading ? 'Verifying...' : 'Verify & Create Sanctuary'}
+                  {verifying ? 'Verifying...' : 'Verify & Create Sanctuary'}
                 </motion.button>
               </form>
             </motion.div>

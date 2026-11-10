@@ -10,7 +10,7 @@ from app.models.orm import User
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=10)
 bearer_scheme = HTTPBearer()
 
 def hash_password(password: str) -> str:

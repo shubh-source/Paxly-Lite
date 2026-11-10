@@ -1,6 +1,7 @@
 import secrets
 import httpx
-from fastapi import APIRouter, HTTPException, status, Depends, Request, File, UploadFile
+import asyncio
+from fastapi import APIRouter, HTTPException, status, Depends, Request, File, UploadFile, BackgroundTasks
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -59,7 +60,11 @@ def validate_gmail_address(email: str) -> str:
     return clean
 
 @router.post("/send-signup-otp")
-async def send_signup_otp(data: SendSignupOTPRequest, db: AsyncSession = Depends(get_db)):
+async def send_signup_otp(
+    data: SendSignupOTPRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     email = validate_gmail_address(data.email)
     
     # Check if already registered
@@ -95,7 +100,8 @@ async def send_signup_otp(data: SendSignupOTPRequest, db: AsyncSession = Depends
     db.add(record)
     await db.commit()
     
-    await email_service.send_signup_otp(email, data.name, otp)
+    # Dispatch email in background so the endpoint responds instantly (< 150ms)
+    background_tasks.add_task(email_service.send_signup_otp, email, data.name, otp)
     return {"message": "Verification code sent to your Gmail."}
 
 @router.post("/register", response_model=Token, status_code=201)
@@ -120,10 +126,12 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Email already registered.")
 
+    hashed_pw = await asyncio.to_thread(hash_password, data.password)
+
     new_user = User(
         name=data.name.strip(),
         email=email,
-        password=hash_password(data.password),
+        password=hashed_pw,
         public_key=data.public_key,
         role=data.role if data.role in ["user", "partner"] else "user",
         business_category=data.business_category
@@ -131,7 +139,6 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(new_user)
     await db.execute(delete(EmailVerificationOTP).where(EmailVerificationOTP.email == email))
     await db.commit()
-    await db.refresh(new_user)
 
     token = create_access_token({"sub": str(new_user.id)})
     return Token(access_token=token, user=user_to_out(new_user))
@@ -168,10 +175,12 @@ async def google_auth(data: GoogleAuthRequest, db: AsyncSession = Depends(get_db
     user = user_res.scalars().first()
 
     if not user:
+        random_secret = secrets.token_urlsafe(32)
+        hashed_secret = await asyncio.to_thread(hash_password, random_secret)
         user = User(
             name=google_name,
             email=email,
-            password=hash_password(secrets.token_urlsafe(32)),
+            password=hashed_secret,
             avatar_url=google_picture,
             public_key=data.public_key,
             role=data.role if data.role in ["user", "partner"] else "user"
