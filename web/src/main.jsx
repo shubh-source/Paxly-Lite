@@ -21,6 +21,32 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   });
 }
 
+// PWA Install prompt listener
+if (typeof window !== 'undefined') {
+  window.pwaDeferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.pwaDeferredPrompt = e;
+  });
+
+  window.installPaxlyPWA = async () => {
+    if (window.pwaDeferredPrompt) {
+      window.pwaDeferredPrompt.prompt();
+      const choice = await window.pwaDeferredPrompt.userChoice;
+      window.pwaDeferredPrompt = null;
+      return choice.outcome === 'accepted';
+    } else {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        alert("To install Paxly on iPhone/iPad: Tap the Share icon (square with arrow) at the bottom of Safari, then choose 'Add to Home Screen' (+).");
+      } else {
+        alert("Paxly is already installed, or tap your browser's menu (⋮) and select 'Install app' / 'Add to Home Screen'.");
+      }
+      return false;
+    }
+  };
+}
+
 // Wake up Render free tier backend immediately
 const backendBase = import.meta.env.VITE_API_URL || 'https://paxly-lite.onrender.com';
 const pingBackend = () => fetch(`${backendBase}/api/health/ping`).catch(() => {});

@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.orm import User, Message, CallLog, Note
 from app.websocket.manager import manager
+from app.services.push_service import push_service
 from app.core.encryption import encrypt_data, decrypt_data
 import json, uuid, logging
 
@@ -164,6 +165,22 @@ async def websocket_endpoint(websocket: WebSocket):
                             await manager.send_to_user(partner_id, broadcast_data, exclude_socket=websocket)
                     except Exception as bcast_err:
                         logger.warning(f"Failed to broadcast to partner: {bcast_err}")
+
+                    # 2b. Native Web Push to wake up partner's device if locked/offline
+                    if partner_id:
+                        async def _send_chat_push():
+                            try:
+                                await push_service.send_push_to_user(
+                                    user_id=partner_id,
+                                    title=f"{user_name or 'Partner'} ❤️",
+                                    body="Sent you an encrypted message",
+                                    url="/chat"
+                                )
+                            except Exception:
+                                pass
+                        t_push = asyncio.create_task(_send_chat_push())
+                        _background_tasks.add(t_push)
+                        t_push.add_done_callback(_background_tasks.discard)
 
                     # 3. CONCURRENT NON-BLOCKING PERSISTENCE (Runs in parallel without blocking WebSocket loop)
                     async def _persist_message():
@@ -611,6 +628,23 @@ async def websocket_endpoint(websocket: WebSocket):
                     payload["from_id"] = user_id
                     payload["from_name"] = user_name
                     await manager.send_to_user(partner_id, payload)
+
+                    # Trigger instant wake-up call push if incoming offer
+                    if p_type == "webrtc_offer" and partner_id:
+                        call_type = payload.get("call_type", "video")
+                        async def _send_call_push():
+                            try:
+                                await push_service.send_push_to_user(
+                                    user_id=partner_id,
+                                    title=f"Incoming {call_type.title()} Call 📞",
+                                    body=f"{user_name} is calling you...",
+                                    url="/calls"
+                                )
+                            except Exception:
+                                pass
+                        t_call_push = asyncio.create_task(_send_call_push())
+                        _background_tasks.add(t_call_push)
+                        t_call_push.add_done_callback(_background_tasks.discard)
 
                 elif p_type == "webrtc_log":
                     # Save call history

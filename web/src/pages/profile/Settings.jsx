@@ -369,6 +369,30 @@ export default function Settings() {
               </span>
             }
           />
+          <Divider />
+          <SettingRow 
+            icon={<Icons.Download size={20} color="var(--accent)" />} 
+            title="Install Paxly App" 
+            desc="Add Paxly to home screen for full-screen immersive sanctuary with no browser bar" 
+            onClick={() => window.installPaxlyPWA && window.installPaxlyPWA()}
+            right={
+              <button 
+                onClick={(e) => { e.stopPropagation(); window.installPaxlyPWA && window.installPaxlyPWA(); }}
+                style={{
+                  background: 'var(--accent, #c9a96e)',
+                  color: '#1a1610',
+                  border: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  padding: '6px 12px',
+                  borderRadius: 12,
+                  cursor: 'pointer'
+                }}
+              >
+                Install App
+              </button>
+            }
+          />
         </Category>
 
         {/* Category 3: Relationship & Couple Sanctuary */}

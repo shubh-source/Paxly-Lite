@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, delete
 from app.models.orm import User, Notification, PushSubscription as PushSubscriptionModel
+from app.services.push_service import push_service
 from app.core.security import get_current_user
 from app.core.database import get_db
 from pydantic import BaseModel
@@ -10,6 +11,10 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+@router.get("/vapid-public-key")
+async def get_vapid_public_key():
+    return {"public_key": push_service.vapid_public_key}
 
 class PushSubscription(BaseModel):
     endpoint: str

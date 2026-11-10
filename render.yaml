@@ -34,7 +34,7 @@ services:
       - key: SUPABASE_KEY
         sync: false
       - key: SUPABASE_BUCKET
-        value: vlynxly-media
+        value: paxly-media
       - key: BACKEND_URL
         value: https://paxly-lite.onrender.com
       - key: FRONTEND_URL

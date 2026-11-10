@@ -1,0 +1,40 @@
+{
+  "name": "Paxly — Private Sanctuary for Two",
+  "short_name": "Paxly",
+  "description": "Private, end-to-end encrypted sanctuary for couples. Secret messaging, memories vault, and real-time connection.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "orientation": "portrait-primary",
+  "categories": ["lifestyle", "social"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Encrypted Chat",
+      "short_name": "Chat",
+      "url": "/chat",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Call Partner",
+      "short_name": "Call",
+      "url": "/calls",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ]
+}

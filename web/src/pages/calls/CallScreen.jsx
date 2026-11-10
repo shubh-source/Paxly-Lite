@@ -31,7 +31,19 @@ const ICE_SERVERS = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-  ]
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    // High-reliability TURN relay for mobile 4G/5G carriers (Jio, Airtel, Vi Symmetric CGNAT)
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelay',
+      credential: 'openrelay',
+    },
+  ],
+  iceCandidatePoolSize: 10,
 };
 
 export default function CallScreen() {
@@ -64,7 +76,7 @@ export default function CallScreen() {
         if (cachedSpace?.partner) return cachedSpace.partner;
       }
     } catch {}
-    return { name: 'Sneha' };
+    return { name: 'Partner' };
   };
 
   const [space, setSpace] = useState(getInitialSpace);

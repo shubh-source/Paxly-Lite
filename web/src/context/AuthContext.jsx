@@ -4,6 +4,7 @@ import { wsService } from '../services/websocket';
 import { clearUserBrowserStorage } from '../services/auraStorage';
 import { showInstantPresenceNotification } from '../services/systemNotification';
 import { setScopedCachedSpace, setScopedCachedPartner, getScopedCachedPartner, cleanupLegacyGlobalChatKeys } from '../services/chatCache';
+import { setupWebPushSubscription } from '../services/pushSubscription';
 
 const AuthContext = createContext(null);
 
@@ -84,6 +85,8 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('cached_voicenotes', JSON.stringify(voiceRes.data));
             localStorage.setItem('cached_dates', JSON.stringify(datesRes.data));
           }).catch(()=>{});
+          // Register background Web Push notifications
+          setupWebPushSubscription().catch(()=>{});
         }, 2500);
 
       })
