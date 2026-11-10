@@ -51,7 +51,7 @@ export default function Signup() {
   const googleBtnRef = useRef(null);
   const precomputedKeysRef = useRef(null);
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '431466586327-nf32nol2vmsahsap597ovh05blae8hdd.apps.googleusercontent.com';
 
   // Background E2EE key derivation helper (precomputed so verify step takes 0ms)
   const triggerPrecomputingKeys = (pwd, mail) => {

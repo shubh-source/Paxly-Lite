@@ -35,7 +35,7 @@ export default function Login() {
   const passwordRef = useRef(null);
   const googleBtnRef = useRef(null);
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '431466586327-nf32nol2vmsahsap597ovh05blae8hdd.apps.googleusercontent.com';
 
   // Initialize Google Sign-In button if available
   useEffect(() => {
